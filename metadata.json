@@ -1,0 +1,7 @@
+{
+  "name": "Finanças Pessoais DJ",
+  "description": "Um gerenciador de finanças pessoais completo com dashboards, gráficos e insights inteligentes powered by Gemini.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
