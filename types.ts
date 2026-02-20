@@ -47,3 +47,14 @@ export interface ReceiptData {
   date: string;
   observation: string;
 }
+
+// Auth Types
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password?: string; // Em um app real, nunca armazene senhas em texto puro!
+  parentId?: string; // Se pertencer a uma conta principal
+  dataContextId: string; // ID usado para buscar os dados (pode ser o próprio ID ou do pai)
+  members?: User[]; // Membros adicionados por este usuário
+}
