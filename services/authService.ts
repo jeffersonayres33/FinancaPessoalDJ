@@ -84,7 +84,8 @@ export const authService = {
       email,
       password: pass,
       options: {
-        data: { name } // Salva nome nos metadados também
+        data: { name }, // Salva nome nos metadados também
+        emailRedirectTo: window.location.origin
       }
     });
 
