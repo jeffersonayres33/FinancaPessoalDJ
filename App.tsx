@@ -17,6 +17,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { MemberManager } from './components/MemberManager';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
+import { validateConfig } from './services/supabaseClient';
 import { Despesa, TransactionType, TransactionStatus, Category, User } from './types';
 import { formatCurrency, getCurrentLocalDateString } from './utils';
 import { 
@@ -63,6 +64,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [loadingData, setLoadingData] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
+  const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
   
   // Dashboard Filters
   const [filterMonth, setFilterMonth] = useState(currentDate.getMonth());
@@ -119,6 +121,16 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const loadData = useCallback(async () => {
     setLoadingData(true);
     setConnectionError(false);
+    setConnectionErrorMessage('');
+    
+    const configCheck = validateConfig();
+    if (!configCheck.valid) {
+        setLoadingData(false);
+        setConnectionError(true);
+        setConnectionErrorMessage(configCheck.message || 'Erro de configuração do Supabase.');
+        return;
+    }
+
     try {
         // 1. Busca Categorias e Transações em paralelo
         let [cats, trans] = await Promise.all([
@@ -139,7 +151,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     } catch (e: any) {
         console.error("Erro fatal ao carregar dados:", e);
         setConnectionError(true);
-        showToast('Erro de conexão com o Supabase. Verifique suas chaves de API.', 'error');
+        setConnectionErrorMessage(e.message || 'Erro desconhecido ao conectar ao Supabase.');
     } finally {
         setLoadingData(false);
     }
@@ -548,7 +560,10 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           <div className="min-h-screen flex flex-col items-center justify-center bg-red-50 text-red-600 p-4 text-center">
               <WifiOff size={64} className="mb-4" />
               <h2 className="text-2xl font-bold mb-2">Erro de Conexão</h2>
-              <p className="mb-6 max-w-md">Não foi possível conectar ao banco de dados Supabase. Verifique se as chaves de API em <code>services/supabaseClient.ts</code> estão corretas.</p>
+              <p className="mb-6 max-w-md">
+                Não foi possível conectar ao banco de dados Supabase.<br/>
+                <span className="text-sm font-mono bg-red-100 p-1 rounded mt-2 block">{connectionErrorMessage}</span>
+              </p>
               <button onClick={() => window.location.reload()} className="bg-red-600 text-white px-6 py-2 rounded-md hover:bg-red-700 transition-colors">
                   Tentar Novamente
               </button>

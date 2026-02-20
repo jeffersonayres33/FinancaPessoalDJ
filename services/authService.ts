@@ -220,8 +220,14 @@ export const authService = {
   },
 
   getCurrentUser: (): User | null => {
-    const stored = localStorage.getItem(CURRENT_USER_KEY);
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem(CURRENT_USER_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.error("Erro ao recuperar usuário do localStorage:", e);
+      localStorage.removeItem(CURRENT_USER_KEY);
+      return null;
+    }
   },
   
   // Função para verificar sessão ativa no startup

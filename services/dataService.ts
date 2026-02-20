@@ -6,6 +6,10 @@ import { INITIAL_CATEGORIES } from '../constants';
 export const dataService = {
   // --- CATEGORIAS ---
   fetchCategories: async (dataContextId: string): Promise<Category[]> => {
+    if (!dataContextId) {
+        console.warn("fetchCategories chamado sem dataContextId");
+        return [];
+    }
     const { data, error } = await supabase
       .from('categories')
       .select('*')
@@ -20,6 +24,8 @@ export const dataService = {
 
   // Função para popular categorias iniciais se a conta for nova
   seedCategories: async (dataContextId: string): Promise<Category[]> => {
+    if (!dataContextId) return [];
+
     const categoriesToInsert = INITIAL_CATEGORIES.map(cat => ({
         name: cat.name,
         type: cat.type,
