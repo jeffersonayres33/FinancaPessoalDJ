@@ -2,7 +2,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Despesa, AIAnalysisResult, ReceiptData } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = (): GoogleGenAI => {
+  if (!aiInstance) {
+    const key = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error("API key must be set when using the Gemini API.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey: key });
+  }
+  return aiInstance;
+};
 
 export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisResult> => {
   if (despesas.length === 0) {
@@ -30,6 +41,7 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -72,6 +84,7 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
 
 export const extractReceiptData = async (base64Image: string): Promise<ReceiptData | null> => {
   try {
+    const ai = getAI();
     // Remove header if present (e.g., "data:image/jpeg;base64,")
     const base64Data = base64Image.split(',')[1] || base64Image;
 
