@@ -179,7 +179,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <input 
                 type="file" 
                 accept="image/*" 
-                capture="environment"
                 ref={fileInputRef}
                 className="hidden"
                 onChange={handleFileChange}
