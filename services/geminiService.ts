@@ -15,21 +15,6 @@ const getAI = (): GoogleGenAI => {
   return aiInstance;
 };
 
-// O Vite usa import.meta.env para ler as variáveis que começam com VITE_
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-let aiInstance: GoogleGenAI | null = null;
-
-const getAI = (): GoogleGenAI => {
-  if (!aiInstance) {
-    if (!apiKey) {
-      throw new Error("API key must be set when using the Gemini API.");
-    }
-    aiInstance = new GoogleGenAI({ apiKey: apiKey });
-  }
-  return aiInstance;
-};
-
 export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisResult> => {
   if (despesas.length === 0) {
     return {
@@ -100,16 +85,27 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
 export const extractReceiptData = async (base64Image: string): Promise<ReceiptData | null> => {
   try {
     const ai = getAI();
-    // Remove header if present (e.g., "data:image/jpeg;base64,")
-    const base64Data = base64Image.split(',')[1] || base64Image;
+    
+    let mimeType = 'image/jpeg';
+    let base64Data = base64Image;
+
+    if (base64Image.startsWith('data:')) {
+      const matches = base64Image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        mimeType = matches[1];
+        base64Data = matches[2];
+      } else {
+        base64Data = base64Image.split(',')[1] || base64Image;
+      }
+    }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           {
             inlineData: {
-              mimeType: 'image/jpeg', // Assuming jpeg/png, Gemini handles standard image types
+              mimeType: mimeType,
               data: base64Data
             }
           },
@@ -122,11 +118,22 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
               "amount": number (Valor total numérico),
               "date": "string (YYYY-MM-DD, se não encontrar use ${new Date().toISOString().split('T')[0]})",
               "observation": "string (Resumo dos itens)"
-            }
-            
-            Não inclua markdown (como \`\`\`json). Retorne apenas o texto do JSON cru.`
+            }`
           }
         ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "Nome do estabelecimento" },
+            amount: { type: Type.NUMBER, description: "Valor total numérico" },
+            date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
+            observation: { type: Type.STRING, description: "Resumo dos itens" }
+          },
+          required: ["title", "amount"]
+        }
       }
     });
 
