@@ -15,6 +15,21 @@ const getAI = (): GoogleGenAI => {
   return aiInstance;
 };
 
+// O Vite usa import.meta.env para ler as variáveis que começam com VITE_
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = (): GoogleGenAI => {
+  if (!aiInstance) {
+    if (!apiKey) {
+      throw new Error("API key must be set when using the Gemini API.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey: apiKey });
+  }
+  return aiInstance;
+};
+
 export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisResult> => {
   if (despesas.length === 0) {
     return {
