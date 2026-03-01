@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText } from 'lucide-react';
 import { TransactionType, TransactionStatus, Category, Transaction } from '../types';
 import { extractReceiptData } from '../services/geminiService';
+import { getCurrentLocalDateString } from '../utils';
 
 interface TransactionFormProps {
   onAddTransaction: (title: string, amount: number, type: TransactionType, category: string, status: TransactionStatus, date: string, paymentDate?: string, installments?: number, observation?: string) => void;
@@ -27,8 +28,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [category, setCategory] = useState('');
   const [type, setType] = useState<TransactionType>('expense');
   const [status, setStatus] = useState<TransactionStatus>('pending');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getCurrentLocalDateString());
+  const [paymentDate, setPaymentDate] = useState(getCurrentLocalDateString());
   const [installments, setInstallments] = useState(1);
   const [observation, setObservation] = useState('');
   
@@ -48,7 +49,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (initialData.paymentDate) {
         setPaymentDate(initialData.paymentDate.split('T')[0]);
       } else {
-        setPaymentDate(new Date().toISOString().split('T')[0]);
+        setPaymentDate(getCurrentLocalDateString());
       }
       setInstallments(1);
       setObservation(initialData.observation || '');
@@ -59,8 +60,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       // Se forceType existir, usa ele, senão padrão 'expense'
       setType(forceType || 'expense');
       setStatus('pending');
-      setDate(new Date().toISOString().split('T')[0]);
-      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setDate(getCurrentLocalDateString());
+      setPaymentDate(getCurrentLocalDateString());
       setInstallments(1);
       setObservation('');
     }
@@ -149,8 +150,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     setAmount('');
     setType(forceType || 'expense');
     setStatus('pending');
-    setDate(new Date().toISOString().split('T')[0]);
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setDate(getCurrentLocalDateString());
+    setPaymentDate(getCurrentLocalDateString());
     setInstallments(1);
     setObservation('');
     setIsAnalyzing(false);

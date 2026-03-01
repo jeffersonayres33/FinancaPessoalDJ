@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { Despesa, AIAnalysisResult, ReceiptData } from '../types';
+import { getCurrentLocalDateString } from '../utils';
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -116,7 +117,7 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
             {
               "title": "string (Nome do estabelecimento)",
               "amount": number (Valor total numérico),
-              "date": "string (YYYY-MM-DD, se não encontrar use ${new Date().toISOString().split('T')[0]})",
+              "date": "string (YYYY-MM-DD, se não encontrar use ${getCurrentLocalDateString()})",
               "observation": "string (Resumo dos itens)"
             }`
           }

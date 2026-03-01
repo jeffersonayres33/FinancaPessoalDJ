@@ -1,5 +1,6 @@
 
 import { Category, Despesa } from './types';
+import { getCurrentLocalDateString } from './utils';
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Alimentação', type: 'expense' },
@@ -19,7 +20,7 @@ export const INITIAL_DESPESAS: Despesa[] = [
     amount: 5000,
     type: 'income',
     category: 'Trabalho',
-    date: new Date().toISOString(),
+    date: getCurrentLocalDateString(),
     status: 'paid'
   },
   {
@@ -28,7 +29,7 @@ export const INITIAL_DESPESAS: Despesa[] = [
     amount: 450,
     type: 'expense',
     category: 'Alimentação',
-    date: new Date().toISOString(),
+    date: getCurrentLocalDateString(),
     status: 'paid'
   },
   {
@@ -37,7 +38,7 @@ export const INITIAL_DESPESAS: Despesa[] = [
     amount: 1200,
     type: 'expense',
     category: 'Casa',
-    date: new Date().toISOString(),
+    date: getCurrentLocalDateString(),
     status: 'pending'
   }
 ];

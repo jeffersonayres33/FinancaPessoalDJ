@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown } from 'lucide-react';
 import { Despesa, Category } from '../types';
-import { formatCurrency, formatDate, printData } from '../utils';
+import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -60,16 +60,15 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
     return despesas
       .filter(t => t.type === 'expense') // Only expenses
       .filter(t => {
-        const tDate = new Date(t.date);
-        
         // Date Logic
         let dateMatch = true;
         if (startDate || endDate) {
           if (startDate && t.date < startDate) dateMatch = false;
           if (endDate && t.date > endDate) dateMatch = false;
         } else {
-          const tMonth = tDate.getMonth();
-          const tYear = tDate.getFullYear();
+          const [y, m] = t.date.split('-').map(Number);
+          const tYear = y;
+          const tMonth = m - 1;
           if (year !== -1 && tYear !== year) dateMatch = false;
           if (month !== -1 && tMonth !== month) dateMatch = false;
         }
@@ -99,9 +98,9 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
       .sort((a, b) => {
         switch (sortBy) {
           case 'date-asc':
-            return new Date(a.date).getTime() - new Date(b.date).getTime();
+            return a.date.localeCompare(b.date);
           case 'date-desc':
-            return new Date(b.date).getTime() - new Date(a.date).getTime();
+            return b.date.localeCompare(a.date);
           case 'alpha-asc':
             return a.title.localeCompare(b.title);
           case 'alpha-desc':
@@ -149,7 +148,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   const handleExportCSV = () => {
     const headers = ['Data', 'Título', 'Categoria', 'Valor', 'Status', 'Parcela', 'Observação'];
     const rows = filteredExpenses.map(t => {
-      const date = new Date(t.date).toLocaleDateString('pt-BR');
+      const date = formatDate(t.date);
       const amount = t.amount.toFixed(2).replace('.', ',');
       const status = t.status === 'paid' ? 'Pago' : 'Não Pago'; // Garantido "Não Pago" aqui
       const installment = t.installments ? `${t.installments.current}/${t.installments.total}` : '-';
@@ -163,7 +162,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `relatorio_despesas_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `relatorio_despesas_${getCurrentLocalDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -201,7 +200,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
       headStyles: { fillColor: [128, 0, 128] }, // Purple header
     });
 
-    doc.save(`relatorio_despesas_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`relatorio_despesas_${getCurrentLocalDateString()}.pdf`);
     setShowExportMenu(false);
   };
 

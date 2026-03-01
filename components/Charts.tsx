@@ -87,9 +87,9 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year }
     const monthlyTotals = new Array(12).fill(0);
 
     despesas.forEach(t => {
-      const date = new Date(t.date);
-      if (t.type === 'expense' && date.getFullYear() === year) {
-        monthlyTotals[date.getMonth()] += t.amount;
+      const [y, m] = t.date.split('-').map(Number);
+      if (t.type === 'expense' && y === year) {
+        monthlyTotals[m - 1] += t.amount;
       }
     });
 
@@ -159,9 +159,9 @@ export const CategoryEvolutionChart: React.FC<EvolutionChartProps> = ({ despesas
     const monthData = months.map(m => ({ name: m } as any));
 
     despesas.forEach(t => {
-      const date = new Date(t.date);
-      if (t.type === 'expense' && date.getFullYear() === year) {
-        const monthIndex = date.getMonth();
+      const [y, m] = t.date.split('-').map(Number);
+      if (t.type === 'expense' && y === year) {
+        const monthIndex = m - 1;
         const cat = t.category;
         uniqueCategories.add(cat);
         

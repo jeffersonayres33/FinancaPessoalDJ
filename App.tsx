@@ -174,6 +174,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const dashboardData = useMemo(() => {
     const filtered = despesas.filter(t => {
       const [y, m] = t.date.split('-').map(Number);
+      // t.date is YYYY-MM-DD. m is 1-12. filterMonth is 0-11.
+      // So m - 1 === filterMonth is correct.
       return (m - 1) === filterMonth && y === filterYear;
     });
 

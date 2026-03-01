@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, CheckSquare, Square, Check, CheckCircle2, Calendar, X, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Filter, ArrowDownUp, Layers, CalendarCheck } from 'lucide-react';
 import { Despesa, Category } from '../types';
-import { formatCurrency, formatDate, printData } from '../utils';
+import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -37,7 +37,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
   // Modal State for Date Confirmation
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingPaymentIds, setPendingPaymentIds] = useState<string[]>([]);
-  const [paymentDateInput, setPaymentDateInput] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDateInput, setPaymentDateInput] = useState(getCurrentLocalDateString());
 
   // Export Menu State
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -59,16 +59,15 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
     return despesas
       .filter(t => t.type === 'expense' && t.status === 'pending') // Force pending expenses
       .filter(t => {
-        const tDate = new Date(t.date);
-        
         // Date Logic (Custom Range OR Month/Year)
         let dateMatch = true;
         if (startDate || endDate) {
           if (startDate && t.date < startDate) dateMatch = false;
           if (endDate && t.date > endDate) dateMatch = false;
         } else {
-          const tMonth = tDate.getMonth();
-          const tYear = tDate.getFullYear();
+          const [y, m] = t.date.split('-').map(Number);
+          const tYear = y;
+          const tMonth = m - 1;
           if (year !== -1 && tYear !== year) dateMatch = false;
           if (month !== -1 && tMonth !== month) dateMatch = false;
         }
@@ -95,9 +94,9 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
       .sort((a, b) => {
         switch (sortBy) {
           case 'date-asc':
-            return new Date(a.date).getTime() - new Date(b.date).getTime();
+            return a.date.localeCompare(b.date);
           case 'date-desc':
-            return new Date(b.date).getTime() - new Date(a.date).getTime();
+            return b.date.localeCompare(a.date);
           case 'alpha-asc':
             return a.title.localeCompare(b.title);
           case 'alpha-desc':
@@ -154,14 +153,14 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
     e.preventDefault();
     if (selectedIds.size === 0) return;
     setPendingPaymentIds(Array.from(selectedIds));
-    setPaymentDateInput(new Date().toISOString().split('T')[0]); // Default to today
+    setPaymentDateInput(getCurrentLocalDateString()); // Default to today
     setIsPaymentModalOpen(true);
   };
 
   const initiateSinglePayment = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setPendingPaymentIds([id]);
-    setPaymentDateInput(new Date().toISOString().split('T')[0]); // Default to today
+    setPaymentDateInput(getCurrentLocalDateString()); // Default to today
     setIsPaymentModalOpen(true);
   };
 
@@ -191,7 +190,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
   const handleExportCSV = () => {
     const headers = ['Título', 'Vencimento', 'Categoria', 'Valor', 'Status', 'Parcela'];
     const rows = payableDespesas.map(t => {
-      const date = new Date(t.date).toLocaleDateString('pt-BR');
+      const date = formatDate(t.date);
       const amount = t.amount.toFixed(2).replace('.', ',');
       const safeTitle = `"${t.title.replace(/"/g, '""')}"`;
       const safeCategory = `"${t.category.replace(/"/g, '""')}"`;
@@ -204,7 +203,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `contas_a_pagar_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `contas_a_pagar_${getCurrentLocalDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -238,7 +237,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
       headStyles: { fillColor: [202, 138, 4] }, // Yellow-ish header for Warning/Pending
     });
 
-    doc.save(`contas_a_pagar_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`contas_a_pagar_${getCurrentLocalDateString()}.pdf`);
     setShowExportMenu(false);
   };
 

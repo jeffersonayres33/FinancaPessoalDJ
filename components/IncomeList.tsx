@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CalendarCheck, CheckCircle, Clock } from 'lucide-react';
 import { Despesa, Category } from '../types';
-import { formatCurrency, formatDate, printData } from '../utils';
+import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -61,16 +61,15 @@ export const IncomeList: React.FC<IncomeListProps> = ({
     return receitas
       .filter(t => t.type === 'income') // Only income
       .filter(t => {
-        const tDate = new Date(t.date);
-        
         // Date Logic
         let dateMatch = true;
         if (startDate || endDate) {
           if (startDate && t.date < startDate) dateMatch = false;
           if (endDate && t.date > endDate) dateMatch = false;
         } else {
-          const tMonth = tDate.getMonth();
-          const tYear = tDate.getFullYear();
+          const [y, m] = t.date.split('-').map(Number);
+          const tYear = y;
+          const tMonth = m - 1;
           if (year !== -1 && tYear !== year) dateMatch = false;
           if (month !== -1 && tMonth !== month) dateMatch = false;
         }
@@ -92,9 +91,9 @@ export const IncomeList: React.FC<IncomeListProps> = ({
       .sort((a, b) => {
         switch (sortBy) {
           case 'date-asc':
-            return new Date(a.date).getTime() - new Date(b.date).getTime();
+            return a.date.localeCompare(b.date);
           case 'date-desc':
-            return new Date(b.date).getTime() - new Date(a.date).getTime();
+            return b.date.localeCompare(a.date);
           case 'alpha-asc':
             return a.title.localeCompare(b.title);
           case 'alpha-desc':
@@ -140,7 +139,7 @@ export const IncomeList: React.FC<IncomeListProps> = ({
   const handleExportCSV = () => {
     const headers = ['Data', 'Título', 'Categoria', 'Valor', 'Status', 'Observação'];
     const rows = filteredIncome.map(t => {
-      const date = new Date(t.date).toLocaleDateString('pt-BR');
+      const date = formatDate(t.date);
       const amount = t.amount.toFixed(2).replace('.', ',');
       const status = t.status === 'paid' ? 'Pago' : 'Não Pago';
       const safeTitle = `"${t.title.replace(/"/g, '""')}"`;
@@ -153,7 +152,7 @@ export const IncomeList: React.FC<IncomeListProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `relatorio_receitas_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `relatorio_receitas_${getCurrentLocalDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -190,7 +189,7 @@ export const IncomeList: React.FC<IncomeListProps> = ({
       headStyles: { fillColor: [22, 163, 74] }, // Green header for income
     });
 
-    doc.save(`relatorio_receitas_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`relatorio_receitas_${getCurrentLocalDateString()}.pdf`);
     setShowExportMenu(false);
   };
 
