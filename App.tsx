@@ -279,6 +279,42 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
   }, []);
 
+  const handleBackup = useCallback(async () => {
+    try {
+      showToast('Gerando backup...', 'success');
+      const [cats, trans] = await Promise.all([
+        dataService.fetchCategories(user.dataContextId),
+        dataService.fetchTransactions(user.dataContextId)
+      ]);
+      
+      const backupData = {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          dataContextId: user.dataContextId
+        },
+        categories: cats,
+        transactions: trans,
+        exportDate: new Date().toISOString()
+      };
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_financas_${getCurrentLocalDateString()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showToast('Backup concluído!', 'success');
+    } catch (e) {
+      showToast('Erro ao gerar backup.', 'error');
+    }
+  }, [user, showToast]);
+
   const handleReturnToParent = useCallback(async () => {
     if (user.parentId) {
       const parentUser = await authService.switchUser(user.parentId);
@@ -762,6 +798,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         user={user} 
         onLogout={onLogout}
         onReturnToMain={handleReturnToParent} 
+        onBackup={handleBackup}
       />
       
       <main className="max-w-6xl mx-auto px-4 w-full flex-1 -mt-4 pb-12">
