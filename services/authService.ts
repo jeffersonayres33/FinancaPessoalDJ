@@ -239,5 +239,39 @@ export const authService = {
         return authService.getCurrentUser();
     }
     return null;
+  },
+
+  updateUserName: async (userId: string, newName: string): Promise<void> => {
+    // Atualiza na tabela app_users
+    const { error: dbError } = await supabase
+      .from('app_users')
+      .update({ name: newName })
+      .eq('id', userId);
+
+    if (dbError) throw new Error('Erro ao atualizar nome no banco de dados: ' + dbError.message);
+
+    // Atualiza nos metadados do Supabase Auth
+    const { error: authError } = await supabase.auth.updateUser({
+      data: { name: newName }
+    });
+
+    if (authError) throw new Error('Erro ao atualizar nome na autenticação: ' + authError.message);
+
+    // Atualiza no localStorage
+    const currentUser = authService.getCurrentUser();
+    if (currentUser && currentUser.id === userId) {
+      currentUser.name = newName;
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+    }
+  },
+
+  updateUserPassword: async (userId: string, newPassword: string): Promise<void> => {
+    // Apenas atualiza a senha no Supabase Auth.
+    // O Supabase Auth já sabe qual é o usuário logado através da sessão atual.
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) throw new Error('Erro ao atualizar senha: ' + error.message);
   }
 };

@@ -16,8 +16,10 @@ import { Toast } from './components/Toast';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AuthScreen } from './components/AuthScreen';
 import { MemberManager } from './components/MemberManager';
+import { UserProfileModal } from './components/UserProfileModal';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
+import { syncService } from './services/syncService';
 import { validateConfig } from './services/supabaseClient';
 import { Despesa, TransactionType, TransactionStatus, Category, User } from './types';
 import { formatCurrency, getCurrentLocalDateString } from './utils';
@@ -95,6 +97,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   const [isDespesaModalOpen, setIsDespesaModalOpen] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; isVisible: boolean }>({
     message: '',
@@ -118,12 +122,33 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const [categories, setCategories] = useState<Category[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
 
+  // --- HANDLERS ---
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type, isVisible: true });
+  }, []);
+
   // --- DATA FETCHING (SUPABASE) ---
   const loadData = useCallback(async () => {
     setLoadingData(true);
     setConnectionError(false);
     setConnectionErrorMessage('');
     
+    // Se estiver offline, tenta carregar do cache local
+    if (!navigator.onLine) {
+      try {
+        const cachedCats = localStorage.getItem(`finances_cats_${user.dataContextId}`);
+        const cachedTrans = localStorage.getItem(`finances_trans_${user.dataContextId}`);
+        if (cachedCats) setCategories(JSON.parse(cachedCats));
+        if (cachedTrans) setDespesas(JSON.parse(cachedTrans));
+        showToast('Modo offline. Dados carregados do cache.', 'success');
+      } catch (e) {
+        console.error("Erro ao carregar cache local:", e);
+      } finally {
+        setLoadingData(false);
+      }
+      return;
+    }
+
     const configCheck = validateConfig();
     if (!configCheck.valid) {
         setLoadingData(false);
@@ -133,6 +158,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
 
     try {
+        // Processa a fila de sincronização antes de buscar dados novos
+        await syncService.processQueue();
+
         // 1. Busca Categorias e Transações em paralelo
         let [cats, trans] = await Promise.all([
             dataService.fetchCategories(user.dataContextId),
@@ -149,6 +177,10 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         setCategories(cats);
         setDespesas(trans);
 
+        // Salva no cache local para uso offline
+        localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(cats));
+        localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(trans));
+
     } catch (e: any) {
         console.error("Erro fatal ao carregar dados:", e);
         setConnectionError(true);
@@ -161,6 +193,29 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // --- OFFLINE/ONLINE LISTENERS ---
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOffline(false);
+      showToast('Conexão restabelecida. Sincronizando dados...', 'success');
+      await syncService.processQueue();
+      loadData(); // Recarrega os dados do servidor após sincronizar
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      showToast('Você está offline. As alterações serão salvas localmente e sincronizadas quando a conexão voltar.', 'error');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [loadData, showToast]);
 
   // --- UI PERSISTENCE ---
   useEffect(() => {
@@ -206,10 +261,6 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   }, [despesas, filterMonth, filterYear]);
 
   // --- HANDLERS ---
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type, isVisible: true });
-  }, []);
-
   const toggleWidget = useCallback((id: string) => {
     setVisibleWidgets(prev => ({ ...prev, [id]: !prev[id] }));
   }, []);
@@ -301,14 +352,28 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
 
         // Enviar para Supabase e esperar resposta para ter os IDs reais
-        const promises = newTransactions.map(t => dataService.addTransaction(t, user.dataContextId));
-        const results = await Promise.all(promises);
+        if (!navigator.onLine) {
+          newTransactions.forEach(t => syncService.addToQueue('ADD_TRANSACTION', t, user.dataContextId));
+          setDespesas(prev => {
+            const updated = [...newTransactions, ...prev];
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast('Transação salva localmente.', 'success');
+        } else {
+          const promises = newTransactions.map(t => dataService.addTransaction(t, user.dataContextId));
+          const results = await Promise.all(promises);
 
-        // Atualizar estado local com os dados retornados do banco (garante IDs e datas corretos)
-        const validResults = results.filter(r => r !== null) as Despesa[];
-        
-        setDespesas((prev) => [...validResults, ...prev]);
-        showToast('Transação adicionada com sucesso!', 'success');
+          // Atualizar estado local com os dados retornados do banco (garante IDs e datas corretos)
+          const validResults = results.filter(r => r !== null) as Despesa[];
+          
+          setDespesas((prev) => {
+            const updated = [...validResults, ...prev];
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast('Transação adicionada com sucesso!', 'success');
+        }
     } catch (e) {
         console.error(e);
         showToast('Erro ao salvar transação.', 'error');
@@ -324,14 +389,29 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     };
 
     try {
-        await dataService.updateTransaction(finalDespesa);
-        setDespesas((prev) => prev.map(t => t.id === finalDespesa.id ? finalDespesa : t));
-        setEditingDespesa(null);
-        showToast('Transação atualizada com sucesso!', 'success');
+        if (!navigator.onLine) {
+          syncService.addToQueue('UPDATE_TRANSACTION', finalDespesa);
+          setDespesas((prev) => {
+            const updated = prev.map(t => t.id === finalDespesa.id ? finalDespesa : t);
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          setEditingDespesa(null);
+          showToast('Transação atualizada localmente.', 'success');
+        } else {
+          await dataService.updateTransaction(finalDespesa);
+          setDespesas((prev) => {
+            const updated = prev.map(t => t.id === finalDespesa.id ? finalDespesa : t);
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          setEditingDespesa(null);
+          showToast('Transação atualizada com sucesso!', 'success');
+        }
     } catch (e) {
         showToast('Erro ao atualizar.', 'error');
     }
-  }, [showToast]);
+  }, [showToast, user.dataContextId]);
 
   const handleToggleStatus = useCallback(async (t: Despesa) => {
     const newStatus: TransactionStatus = t.status === 'paid' ? 'pending' : 'paid';
@@ -341,13 +421,27 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         paymentDate: newStatus === 'paid' ? (t.paymentDate || getCurrentLocalDateString()) : undefined
     };
     try {
-        await dataService.updateTransaction(updated);
-        setDespesas((prev) => prev.map(item => item.id === updated.id ? updated : item));
-        showToast(`Status alterado para ${newStatus === 'paid' ? 'PAGO' : 'NÃO PAGO'}`, 'success');
+        if (!navigator.onLine) {
+          syncService.addToQueue('UPDATE_TRANSACTION', updated);
+          setDespesas((prev) => {
+            const updatedList = prev.map(item => item.id === updated.id ? updated : item);
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updatedList));
+            return updatedList;
+          });
+          showToast(`Status alterado para ${newStatus === 'paid' ? 'PAGO' : 'NÃO PAGO'} localmente`, 'success');
+        } else {
+          await dataService.updateTransaction(updated);
+          setDespesas((prev) => {
+            const updatedList = prev.map(item => item.id === updated.id ? updated : item);
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updatedList));
+            return updatedList;
+          });
+          showToast(`Status alterado para ${newStatus === 'paid' ? 'PAGO' : 'NÃO PAGO'}`, 'success');
+        }
     } catch (e) {
         showToast('Erro ao alterar status.', 'error');
     }
-  }, [showToast]);
+  }, [showToast, user.dataContextId]);
 
   const handleDeleteDespesa = useCallback((id: string) => {
     setConfirmModal({
@@ -356,9 +450,23 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
       message: "Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.",
       onConfirm: async () => {
         try {
-            await dataService.deleteTransaction(id);
-            setDespesas((prev) => prev.filter((t) => t.id !== id));
-            showToast('Transação removida com sucesso.', 'success');
+            if (!navigator.onLine) {
+              syncService.addToQueue('DELETE_TRANSACTION', id);
+              setDespesas((prev) => {
+                const updated = prev.filter((t) => t.id !== id);
+                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast('Transação removida localmente.', 'success');
+            } else {
+              await dataService.deleteTransaction(id);
+              setDespesas((prev) => {
+                const updated = prev.filter((t) => t.id !== id);
+                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast('Transação removida com sucesso.', 'success');
+            }
         } catch (e) {
             showToast('Erro ao remover.', 'error');
         } finally {
@@ -366,22 +474,46 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
       }
     });
-  }, [showToast]);
+  }, [showToast, user.dataContextId]);
 
   const handleMarkAsPaid = useCallback(async (ids: string[], paymentDate: string) => {
     try {
-        await dataService.markAsPaid(ids, paymentDate);
-        setDespesas((prev) => prev.map((t) => {
-          if (ids.includes(t.id)) {
-            return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
-          }
-          return t;
-        }));
-        showToast(`${ids.length} conta(s) marcadas como pagas.`, 'success');
+        if (!navigator.onLine) {
+          ids.forEach(id => {
+            const transaction = despesas.find(t => t.id === id);
+            if (transaction) {
+              syncService.addToQueue('UPDATE_TRANSACTION', { ...transaction, status: 'paid', paymentDate });
+            }
+          });
+          setDespesas((prev) => {
+            const updated = prev.map((t) => {
+              if (ids.includes(t.id)) {
+                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
+              }
+              return t;
+            });
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast(`${ids.length} conta(s) marcadas como pagas localmente.`, 'success');
+        } else {
+          await dataService.markAsPaid(ids, paymentDate);
+          setDespesas((prev) => {
+            const updated = prev.map((t) => {
+              if (ids.includes(t.id)) {
+                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
+              }
+              return t;
+            });
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast(`${ids.length} conta(s) marcadas como pagas.`, 'success');
+        }
     } catch (e) {
         showToast('Erro ao atualizar contas.', 'error');
     }
-  }, [showToast]);
+  }, [despesas, showToast, user.dataContextId]);
 
   const handleAddCategory = useCallback(async (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
     if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
@@ -390,10 +522,24 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
     const newCat = { id: uuidv4(), name, type, budget: budget || 0 };
     try {
-        const savedCat = await dataService.addCategory(newCat, user.dataContextId);
-        if (savedCat) {
-            setCategories(prev => [...prev, savedCat]);
-            showToast('Categoria criada com sucesso.', 'success');
+        if (!navigator.onLine) {
+          syncService.addToQueue('ADD_CATEGORY', newCat, user.dataContextId);
+          setCategories(prev => {
+            const updated = [...prev, newCat];
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast('Categoria criada localmente.', 'success');
+        } else {
+          const savedCat = await dataService.addCategory(newCat, user.dataContextId);
+          if (savedCat) {
+              setCategories(prev => {
+                const updated = [...prev, savedCat];
+                localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast('Categoria criada com sucesso.', 'success');
+          }
         }
     } catch (e) {
         showToast('Erro ao criar categoria.', 'error');
@@ -403,13 +549,27 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const handleEditCategory = useCallback(async (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
     const updated = { id, name, type, budget: budget || 0 };
     try {
-        await dataService.updateCategory(updated);
-        setCategories(prev => prev.map(c => c.id === id ? updated : c));
-        showToast('Categoria atualizada.', 'success');
+        if (!navigator.onLine) {
+          syncService.addToQueue('UPDATE_CATEGORY', updated);
+          setCategories(prev => {
+            const updatedList = prev.map(c => c.id === id ? updated : c);
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updatedList));
+            return updatedList;
+          });
+          showToast('Categoria atualizada localmente.', 'success');
+        } else {
+          await dataService.updateCategory(updated);
+          setCategories(prev => {
+            const updatedList = prev.map(c => c.id === id ? updated : c);
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updatedList));
+            return updatedList;
+          });
+          showToast('Categoria atualizada.', 'success');
+        }
     } catch (e) {
         showToast('Erro ao atualizar categoria.', 'error');
     }
-  }, [showToast]);
+  }, [showToast, user.dataContextId]);
 
   const requestDeleteCategory = useCallback((id: string) => {
      const categoryToDelete = categories.find(c => c.id === id);
@@ -427,9 +587,23 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         message: `Deseja excluir "${categoryToDelete.name}"?`,
         onConfirm: async () => {
             try {
-                await dataService.deleteCategory(id);
-                setCategories(prev => prev.filter(c => c.id !== id));
-                showToast('Categoria excluída.', 'success');
+                if (!navigator.onLine) {
+                  syncService.addToQueue('DELETE_CATEGORY', id);
+                  setCategories(prev => {
+                    const updated = prev.filter(c => c.id !== id);
+                    localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                    return updated;
+                  });
+                  showToast('Categoria excluída localmente.', 'success');
+                } else {
+                  await dataService.deleteCategory(id);
+                  setCategories(prev => {
+                    const updated = prev.filter(c => c.id !== id);
+                    localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                    return updated;
+                  });
+                  showToast('Categoria excluída.', 'success');
+                }
             } catch (e) {
                 showToast('Erro ao excluir categoria.', 'error');
             } finally {
@@ -437,7 +611,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             }
         }
      });
-  }, [categories, despesas, showToast]);
+  }, [categories, despesas, showToast, user.dataContextId]);
 
   const openNewDespesaModal = useCallback(() => {
     setEditingDespesa(null);
@@ -578,7 +752,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <Header 
         currentView={currentView} 
-        onNavigate={setCurrentView} 
+        onNavigate={(view) => {
+          if (view === 'profile' as any) {
+            setIsProfileModalOpen(true);
+          } else {
+            setCurrentView(view as View);
+          }
+        }} 
         user={user} 
         onLogout={onLogout}
         onReturnToMain={handleReturnToParent} 
@@ -653,6 +833,14 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         initialData={editingDespesa}
         categories={categories}
         forceType={currentView === 'income' ? 'income' : currentView === 'investments' ? 'investment' : (currentView === 'expenses' ? 'expense' : undefined)}
+      />
+
+      <UserProfileModal
+        user={user}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onUpdateUser={onUpdateUser}
+        showToast={showToast}
       />
 
       <Toast 
