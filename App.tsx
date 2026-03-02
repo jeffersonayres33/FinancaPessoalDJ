@@ -10,6 +10,7 @@ import { CategoryManager } from './components/CategoryManager';
 import { AccountsPayable } from './components/AccountsPayable';
 import { ExpenseList } from './components/ExpenseList';
 import { IncomeList } from './components/IncomeList';
+import { InvestmentList } from './components/InvestmentList';
 import { BalanceByCategory } from './components/BalanceByCategory';
 import { Toast } from './components/Toast';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -36,7 +37,7 @@ import {
   WifiOff
 } from 'lucide-react';
 
-type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'members';
+type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members';
 
 // Definição dos Widgets Disponíveis
 const AVAILABLE_WIDGETS = [
@@ -382,7 +383,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
   }, [showToast]);
 
-  const handleAddCategory = useCallback(async (name: string, type: 'income' | 'expense' | 'both', budget?: number) => {
+  const handleAddCategory = useCallback(async (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
     if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
         showToast('Já existe uma categoria com este nome.', 'error');
         return;
@@ -399,7 +400,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
   }, [categories, user.dataContextId, showToast]);
 
-  const handleEditCategory = useCallback(async (id: string, name: string, type: 'income' | 'expense' | 'both', budget?: number) => {
+  const handleEditCategory = useCallback(async (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
     const updated = { id, name, type, budget: budget || 0 };
     try {
         await dataService.updateCategory(updated);
@@ -607,6 +608,17 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           />
         )}
 
+        {currentView === 'investments' && (
+          <InvestmentList 
+            investimentos={despesas}
+            onDeleteInvestimento={handleDeleteDespesa}
+            onEditInvestimento={openEditDespesaModal}
+            onOpenNew={openNewDespesaModal}
+            categories={categories}
+            onToggleStatus={handleToggleStatus}
+          />
+        )}
+
         {currentView === 'payable' && (
           <AccountsPayable 
             despesas={despesas} 
@@ -640,7 +652,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         onUpdateDespesa={handleUpdateDespesa}
         initialData={editingDespesa}
         categories={categories}
-        forceType={currentView === 'income' ? 'income' : (currentView === 'expenses' ? 'expense' : undefined)}
+        forceType={currentView === 'income' ? 'income' : currentView === 'investments' ? 'investment' : (currentView === 'expenses' ? 'expense' : undefined)}
       />
 
       <Toast 

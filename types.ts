@@ -1,11 +1,11 @@
 
-export type TransactionType = 'income' | 'expense';
-export type TransactionStatus = 'paid' | 'pending';
+export type TransactionType = 'income' | 'expense' | 'investment';
+export type TransactionStatus = 'paid' | 'pending' | 'in' | 'out';
 
 export interface Category {
   id: string;
   name: string;
-  type: 'income' | 'expense' | 'both';
+  type: 'income' | 'expense' | 'both' | 'investment';
   budget?: number; // Orçamento mensal estipulado para esta categoria
 }
 

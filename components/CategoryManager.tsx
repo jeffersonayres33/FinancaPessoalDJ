@@ -6,18 +6,18 @@ import { formatCurrency } from '../utils';
 
 interface CategoryManagerProps {
   categories: Category[];
-  onAdd: (name: string, type: 'income' | 'expense' | 'both', budget?: number) => void;
-  onEdit: (id: string, name: string, type: 'income' | 'expense' | 'both', budget?: number) => void;
+  onAdd: (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
+  onEdit: (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
   onDelete: (id: string) => void;
 }
 
 export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income' | 'investment'>('all');
   
   // Add State
   const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState<'income' | 'expense' | 'both'>('expense');
+  const [newType, setNewType] = useState<'income' | 'expense' | 'both' | 'investment'>('expense');
   const [newBudget, setNewBudget] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -25,7 +25,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
   // Edit State
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState<'income' | 'expense' | 'both'>('expense');
+  const [editType, setEditType] = useState<'income' | 'expense' | 'both' | 'investment'>('expense');
   const [editBudget, setEditBudget] = useState('');
   const [editErrorMsg, setEditErrorMsg] = useState('');
 
@@ -34,13 +34,16 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
       const matchesSearch = cat.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = typeFilter === 'all' 
         ? true 
-        : (typeFilter === 'income' ? (cat.type === 'income' || cat.type === 'both') : (cat.type === 'expense' || cat.type === 'both'));
+        : (typeFilter === 'income' ? (cat.type === 'income' || cat.type === 'both') : 
+           typeFilter === 'expense' ? (cat.type === 'expense' || cat.type === 'both') :
+           cat.type === 'investment');
       return matchesSearch && matchesFilter;
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [categories, searchTerm, typeFilter]);
 
   const expenseCategories = filteredCategories.filter(c => c.type === 'expense' || c.type === 'both');
   const incomeCategories = filteredCategories.filter(c => c.type === 'income' || c.type === 'both');
+  const investmentCategories = filteredCategories.filter(c => c.type === 'investment');
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +117,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
                 >
                   <option value="expense">Despesa</option>
                   <option value="income">Receita</option>
+                  <option value="investment">Investimento</option>
                 </select>
                 <div className="relative">
                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -141,7 +145,8 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
                   <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-lg ${
                     cat.type === 'income' ? 'bg-green-100 text-green-700' : 
                     cat.type === 'expense' ? 'bg-red-100 text-red-700' : 
-                    'bg-blue-100 text-blue-700'
+                    cat.type === 'investment' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-700'
                   }`}>
                     {cat.name.charAt(0).toUpperCase()}
                   </div>
@@ -211,6 +216,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
                 >
                     <option value="expense">Despesa</option>
                     <option value="income">Receita</option>
+                    <option value="investment">Investimento</option>
                 </select>
                 </div>
                 <div className="w-full md:w-40">
@@ -238,6 +244,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
             <button onClick={() => setTypeFilter('all')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'all' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}>Todos</button>
             <button onClick={() => setTypeFilter('expense')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}>Despesas</button>
             <button onClick={() => setTypeFilter('income')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'income' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Receitas</button>
+            <button onClick={() => setTypeFilter('investment')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'investment' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Investimentos</button>
           </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -279,6 +286,20 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
               </span>
             </div>
             {renderCategoryGrid(incomeCategories, "Nenhuma categoria de receita encontrada.")}
+          </section>
+        )}
+
+        {/* Investimentos Block */}
+        {(typeFilter === 'all' || typeFilter === 'investment') && (
+          <section className="animate-fade-in">
+            <div className="flex items-center gap-2 mb-4 border-b border-blue-100 pb-2">
+              <ArrowRightLeft className="text-blue-500" size={24} />
+              <h3 className="text-lg font-bold text-gray-800 uppercase tracking-wide">Investimentos</h3>
+              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 ml-auto">
+                {investmentCategories.length} categorias
+              </span>
+            </div>
+            {renderCategoryGrid(investmentCategories, "Nenhuma categoria de investimento encontrada.")}
           </section>
         )}
       </div>

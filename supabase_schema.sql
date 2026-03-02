@@ -16,7 +16,7 @@ create table public.app_users (
 create table public.categories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  type text not null check (type in ('income', 'expense', 'both')),
+  type text not null check (type in ('income', 'expense', 'both', 'investment')),
   budget numeric default 0,
   data_context_id uuid not null,
   created_at timestamp with time zone default now()
@@ -27,9 +27,9 @@ create table public.transactions (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   amount numeric not null,
-  type text not null check (type in ('income', 'expense')),
+  type text not null check (type in ('income', 'expense', 'investment')),
   category text, -- Can be category ID or name
-  status text not null check (status in ('paid', 'pending')),
+  status text not null check (status in ('paid', 'pending', 'in', 'out')),
   date date not null,
   payment_date date,
   observation text,

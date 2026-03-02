@@ -11,8 +11,8 @@ interface BalanceByCategoryProps {
 
 export const BalanceByCategory: React.FC<BalanceByCategoryProps> = ({ categories, expenses }) => {
   const data = useMemo(() => {
-    // Filtra apenas categorias de despesa ou ambas
-    const relevantCategories = categories.filter(c => c.type === 'expense' || c.type === 'both');
+    // Filtra apenas categorias de despesa
+    const relevantCategories = categories.filter(c => c.type === 'expense');
 
     const report = relevantCategories.map(cat => {
       const budget = cat.budget || 0;

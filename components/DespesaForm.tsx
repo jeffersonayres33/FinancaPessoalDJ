@@ -58,7 +58,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
       setTitle('');
       setAmount('');
       setType(forceType || 'expense');
-      setStatus('pending');
+      setStatus(forceType === 'investment' ? 'in' : 'pending');
       setDate(getCurrentLocalDateString());
       setPaymentDate(getCurrentLocalDateString());
       setInstallments(1);
@@ -149,7 +149,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setTitle('');
     setAmount('');
     setType(forceType || 'expense');
-    setStatus('pending');
+    setStatus(forceType === 'investment' ? 'in' : 'pending');
     setDate(getCurrentLocalDateString());
     setPaymentDate(getCurrentLocalDateString());
     setInstallments(1);
@@ -162,9 +162,13 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   if (!isOpen) return null;
 
   const getModalTitle = () => {
-    if (initialData) return 'Editar Despesa';
+    if (initialData) {
+      if (initialData.type === 'investment') return 'Editar Investimento';
+      return 'Editar Despesa';
+    }
     if (forceType === 'income') return 'Nova Receita';
     if (forceType === 'expense') return 'Nova Despesa';
+    if (forceType === 'investment') return 'Novo Investimento';
     return 'Nova Transação';
   };
 
@@ -182,7 +186,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
 
         <div className="p-6 space-y-4">
           
-          {!initialData && (
+          {!initialData && forceType !== 'investment' && (
             <div className="mb-4">
               <input 
                 type="file" 
@@ -307,32 +311,65 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
               )}
 
               <div className={forceType ? "col-span-2" : ""}>
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                   {forceType === 'investment' ? 'Tipo' : 'Status'}
+                 </label>
                  <div className="flex gap-2 bg-gray-100 p-1 rounded">
-                  <button
-                    type="button"
-                    onClick={() => setStatus('paid')}
-                    className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
-                      status === 'paid' 
-                        ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                        : 'text-gray-500 hover:bg-gray-200'
-                    }`}
-                    title="Pago / Recebido"
-                  >
-                    <CheckCircle size={16} /> Pago
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatus('pending')}
-                    className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
-                      status === 'pending' 
-                        ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' 
-                        : 'text-gray-500 hover:bg-gray-200'
-                    }`}
-                    title="Não Pago"
-                  >
-                    <Clock size={16} /> Não Pago
-                  </button>
+                  {forceType === 'investment' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setStatus('in')}
+                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                          status === 'in' 
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                            : 'text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="Entrada"
+                      >
+                        <PlusCircle size={16} /> Entrada
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStatus('out')}
+                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                          status === 'out' 
+                            ? 'bg-orange-100 text-orange-700 border border-orange-200' 
+                            : 'text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="Saída"
+                      >
+                        <PlusCircle size={16} className="rotate-45" /> Saída
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setStatus('paid')}
+                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                          status === 'paid' 
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                            : 'text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="Pago / Recebido"
+                      >
+                        <CheckCircle size={16} /> Pago
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStatus('pending')}
+                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                          status === 'pending' 
+                            ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' 
+                            : 'text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="Não Pago"
+                      >
+                        <Clock size={16} /> Não Pago
+                      </button>
+                    </>
+                  )}
                  </div>
               </div>
             </div>

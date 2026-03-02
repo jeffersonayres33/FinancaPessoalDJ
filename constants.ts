@@ -10,7 +10,8 @@ export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat-5', name: 'Saúde', type: 'expense' },
   { id: 'cat-6', name: 'Trabalho', type: 'income' },
   { id: 'cat-7', name: 'Educação', type: 'expense' },
-  { id: 'cat-8', name: 'Outros', type: 'both' }
+  { id: 'cat-8', name: 'Investimento', type: 'investment' },
+  { id: 'cat-9', name: 'Outros', type: 'both' }
 ];
 
 export const INITIAL_DESPESAS: Despesa[] = [
