@@ -864,6 +864,22 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 // Componente Principal Wrapper
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(authService.getCurrentUser());
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const verifySession = async () => {
+      if (user) {
+        const sessionUser = await authService.checkSession();
+        if (!sessionUser) {
+          // Sessão do Supabase expirou ou é inválida
+          authService.logout();
+          setUser(null);
+        }
+      }
+      setIsCheckingSession(false);
+    };
+    verifySession();
+  }, [user]);
 
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
@@ -873,6 +889,17 @@ const App: React.FC = () => {
     authService.logout();
     setUser(null);
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+          <p className="text-gray-600 font-medium">Verificando sessão...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <AuthScreen onLoginSuccess={handleLogin} />;
