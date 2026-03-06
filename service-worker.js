@@ -1,37 +1,10 @@
 const CACHE_NAME = 'financas-ai-v1';
-const BASE_PATH = '/FinancaPessoalDJ';
 
+// Apenas cachear o shell básico. O restante será cacheado dinamicamente.
 const ASSETS_TO_CACHE = [
-  BASE_PATH + '/',
-  BASE_PATH + '/index.html',
-  BASE_PATH + '/manifest.json',
-  BASE_PATH + '/index.tsx',
-  BASE_PATH + '/App.tsx',
-  BASE_PATH + '/constants.ts',
-  BASE_PATH + '/types.ts',
-  BASE_PATH + '/utils.ts',
-  BASE_PATH + '/services/authService.ts',
-  BASE_PATH + '/services/dataService.ts',
-  BASE_PATH + '/services/geminiService.ts',
-  BASE_PATH + '/services/supabaseClient.ts',
-  BASE_PATH + '/services/syncService.ts',
-  BASE_PATH + '/components/Header.tsx',
-  BASE_PATH + '/components/Summary.tsx',
-  BASE_PATH + '/components/DespesaForm.tsx',
-  BASE_PATH + '/components/Charts.tsx',
-  BASE_PATH + '/components/AIInsight.tsx',
-  BASE_PATH + '/components/CategoryManager.tsx',
-  BASE_PATH + '/components/AccountsPayable.tsx',
-  BASE_PATH + '/components/ExpenseList.tsx',
-  BASE_PATH + '/components/IncomeList.tsx',
-  BASE_PATH + '/components/InvestmentList.tsx',
-  BASE_PATH + '/components/BalanceByCategory.tsx',
-  BASE_PATH + '/components/Toast.tsx',
-  BASE_PATH + '/components/ConfirmModal.tsx',
-  BASE_PATH + '/components/AuthScreen.tsx',
-  BASE_PATH + '/components/MemberManager.tsx',
-  BASE_PATH + '/components/UserProfileModal.tsx',
-  BASE_PATH + '/components/AdminPanel.tsx'
+  './',
+  './index.html',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
