@@ -57,4 +57,5 @@ export interface User {
   parentId?: string; // Se pertencer a uma conta principal
   dataContextId: string; // ID usado para buscar os dados (pode ser o próprio ID ou do pai)
   members?: User[]; // Membros adicionados por este usuário
+  role?: 'admin' | 'user'; // Nível de acesso
 }

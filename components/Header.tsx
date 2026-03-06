@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download } from 'lucide-react';
+import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield } from 'lucide-react';
 import { User } from '../types';
 
 interface HeaderProps {
@@ -138,6 +138,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                     <Tags size={20} />
                     <span>Categorias</span>
                   </button>
+                  {user.role === 'admin' && (
+                    <button onClick={() => handleNavigate('admin')} className={getLinkClass('admin')}>
+                      <Shield size={20} />
+                      <span>Painel Admin</span>
+                    </button>
+                  )}
                   {onBackup && (
                     <button onClick={() => { onBackup(); setIsMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 mt-4 border-t border-gray-100 pt-4">
                       <Download size={20} />

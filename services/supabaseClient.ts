@@ -4,7 +4,16 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = 'https://pbrbqwjbzjebhlfcfmtk.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_yf2bUxlTHW2MqNxpvqWlZg_2qBgkC2E';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    headers: { 'x-application-name': 'financas-pessoais' }
+  }
+});
 
 export const validateConfig = () => {
   if (!SUPABASE_URL || !SUPABASE_URL.includes('supabase.co')) {

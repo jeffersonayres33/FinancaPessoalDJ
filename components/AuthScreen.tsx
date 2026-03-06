@@ -15,6 +15,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPublicRegistration, setIsPublicRegistration] = useState(false);
+
+  React.useEffect(() => {
+    // Verifica se o cadastro público está habilitado ao carregar a tela
+    authService.isPublicRegistrationEnabled().then(setIsPublicRegistration);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,13 +170,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
           <div className="mt-8 text-center pt-6 border-t border-gray-100">
             <p className="text-sm text-gray-600">
-              {isLogin ? 'Não tem uma conta?' : 'Já possui cadastro?'}
-              <button
-                onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                className="ml-2 text-purple-600 font-bold hover:text-purple-800 transition-colors focus:outline-none"
-              >
-                {isLogin ? 'Criar conta grátis' : 'Fazer Login'}
-              </button>
+              {isLogin ? (
+                  isPublicRegistration ? 'Não tem uma conta?' : ''
+              ) : 'Já possui cadastro?'}
+              
+              {(isPublicRegistration || !isLogin) && (
+                <button
+                    onClick={() => { setIsLogin(!isLogin); setError(''); }}
+                    className="ml-2 text-purple-600 font-bold hover:text-purple-800 transition-colors focus:outline-none"
+                >
+                    {isLogin ? 'Criar conta grátis' : 'Fazer Login'}
+                </button>
+              )}
             </p>
           </div>
         </div>

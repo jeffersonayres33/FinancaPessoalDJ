@@ -10,16 +10,25 @@ export const dataService = {
         console.warn("fetchCategories chamado sem dataContextId");
         return [];
     }
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('data_context_id', dataContextId);
-    
-    if (error) {
-      console.error('Erro ao buscar categorias:', error);
-      throw error; // Lança o erro para ser tratado no App.tsx
-    }
-    return data || [];
+
+    const timeoutPromise = new Promise<Category[]>((_, reject) => 
+        setTimeout(() => reject(new Error('Tempo limite excedido ao buscar categorias.')), 10000)
+    );
+
+    const fetchPromise = (async () => {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('data_context_id', dataContextId);
+        
+        if (error) {
+          console.error('Erro ao buscar categorias:', error);
+          throw error;
+        }
+        return data || [];
+    })();
+
+    return Promise.race([fetchPromise, timeoutPromise]);
   },
 
   // Função para popular categorias iniciais se a conta for nova
@@ -78,22 +87,31 @@ export const dataService = {
 
   // --- TRANSAÇÕES ---
   fetchTransactions: async (dataContextId: string): Promise<Despesa[]> => {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('data_context_id', dataContextId);
+    // Adiciona um timeout de 10 segundos para evitar travamentos
+    const timeoutPromise = new Promise<Despesa[]>((_, reject) => 
+        setTimeout(() => reject(new Error('Tempo limite excedido ao buscar transações.')), 10000)
+    );
 
-    if (error) {
-      console.error('Erro ao buscar transações:', error);
-      throw error;
-    }
-    
-    return (data || []).map((t: any) => ({
-      ...t,
-      amount: Number(t.amount), // Garante que venha como número, pois Postgres pode retornar string para numeric
-      paymentDate: t.payment_date,
-      // installments já é objeto JSONB automático
-    }));
+    const fetchPromise = (async () => {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('data_context_id', dataContextId)
+          .order('date', { ascending: false }); // Ordena por data decrescente para mostrar as mais recentes primeiro
+
+        if (error) {
+          console.error('Erro ao buscar transações:', error);
+          throw error;
+        }
+        
+        return (data || []).map((t: any) => ({
+          ...t,
+          amount: Number(t.amount), // Garante que venha como número
+          paymentDate: t.payment_date,
+        }));
+    })();
+
+    return Promise.race([fetchPromise, timeoutPromise]);
   },
 
   addTransaction: async (despesa: Despesa, dataContextId: string): Promise<Despesa | null> => {

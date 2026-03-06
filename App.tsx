@@ -17,6 +17,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { AuthScreen } from './components/AuthScreen';
 import { MemberManager } from './components/MemberManager';
 import { UserProfileModal } from './components/UserProfileModal';
+import { AdminPanel } from './components/AdminPanel';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
@@ -39,7 +40,7 @@ import {
   WifiOff
 } from 'lucide-react';
 
-type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members';
+type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'admin';
 
 // Definição dos Widgets Disponíveis
 const AVAILABLE_WIDGETS = [
@@ -129,6 +130,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   // --- DATA FETCHING (SUPABASE) ---
   const loadData = useCallback(async () => {
+    let isMounted = true;
     setLoadingData(true);
     setConnectionError(false);
     setConnectionErrorMessage('');
@@ -138,22 +140,26 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
       try {
         const cachedCats = localStorage.getItem(`finances_cats_${user.dataContextId}`);
         const cachedTrans = localStorage.getItem(`finances_trans_${user.dataContextId}`);
-        if (cachedCats) setCategories(JSON.parse(cachedCats));
-        if (cachedTrans) setDespesas(JSON.parse(cachedTrans));
-        showToast('Modo offline. Dados carregados do cache.', 'success');
+        if (isMounted) {
+            if (cachedCats) setCategories(JSON.parse(cachedCats));
+            if (cachedTrans) setDespesas(JSON.parse(cachedTrans));
+            showToast('Modo offline. Dados carregados do cache.', 'success');
+        }
       } catch (e) {
         console.error("Erro ao carregar cache local:", e);
       } finally {
-        setLoadingData(false);
+        if (isMounted) setLoadingData(false);
       }
       return;
     }
 
     const configCheck = validateConfig();
     if (!configCheck.valid) {
-        setLoadingData(false);
-        setConnectionError(true);
-        setConnectionErrorMessage(configCheck.message || 'Erro de configuração do Supabase.');
+        if (isMounted) {
+            setLoadingData(false);
+            setConnectionError(true);
+            setConnectionErrorMessage(configCheck.message || 'Erro de configuração do Supabase.');
+        }
         return;
     }
 
@@ -162,10 +168,19 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         await syncService.processQueue();
 
         // 1. Busca Categorias e Transações em paralelo
-        let [cats, trans] = await Promise.all([
+        // Adicionamos um timeout geral para evitar travamentos infinitos
+        const fetchPromise = Promise.all([
             dataService.fetchCategories(user.dataContextId),
             dataService.fetchTransactions(user.dataContextId)
         ]);
+
+        const timeoutPromise = new Promise<[Category[], Despesa[]]>((_, reject) => 
+            setTimeout(() => reject(new Error('Tempo limite de conexão excedido.')), 15000)
+        );
+
+        let [cats, trans] = await Promise.race([fetchPromise, timeoutPromise]);
+
+        if (!isMounted) return;
 
         // 2. Se não houver categorias (primeiro acesso), popula com as iniciais
         if (cats.length === 0) {
@@ -182,13 +197,19 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(trans));
 
     } catch (e: any) {
-        console.error("Erro fatal ao carregar dados:", e);
-        setConnectionError(true);
-        setConnectionErrorMessage(e.message || 'Erro desconhecido ao conectar ao Supabase.');
+        if (isMounted) {
+            console.error("Erro fatal ao carregar dados:", e);
+            setConnectionError(true);
+            setConnectionErrorMessage(e.message || 'Erro desconhecido ao conectar ao Supabase.');
+        }
     } finally {
-        setLoadingData(false);
+        if (isMounted) setLoadingData(false);
     }
-  }, [user.dataContextId]);
+
+    return () => {
+        isMounted = false;
+    };
+  }, [user.dataContextId, showToast]);
 
   useEffect(() => {
     loadData();
@@ -777,7 +798,11 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
                 Não foi possível conectar ao banco de dados Supabase.<br/>
                 <span className="text-sm font-mono bg-red-100 p-1 rounded mt-2 block">{connectionErrorMessage}</span>
               </p>
-              <button onClick={() => window.location.reload()} className="bg-red-600 text-white px-6 py-2 rounded-md hover:bg-red-700 transition-colors">
+              <button 
+                  onClick={loadData} 
+                  className="bg-red-600 text-white px-6 py-2 rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
+              >
+                  <Loader2 size={18} className={loadingData ? "animate-spin" : "hidden"} />
                   Tentar Novamente
               </button>
           </div>
@@ -859,6 +884,10 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
              onUpdateUser={onUpdateUser}
              onSwitchUser={onUpdateUser}
           />
+        )}
+
+        {currentView === 'admin' && (
+          <AdminPanel currentUser={user} />
         )}
       </main>
 
