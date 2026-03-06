@@ -58,7 +58,7 @@ const AVAILABLE_WIDGETS = [
 ];
 
 // Componente Interno Autenticado
-const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUser: (u: User) => void }> = ({ user, onLogout, onUpdateUser }) => {
+const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUser: (u: User) => void, onInstall?: () => void }> = ({ user, onLogout, onUpdateUser, onInstall }) => {
   const currentDate = new Date();
   
   // Storage Keys apenas para preferências de UI (Widgets), dados reais vêm do DB
@@ -824,6 +824,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         onLogout={onLogout}
         onReturnToMain={handleReturnToParent} 
         onBackup={handleBackup}
+        onInstall={onInstall}
       />
       
       <main className="max-w-6xl mx-auto px-4 w-full flex-1 -mt-4 pb-12">
@@ -931,6 +932,34 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(authService.getCurrentUser());
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+        } else {
+          console.log('User dismissed the install prompt');
+        }
+        setDeferredPrompt(null);
+      });
+    }
+  };
 
   useEffect(() => {
     const verifySession = async () => {
@@ -977,6 +1006,7 @@ const App: React.FC = () => {
         user={user} 
         onLogout={handleLogout}
         onUpdateUser={setUser}
+        onInstall={deferredPrompt ? handleInstallClick : undefined}
      />
   );
 };

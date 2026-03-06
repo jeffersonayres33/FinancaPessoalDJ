@@ -10,9 +10,10 @@ interface HeaderProps {
   onLogout?: () => void;
   onReturnToMain?: () => void;
   onBackup?: () => void;
+  onInstall?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onInstall }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Prevent scrolling when menu is open
@@ -142,6 +143,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                     <button onClick={() => handleNavigate('admin')} className={getLinkClass('admin')}>
                       <Shield size={20} />
                       <span>Painel Admin</span>
+                    </button>
+                  )}
+                  {onInstall && (
+                    <button onClick={() => { onInstall(); setIsMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full text-purple-600 bg-purple-50 hover:bg-purple-100 hover:text-purple-800 mt-2">
+                      <Download size={20} />
+                      <span>Instalar App</span>
                     </button>
                   )}
                   {onBackup && (
