@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
     const apiKey = env.GEMINI_API_KEY || env.API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
 
     return {
-      base: './', // Necessário para o GitHub Pages (caminhos relativos)
+      base: '/FinancaPessoalDJ/', // Caminho base para GitHub Pages
       server: {
         port: 3000,
         host: '0.0.0.0',
