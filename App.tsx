@@ -21,7 +21,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
-import { validateConfig } from './services/supabaseClient';
+import { validateConfig, supabase } from './services/supabaseClient';
 import { Despesa, TransactionType, TransactionStatus, Category, User } from './types';
 import { formatCurrency, getCurrentLocalDateString } from './utils';
 import { 
@@ -944,6 +944,21 @@ const App: React.FC = () => {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Escuta mudanças de estado de autenticação (ex: token expirado, logout em outra aba)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // Limpa usuário local se o Supabase deslogar ou revogar token
+        setUser(null);
+        localStorage.removeItem('finances_current_user');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
     };
   }, []);
 

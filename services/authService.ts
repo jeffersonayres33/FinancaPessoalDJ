@@ -317,7 +317,11 @@ export const authService = {
   },
 
   logout: async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Erro ao fazer logout no Supabase (provavelmente já deslogado):", e);
+    }
     localStorage.removeItem(CURRENT_USER_KEY);
   },
 
@@ -334,12 +338,27 @@ export const authService = {
   
   // Função para verificar sessão ativa no startup
   checkSession: async (): Promise<User | null> => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-        // Se tem sessão válida no Supabase, tenta recuperar do local ou refetch
-        return authService.getCurrentUser();
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.warn("Erro na sessão Supabase:", error.message);
+        // Se o token for inválido, forçamos o logout para limpar o estado
+        if (error.message.includes("Refresh Token") || error.message.includes("invalid claim")) {
+           await authService.logout();
+        }
+        return null;
+      }
+
+      if (data.session?.user) {
+          // Se tem sessão válida no Supabase, tenta recuperar do local ou refetch
+          return authService.getCurrentUser();
+      }
+      return null;
+    } catch (err) {
+      console.error("Erro inesperado ao verificar sessão:", err);
+      return null;
     }
-    return null;
   },
 
   updateUserName: async (userId: string, newName: string): Promise<void> => {
