@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield } from 'lucide-react';
+import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare } from 'lucide-react';
 import { User } from '../types';
 
 interface HeaderProps {
@@ -15,10 +15,18 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onInstall }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showInstallInstructions, setShowInstallInstructions] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+  }, []);
 
   // Prevent scrolling when menu is open
   useEffect(() => {
-    if (isMenuOpen) {
+    if (isMenuOpen || showInstallInstructions) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -26,7 +34,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isMenuOpen]);
+  }, [isMenuOpen, showInstallInstructions]);
 
   const getLinkClass = (view: string) => 
     `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full ${
@@ -42,10 +50,62 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
     }
   };
 
+  const handleInstallClick = () => {
+    if (onInstall) {
+      onInstall();
+    } else {
+      setShowInstallInstructions(true);
+    }
+    setIsMenuOpen(false);
+  };
+
   const isMemberAccess = user?.parentId;
 
   return (
     <>
+      {/* Modal de Instruções de Instalação */}
+      {showInstallInstructions && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowInstallInstructions(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Instalar Aplicativo</h3>
+              <button onClick={() => setShowInstallInstructions(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4 text-gray-600">
+              {isIOS ? (
+                <>
+                  <p>Para instalar no iPhone/iPad:</p>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li className="flex items-center gap-2">Toque no botão <strong>Compartilhar</strong> <Share size={16} className="inline" /></li>
+                    <li className="flex items-center gap-2">Role para baixo e toque em <strong>Adicionar à Tela de Início</strong> <PlusSquare size={16} className="inline" /></li>
+                    <li>Confirme tocando em <strong>Adicionar</strong>.</li>
+                  </ol>
+                </>
+              ) : (
+                <>
+                  <p>Para instalar no Android/Chrome:</p>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li>Toque no menu do navegador (três pontos no canto superior).</li>
+                    <li>Selecione <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</li>
+                    <li>Siga as instruções na tela.</li>
+                  </ol>
+                </>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setShowInstallInstructions(false)} 
+              className="mt-6 w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Aviso de Modo de Acesso (Apenas se estiver acessando como membro) */}
       {isMemberAccess && onReturnToMain && (
         <div className="bg-orange-500 text-white text-sm py-2 px-4 shadow-md print:hidden relative z-50">
@@ -145,8 +205,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                       <span>Painel Admin</span>
                     </button>
                   )}
-                  {onInstall && (
-                    <button onClick={() => { onInstall(); setIsMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full text-purple-600 bg-purple-50 hover:bg-purple-100 hover:text-purple-800 mt-2">
+                  {!isStandalone && (
+                    <button onClick={handleInstallClick} className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full text-purple-600 bg-purple-50 hover:bg-purple-100 hover:text-purple-800 mt-2">
                       <Download size={20} />
                       <span>Instalar App</span>
                     </button>

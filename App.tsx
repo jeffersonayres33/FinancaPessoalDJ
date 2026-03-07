@@ -936,11 +936,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
+      console.log('👋 beforeinstallprompt disparado!');
       e.preventDefault();
       setDeferredPrompt(e);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Verifica se já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('✅ App já está rodando em modo standalone');
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
