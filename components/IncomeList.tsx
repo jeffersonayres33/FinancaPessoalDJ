@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CalendarCheck, CheckCircle, Clock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat } from 'lucide-react';
 import { Despesa, Category } from '../types';
-import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { formatCurrency, formatDate } from '../utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 interface IncomeListProps {
   receitas: Despesa[];
@@ -15,8 +16,6 @@ interface IncomeListProps {
   onToggleStatus: (receita: Despesa) => void;
 }
 
-type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc';
-
 export const IncomeList: React.FC<IncomeListProps> = ({ 
   receitas, 
   onDeleteReceita, 
@@ -26,182 +25,143 @@ export const IncomeList: React.FC<IncomeListProps> = ({
   onToggleStatus
 }) => {
   const currentDate = new Date();
-  
-  // State for Filters
   const [month, setMonth] = useState<number>(currentDate.getMonth());
   const [year, setYear] = useState<number>(currentDate.getFullYear());
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('date-asc');
-  
-  // Advanced Filters
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
+  const [recurrenceFilter, setRecurrenceFilter] = useState<'all' | 'fixed' | 'variable'>('all');
+  const [installmentFilter, setInstallmentFilter] = useState<'all' | 'installment' | 'single'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
+
+  const [categoryFilter, setCategoryFilter] = useState('all');
+
+  // Filtros Avançados
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Export Menu State
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  // Close export menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Derived filtered data
-  const filteredIncome = useMemo(() => {
-    return receitas
-      .filter(t => t.type === 'income') // Only income
-      .filter(t => {
-        // Date Logic
-        let dateMatch = true;
-        if (startDate || endDate) {
-          if (startDate && t.date < startDate) dateMatch = false;
-          if (endDate && t.date > endDate) dateMatch = false;
-        } else {
-          const [y, m] = t.date.split('-').map(Number);
-          const tYear = y;
-          const tMonth = m - 1;
-          if (year !== -1 && tYear !== year) dateMatch = false;
-          if (month !== -1 && tMonth !== month) dateMatch = false;
-        }
-
-        // Status Filter
-        const statusMatch = statusFilter === 'all' ? true : t.status === statusFilter;
-
-        // Search Filter
-        const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            t.category.toLowerCase().includes(searchTerm.toLowerCase());
-
-        // Amount Filter
-        let amountMatch = true;
-        if (minAmount && t.amount < Number(minAmount)) amountMatch = false;
-        if (maxAmount && t.amount > Number(maxAmount)) amountMatch = false;
-
-        return dateMatch && searchMatch && amountMatch && statusMatch;
-      })
-      .sort((a, b) => {
-        switch (sortBy) {
-          case 'date-asc':
-            return a.date.localeCompare(b.date);
-          case 'date-desc':
-            return b.date.localeCompare(a.date);
-          case 'alpha-asc':
-            return a.title.localeCompare(b.title);
-          case 'alpha-desc':
-            return b.title.localeCompare(a.title);
-          case 'amount-asc':
-            return a.amount - b.amount;
-          case 'amount-desc':
-            return b.amount - a.amount;
-          default:
-            return 0;
-        }
-      });
-  }, [receitas, month, year, statusFilter, sortBy, searchTerm, minAmount, maxAmount, startDate, endDate]);
-
-  const totalValue = filteredIncome.reduce((acc, t) => acc + t.amount, 0);
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
 
   const clearFilters = () => {
-    setMonth(currentDate.getMonth());
-    setYear(currentDate.getFullYear());
-    setStatusFilter('all');
-    setSortBy('date-asc');
     setSearchTerm('');
+    setStatusFilter('all');
+    setRecurrenceFilter('all');
+    setInstallmentFilter('all');
+    setCategoryFilter('all');
     setMinAmount('');
     setMaxAmount('');
     setStartDate('');
     setEndDate('');
   };
 
-  const handlePrint = () => {
-    const headers = ['Data', 'Título', 'Categoria', 'Valor', 'Status', 'Observação'];
-    const rows = filteredIncome.map(t => [
-        formatDate(t.date),
-        t.title,
-        t.category,
-        formatCurrency(t.amount),
-        t.status === 'paid' ? 'PAGO' : 'NÃO PAGO',
-        t.observation || '-'
-    ]);
+  const filteredIncome = useMemo(() => {
+    return receitas
+      .filter(t => t.type === 'income') // Only income
+      .filter(t => {
+        const [y, m] = t.date.split('-').map(Number);
+        
+        // Se tiver filtro de data específico, ignora o filtro de mês/ano principal
+        let dateMatch = true;
+        if (startDate || endDate) {
+            const tDate = new Date(t.date);
+            if (startDate) dateMatch = dateMatch && tDate >= new Date(startDate);
+            if (endDate) dateMatch = dateMatch && tDate <= new Date(endDate);
+        } else {
+            // Se month ou year for -1, considera "Todos"
+            const monthMatch = month === -1 || (m - 1) === month;
+            const yearMatch = year === -1 || y === year;
+            dateMatch = monthMatch && yearMatch;
+        }
 
-    printData('Relatório de Receitas', headers, rows);
-  };
+        const statusMatch = statusFilter === 'all' || t.status === statusFilter;
+        const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            t.category.toLowerCase().includes(searchTerm.toLowerCase());
+        const categoryMatch = categoryFilter === 'all' || t.category === categoryFilter;
+        
+        let amountMatch = true;
+        if (minAmount) amountMatch = amountMatch && t.amount >= Number(minAmount);
+        if (maxAmount) amountMatch = amountMatch && t.amount <= Number(maxAmount);
 
-  const handleExportCSV = () => {
-    const headers = ['Data', 'Título', 'Categoria', 'Valor', 'Status', 'Observação'];
-    const rows = filteredIncome.map(t => {
-      const date = formatDate(t.date);
-      const amount = t.amount.toFixed(2).replace('.', ',');
-      const status = t.status === 'paid' ? 'Pago' : 'Não Pago';
-      const safeTitle = `"${t.title.replace(/"/g, '""')}"`;
-      const safeCategory = `"${t.category.replace(/"/g, '""')}"`;
-      const safeObservation = t.observation ? `"${t.observation.replace(/"/g, '""')}"` : '""';
-      return [date, safeTitle, safeCategory, amount, status, safeObservation].join(';');
-    });
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `relatorio_receitas_${getCurrentLocalDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setShowExportMenu(false);
-  };
+        let installmentMatch = true;
+        if (installmentFilter === 'installment') installmentMatch = !!t.installments;
+        if (installmentFilter === 'single') installmentMatch = !t.installments;
 
-  const handleExportPDF = () => {
+        let recurrenceMatch = true;
+        if (recurrenceFilter === 'fixed') recurrenceMatch = !!t.isFixed;
+        if (recurrenceFilter === 'variable') recurrenceMatch = !t.isFixed;
+
+        return dateMatch && statusMatch && searchMatch && amountMatch && installmentMatch && recurrenceMatch && categoryMatch;
+      })
+      .sort((a, b) => {
+        let comparison = 0;
+        if (sortBy === 'date') {
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+        } else if (sortBy === 'amount') {
+          comparison = a.amount - b.amount;
+        } else {
+          comparison = a.title.localeCompare(b.title);
+        }
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+  }, [receitas, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, installmentFilter, recurrenceFilter, categoryFilter]);
+
+  const totalFiltered = filteredIncome.reduce((acc, t) => acc + t.amount, 0);
+  const totalPaid = filteredIncome.filter(t => t.status === 'paid').reduce((acc, t) => acc + t.amount, 0);
+  const totalPending = filteredIncome.filter(t => t.status === 'pending').reduce((acc, t) => acc + t.amount, 0);
+
+  const exportToPDF = () => {
     const doc = new jsPDF();
-    
-    // Title
-    doc.setFontSize(18);
-    doc.text("Relatório de Receitas", 14, 15);
-    
-    // Metadata
-    doc.setFontSize(10);
-    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 22);
-    doc.text(`Total Filtrado: ${formatCurrency(totalValue)}`, 14, 27);
+    const periodText = (month === -1 && year === -1) ? 'Todos os Períodos' : 
+                       (month === -1) ? `Ano ${year}` :
+                       (year === -1) ? `${months[month]} (Todos os Anos)` :
+                       `${months[month]}/${year}`;
 
-    // Table Data
+    doc.text(`Relatório de Receitas - ${periodText}`, 14, 10);
+    
     const tableData = filteredIncome.map(t => [
       formatDate(t.date),
       t.title,
       t.category,
-      formatCurrency(t.amount),
-      t.status === 'paid' ? 'Pago' : 'Não Pago'
+      t.isFixed ? 'Fixa' : 'Variável',
+      t.status === 'paid' ? 'Recebido' : 'Pendente',
+      formatCurrency(t.amount)
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Título', 'Categoria', 'Valor', 'Status']],
+      head: [['Data', 'Título', 'Categoria', 'Tipo', 'Status', 'Valor']],
       body: tableData,
-      startY: 35,
-      theme: 'grid',
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [22, 163, 74] }, // Green header for income
+      startY: 20,
+      headStyles: { fillColor: [22, 163, 74] }, // Green header
     });
 
-    doc.save(`relatorio_receitas_${getCurrentLocalDateString()}.pdf`);
-    setShowExportMenu(false);
+    doc.save(`receitas_relatorio.pdf`);
   };
 
-  const months = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
-
-  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
+  const exportToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(filteredIncome.map(t => ({
+      Data: formatDate(t.date),
+      Título: t.title,
+      Categoria: t.category,
+      Tipo: t.isFixed ? 'Fixa' : 'Variável',
+      Status: t.status === 'paid' ? 'Recebido' : 'Pendente',
+      Valor: t.amount,
+      Observação: t.observation || ''
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Receitas");
+    XLSX.writeFile(wb, `receitas_relatorio.xlsx`);
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-lg shadow-sm">
         <div>
@@ -212,267 +172,251 @@ export const IncomeList: React.FC<IncomeListProps> = ({
             </span>
           </h2>
           <p className="text-gray-500 text-sm mt-1">
-             Total filtrado: <span className="font-bold text-green-600">{formatCurrency(totalValue)}</span>
+             Total filtrado: <span className="font-bold text-green-600">{formatCurrency(totalFiltered)}</span>
           </p>
         </div>
         
         <div className="flex flex-wrap gap-2 relative">
-          
-          {/* Export Dropdown */}
-          <div className="relative" ref={exportMenuRef}>
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2"
-              title="Exportar dados"
-            >
-              <Download size={18} /> 
-              <span className="hidden sm:inline">Exportar</span>
-              <ChevronDown size={14} />
-            </button>
+           <div className="flex gap-2">
+              <button onClick={exportToPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
+                <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
+              </button>
+              <button onClick={exportToExcel} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar Excel">
+                <FileSpreadsheet size={18} /> <span className="hidden sm:inline">Excel</span>
+              </button>
+           </div>
 
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-100 animate-fade-in">
-                <div className="py-1">
-                  <button
-                    onClick={handleExportCSV}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <FileSpreadsheet size={16} className="text-green-600" /> Excel (CSV)
-                  </button>
-                  <button
-                    onClick={handleExportPDF}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <FileIcon size={16} className="text-red-600" /> Arquivo PDF
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <button
-            onClick={handlePrint}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2"
-            title="Imprimir visualização atual"
-          >
-            <Printer size={18} /> <span className="hidden sm:inline">Imprimir</span>
-          </button>
-
-          <button
-            onClick={onOpenNew}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <Plus size={18} /> Nova Receita
-          </button>
+           <button 
+             onClick={onOpenNew}
+             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
+           >
+             <Plus size={18} /> Nova Receita
+           </button>
         </div>
       </div>
 
-      {/* Main Filter Bar */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          
-          {/* Month/Year/Status Selection */}
-          <div className="flex gap-2 col-span-1 sm:col-span-2">
-            <select 
-              value={month} 
-              onChange={(e) => setMonth(Number(e.target.value))}
-              disabled={!!startDate || !!endDate}
-              className="flex-1 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="-1">Todos os Meses</option>
-              {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-            <select 
-              value={year} 
-              onChange={(e) => setYear(Number(e.target.value))}
-              disabled={!!startDate || !!endDate}
-              className="w-24 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="-1">Todos</option>
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            
-            {/* Payment Status Filter */}
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="flex-1 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
-            >
-              <option value="all">Status: Todos</option>
-              <option value="paid">Pagos</option>
-              <option value="pending">Não Pagos</option>
-            </select>
-          </div>
+      {/* Filters Section */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-4">
+           {/* Month/Year Selectors */}
+           <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md flex-1 md:flex-none">
+                <Calendar size={18} className="text-gray-500 ml-2" />
+                <select 
+                  value={month} 
+                  onChange={(e) => setMonth(Number(e.target.value))} 
+                  className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer w-full md:w-auto"
+                >
+                  <option value={-1}>Todos</option>
+                  {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
+                <select 
+                  value={year} 
+                  onChange={(e) => setYear(Number(e.target.value))} 
+                  className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer"
+                >
+                  <option value={-1}>Todos</option>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+           </div>
 
-          {/* Sort */}
-          <div className="relative col-span-1">
-             <ArrowDownUp size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-             <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="w-full pl-9 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white appearance-none"
-            >
-              <option value="date-asc">Data (Antiga → Nova)</option>
-              <option value="date-desc">Data (Nova → Antiga)</option>
-              <option value="alpha-asc">Nome (A → Z)</option>
-              <option value="alpha-desc">Nome (Z → A)</option>
-              <option value="amount-asc">Valor (Menor → Maior)</option>
-              <option value="amount-desc">Valor (Maior → Menor)</option>
-            </select>
-          </div>
-
-          <button 
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md border text-sm font-medium transition-colors ${showFilters ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100'}`}
-          >
-            <Filter size={18} /> Filtros Avançados
-          </button>
+           <div className="relative w-full md:w-auto flex-1">
+             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+             <input
+               type="text"
+               placeholder="Buscar receita..."
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-full focus:ring-2 focus:ring-green-500 outline-none text-sm"
+             />
+           </div>
+           
+           <div className="flex gap-2 w-full md:w-auto">
+             <button 
+               onClick={() => setShowFilters(!showFilters)}
+               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${showFilters ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+             >
+               <Filter size={16} /> Filtros
+             </button>
+             
+             <div className="flex bg-gray-100 rounded-full p-1">
+                <button onClick={() => { setSortBy('date'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'date' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500'}`} title="Ordenar por Data"><Calendar size={16} /></button>
+                <button onClick={() => { setSortBy('amount'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'amount' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500'}`} title="Ordenar por Valor"><ArrowDownUp size={16} /></button>
+             </div>
+           </div>
         </div>
 
-        {/* Collapsible Advanced Filters */}
         {showFilters && (
-          <div className="border-t border-gray-100 pt-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-             {/* Period Custom */}
-             <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase">Período (Substitui Mês/Ano)</label>
-                <div className="flex gap-2 items-center">
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                  <span className="text-gray-400">-</span>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                </div>
-             </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-gray-100 animate-fade-in-down">
+             <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+                <option value="all">Status: Todos</option>
+                <option value="paid">Recebidos</option>
+                <option value="pending">Pendentes</option>
+             </select>
 
-             {/* Values */}
-             <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase">Valor (R$)</label>
-                <div className="flex gap-2 items-center">
-                  <input type="number" placeholder="Min" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                  <span className="text-gray-400">-</span>
-                  <input type="number" placeholder="Max" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                </div>
-             </div>
+             <select 
+                value={recurrenceFilter} 
+                onChange={(e) => setRecurrenceFilter(e.target.value as any)}
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+                <option value="all">Tipo: Todos</option>
+                <option value="fixed">Fixas</option>
+                <option value="variable">Variáveis</option>
+             </select>
 
-             {/* Search */}
-             <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase">Busca</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Título ou Categoria" 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 p-2 border border-gray-300 rounded-md text-sm outline-none"
-                  />
-                </div>
-             </div>
+             <select 
+                value={installmentFilter} 
+                onChange={(e) => setInstallmentFilter(e.target.value as any)}
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+                <option value="all">Parcelamento: Todos</option>
+                <option value="installment">Parcelados</option>
+                <option value="single">À Vista</option>
+             </select>
+
+             <select 
+                value={categoryFilter} 
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+                <option value="all">Categoria: Todas</option>
+                {categories.filter(c => c.type === 'income' || c.type === 'both').map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+             </select>
+
+             <input type="number" placeholder="Min R$" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
+             <input type="number" placeholder="Max R$" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              
-             <div className="md:col-span-2 lg:col-span-3 flex justify-end">
-                <button onClick={clearFilters} className="text-sm text-red-500 hover:text-red-700 underline">Limpar todos os filtros</button>
+             <div className="md:col-span-3 lg:col-span-5 flex justify-end">
+                <button onClick={clearFilters} className="text-xs text-red-500 hover:underline">Limpar Filtros</button>
              </div>
           </div>
         )}
+
+        {/* Resumo Rápido */}
+        <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100 text-sm">
+            <div className="text-gray-500">Exibindo {filteredIncome.length} receitas</div>
+            <div className="flex gap-4 font-medium">
+                <span className="text-green-600">Recebido: {formatCurrency(totalPaid)}</span>
+                <span className="text-yellow-600">Pendente: {formatCurrency(totalPending)}</span>
+                <span className="text-gray-800">Total: {formatCurrency(totalFiltered)}</span>
+            </div>
+        </div>
       </div>
 
-      {/* Grid of Blocks */}
+      {/* Lista de Cards */}
       {filteredIncome.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredIncome.map((t) => (
             <div 
               key={t.id} 
-              className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col justify-between border-l-4 border-green-500"
+              className="bg-white rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md relative overflow-hidden group"
             >
-              {/* Card Header */}
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                     <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                        {t.category}
-                     </span>
+              <div className="p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                       <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                          {t.category}
+                       </span>
+                       {t.isFixed && (
+                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-1" title="Receita Fixa (Recorrente)">
+                            <Repeat size={10} /> Fixa
+                         </span>
+                       )}
+                       {t.isAutoGenerated && (
+                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1" title="Lançado automaticamente pelo sistema">
+                            <Repeat size={10} /> Lançado auto
+                         </span>
+                       )}
+                       {t.installments && t.installments.total > 1 && (
+                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1">
+                            <Layers size={10} /> Parcelado {t.installments.current}/{t.installments.total}
+                         </span>
+                       )}
+                    </div>
+                  </div>
+                  <div className="text-right mt-1 mr-6">
+                     <span className="block font-bold text-lg text-green-600">{formatCurrency(t.amount)}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                   <span className="block font-bold text-lg text-green-600">
-                      {formatCurrency(t.amount)}
-                   </span>
+
+                <div className="space-y-2 mb-4">
+                   <div className="flex items-center text-sm text-gray-600">
+                      <Calendar size={14} className="mr-2 opacity-70" />
+                      <span className="mr-1">Data:</span>
+                      <span className="font-medium">{formatDate(t.date)}</span>
+                   </div>
+
+                   {t.status === 'paid' ? (
+                     <div className="flex items-center text-sm text-green-700 bg-green-50 p-1.5 rounded">
+                        <CheckCircle size={14} className="mr-2" />
+                        <div>
+                          <span className="font-bold block text-xs">RECEBIDO</span>
+                          {t.paymentDate && <span className="text-xs">em {formatDate(t.paymentDate)}</span>}
+                        </div>
+                     </div>
+                   ) : (
+                     <div className="flex items-center text-sm text-yellow-700 bg-yellow-50 p-1.5 rounded">
+                        <Clock size={14} className="mr-2" />
+                        <span className="font-bold text-xs">PENDENTE</span>
+                     </div>
+                   )}
+
+                   {t.observation && (
+                     <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
+                        <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                        <p className="line-clamp-2">{t.observation}</p>
+                     </div>
+                   )}
                 </div>
-              </div>
 
-              {/* Card Body Details */}
-              <div className="space-y-2 mb-4">
-                 <div className="flex items-center text-sm text-gray-600">
-                    <Calendar size={14} className="mr-2 opacity-70" />
-                    <span className="mr-1">Data:</span>
-                    <span className="font-medium">{formatDate(t.date)}</span>
-                 </div>
-
-                 {/* Payment Status Label */}
-                 {t.status === 'paid' ? (
-                   <div className="flex items-center text-sm text-green-700 bg-green-50 p-1.5 rounded">
-                      <CheckCircle size={14} className="mr-2" />
-                      <div>
-                        <span className="font-bold block text-xs">PAGO</span>
-                        {t.paymentDate && <span className="text-xs">em {formatDate(t.paymentDate)}</span>}
-                      </div>
+                <div className="flex items-end justify-between pt-3 border-t border-gray-100">
+                   <div className="text-xs text-gray-400 italic">
+                      {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
                    </div>
-                 ) : (
-                   <div className="flex items-center text-sm text-yellow-700 bg-yellow-50 p-1.5 rounded">
-                      <Clock size={14} className="mr-2" />
-                      <span className="font-bold text-xs">NÃO PAGO</span>
+                   <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onToggleStatus) onToggleStatus(t);
+                        }}
+                        className={`p-2 rounded-full transition-colors ${t.status === 'paid' ? 'text-yellow-500 hover:bg-yellow-50' : 'text-green-500 hover:bg-green-50'}`}
+                        title={t.status === 'paid' ? 'Marcar como Pendente' : 'Marcar como Recebido'}
+                      >
+                         {t.status === 'paid' ? <Clock size={16} /> : <CheckCircle size={16} />}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditReceita(t);
+                        }}
+                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteReceita(t.id);
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                    </div>
-                 )}
-
-                 {/* Observação */}
-                 {t.observation && (
-                   <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
-                      <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
-                      <p className="line-clamp-2">{t.observation}</p>
-                   </div>
-                 )}
-              </div>
-
-              {/* Card Footer Actions & Metadata */}
-              <div className="flex items-end justify-between pt-3 border-t border-gray-100">
-                 <div className="text-xs text-gray-400 italic">
-                    {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
-                 </div>
-                 <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleStatus(t);
-                      }}
-                      className={`p-2 rounded-full transition-colors ${
-                        t.status === 'paid' 
-                        ? 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50' 
-                        : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                      }`}
-                      title={t.status === 'paid' ? "Marcar como Não Pago" : "Marcar como Pago"}
-                    >
-                      <CheckCircle size={16} className={t.status === 'paid' ? 'fill-green-600 text-white' : ''} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditReceita(t);
-                      }}
-                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-                      title="Editar"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteReceita(t.id);
-                      }}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      title="Excluir"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                 </div>
+                </div>
               </div>
             </div>
           ))}

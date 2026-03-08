@@ -10,6 +10,9 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   isDanger?: boolean;
+  checkboxLabel?: string;
+  isCheckboxChecked?: boolean;
+  onCheckboxChange?: (checked: boolean) => void;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({ 
@@ -20,7 +23,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onCancel, 
   confirmText = "Confirmar", 
   cancelText = "Cancelar",
-  isDanger = true
+  isDanger = true,
+  checkboxLabel,
+  isCheckboxChecked,
+  onCheckboxChange
 }) => {
   if (!isOpen) return null;
 
@@ -41,6 +47,21 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <p className="text-gray-600 mb-6 text-sm leading-relaxed">
             {message}
           </p>
+
+          {checkboxLabel && onCheckboxChange && (
+            <div className="mb-6 flex items-start gap-2 bg-yellow-50 p-3 rounded border border-yellow-100">
+              <input 
+                type="checkbox" 
+                id="confirm-checkbox"
+                checked={isCheckboxChecked}
+                onChange={(e) => onCheckboxChange(e.target.checked)}
+                className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+              />
+              <label htmlFor="confirm-checkbox" className="text-sm text-gray-700 cursor-pointer select-none font-medium">
+                {checkboxLabel}
+              </label>
+            </div>
+          )}
           
           <div className="flex gap-3">
             <button 

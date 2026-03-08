@@ -1,26 +1,36 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, CheckSquare, Square, Check, CheckCircle2, Calendar, X, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Filter, ArrowDownUp, Layers, CalendarCheck } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat } from 'lucide-react';
 import { Despesa, Category } from '../types';
 import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 interface AccountsPayableProps {
   despesas: Despesa[];
-  onMarkAsPaid: (ids: string[], paymentDate: string) => void;
+  onDeleteConta: (id: string) => void;
+  onEditConta: (conta: Despesa) => void;
+  onOpenNew: () => void;
   categories: Category[];
+  onMarkAsPaid: (ids: string[], date: string) => void;
 }
 
 type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc';
 
-export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMarkAsPaid, categories }) => {
+export const AccountsPayable: React.FC<AccountsPayableProps> = ({ 
+  despesas, 
+  onDeleteConta, 
+  onEditConta,
+  onOpenNew,
+  categories,
+  onMarkAsPaid
+}) => {
   const currentDate = new Date();
-
-  // --- States for Filters (Copied from ExpenseList) ---
+  
+  // State for Filters
   const [month, setMonth] = useState<number>(currentDate.getMonth());
   const [year, setYear] = useState<number>(currentDate.getFullYear());
-  const [installmentFilter, setInstallmentFilter] = useState<'all' | 'installment' | 'single'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-asc');
   
   // Advanced Filters
@@ -30,36 +40,19 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
   const [maxAmount, setMaxAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // Bulk Selection State
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
+  const [bulkPaymentDate, setBulkPaymentDate] = useState(getCurrentLocalDateString());
 
-  // Modal State for Date Confirmation
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [pendingPaymentIds, setPendingPaymentIds] = useState<string[]>([]);
-  const [paymentDateInput, setPaymentDateInput] = useState(getCurrentLocalDateString());
-
-  // Export Menu State
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  // Close export menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // --- Filtering Logic ---
-  const payableDespesas = useMemo(() => {
+  // Derived filtered data
+  const filteredContas = useMemo(() => {
     return despesas
-      .filter(t => t.type === 'expense' && t.status === 'pending') // Force pending expenses
+      .filter(t => t.type === 'expense' && t.status === 'pending') // Only pending expenses
       .filter(t => {
-        // Date Logic (Custom Range OR Month/Year)
+        // Date Logic
         let dateMatch = true;
         if (startDate || endDate) {
           if (startDate && t.date < startDate) dateMatch = false;
@@ -72,24 +65,19 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
           if (month !== -1 && tMonth !== month) dateMatch = false;
         }
 
-        // Installment Filter
-        let installmentMatch = true;
-        if (installmentFilter === 'installment') {
-           installmentMatch = !!(t.installments && t.installments.total > 1);
-        } else if (installmentFilter === 'single') {
-           installmentMatch = !t.installments || t.installments.total === 1;
-        }
-
         // Search Filter
         const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             t.category.toLowerCase().includes(searchTerm.toLowerCase());
+
+        // Category Filter
+        const categoryMatch = categoryFilter === 'all' || t.category === categoryFilter;
 
         // Amount Filter
         let amountMatch = true;
         if (minAmount && t.amount < Number(minAmount)) amountMatch = false;
         if (maxAmount && t.amount > Number(maxAmount)) amountMatch = false;
 
-        return dateMatch && searchMatch && amountMatch && installmentMatch;
+        return dateMatch && searchMatch && amountMatch && categoryMatch;
       })
       .sort((a, b) => {
         switch (sortBy) {
@@ -109,105 +97,67 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
             return 0;
         }
       });
-  }, [despesas, month, year, sortBy, searchTerm, minAmount, maxAmount, startDate, endDate, installmentFilter]);
+  }, [despesas, month, year, sortBy, searchTerm, minAmount, maxAmount, startDate, endDate, categoryFilter]);
 
-  // --- Calculate Selected Total ---
+  const totalPending = filteredContas.reduce((acc, c) => acc + c.amount, 0);
+
+  // Calculate Selected Total
   const selectedTotal = useMemo(() => {
     return despesas
-      .filter(d => selectedIds.has(d.id))
+      .filter(d => selectedIds.includes(d.id))
       .reduce((acc, curr) => acc + curr.amount, 0);
   }, [despesas, selectedIds]);
 
   const clearFilters = () => {
     setMonth(currentDate.getMonth());
     setYear(currentDate.getFullYear());
-    setInstallmentFilter('all');
     setSortBy('date-asc');
     setSearchTerm('');
     setMinAmount('');
     setMaxAmount('');
     setStartDate('');
     setEndDate('');
+    setCategoryFilter('all');
   };
 
+  // Selection Handlers
   const toggleSelection = (id: string) => {
-    const newSelection = new Set(selectedIds);
-    if (newSelection.has(id)) {
-      newSelection.delete(id);
-    } else {
-      newSelection.add(id);
-    }
-    setSelectedIds(newSelection);
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  const toggleAll = () => {
-    if (selectedIds.size === payableDespesas.length) {
-      setSelectedIds(new Set());
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredContas.length) {
+      setSelectedIds([]);
     } else {
-      setSelectedIds(new Set(payableDespesas.map(t => t.id)));
+      setSelectedIds(filteredContas.map(c => c.id));
     }
   };
 
-  // Inititate Payment Flow
-  const initiateBulkPayment = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (selectedIds.size === 0) return;
-    setPendingPaymentIds(Array.from(selectedIds));
-    setPaymentDateInput(getCurrentLocalDateString()); // Default to today
-    setIsPaymentModalOpen(true);
+  const initiateBulkPayment = () => {
+    if (selectedIds.length === 0) return;
+    setShowBulkPaymentModal(true);
   };
 
-  const initiateSinglePayment = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setPendingPaymentIds([id]);
-    setPaymentDateInput(getCurrentLocalDateString()); // Default to today
-    setIsPaymentModalOpen(true);
+  const handleBulkPayment = () => {
+    onMarkAsPaid(selectedIds, bulkPaymentDate);
+    setShowBulkPaymentModal(false);
+    setSelectedIds([]);
   };
 
-  // Confirm Payment
-  const confirmPayment = () => {
-    onMarkAsPaid(pendingPaymentIds, paymentDateInput);
-    setIsPaymentModalOpen(false);
-    setSelectedIds(new Set()); // Clear selection
-    setPendingPaymentIds([]);
-  };
-
-  // --- Export & Print Handlers ---
-  const handlePrint = () => {
-    const headers = ['Vencimento', 'Título', 'Categoria', 'Valor', 'Status', 'Parcela'];
-    const rows = payableDespesas.map(t => [
-        formatDate(t.date),
-        t.title,
-        t.category,
-        formatCurrency(t.amount),
-        'Pendente',
-        t.installments ? `${t.installments.current}/${t.installments.total}` : '-'
-    ]);
-
-    printData('Contas a Pagar', headers, rows);
-  };
-
-  const handleExportCSV = () => {
-    const headers = ['Título', 'Vencimento', 'Categoria', 'Valor', 'Status', 'Parcela'];
-    const rows = payableDespesas.map(t => {
-      const date = formatDate(t.date);
-      const amount = t.amount.toFixed(2).replace('.', ',');
-      const safeTitle = `"${t.title.replace(/"/g, '""')}"`;
-      const safeCategory = `"${t.category.replace(/"/g, '""')}"`;
-      const installment = t.installments ? `${t.installments.current}/${t.installments.total}` : '-';
-      return [safeTitle, date, safeCategory, amount, 'Pendente', installment].join(';');
-    });
-
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `contas_a_pagar_${getCurrentLocalDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setShowExportMenu(false);
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(filteredContas.map(t => ({
+      Data: formatDate(t.date),
+      Título: t.title,
+      Categoria: t.category,
+      Valor: t.amount,
+      Status: 'Pendente',
+      Observação: t.observation || ''
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contas a Pagar");
+    XLSX.writeFile(wb, `contas_a_pagar_${getCurrentLocalDateString()}.xlsx`);
   };
 
   const handleExportPDF = () => {
@@ -218,27 +168,26 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
     
     doc.setFontSize(10);
     doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 22);
-    doc.text(`Total Pendente: ${formatCurrency(payableDespesas.reduce((acc, t) => acc + t.amount, 0))}`, 14, 27);
+    doc.text(`Total Pendente (Filtrado): ${formatCurrency(totalPending)}`, 14, 27);
 
-    const tableData = payableDespesas.map(t => [
-      t.title,
+    const tableData = filteredContas.map(t => [
       formatDate(t.date),
+      t.title,
       t.category,
       formatCurrency(t.amount),
-      t.installments ? `${t.installments.current}/${t.installments.total}` : '-'
+      'Pendente'
     ]);
 
     autoTable(doc, {
-      head: [['Título', 'Vencimento', 'Categoria', 'Valor', 'Parc.']],
+      head: [['Data', 'Título', 'Categoria', 'Valor', 'Status']],
       body: tableData,
       startY: 35,
       theme: 'grid',
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [202, 138, 4] }, // Yellow-ish header for Warning/Pending
+      headStyles: { fillColor: [220, 38, 38] }, // Red header
     });
 
-    doc.save(`contas_a_pagar_${getCurrentLocalDateString()}.pdf`);
-    setShowExportMenu(false);
+    doc.save(`relatorio_contas_${getCurrentLocalDateString()}.pdf`);
   };
 
   const months = [
@@ -249,24 +198,24 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
   const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
 
   return (
-    <div className="space-y-6 relative">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-400 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 relative animate-fade-in">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-lg shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             Contas a Pagar
             <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-              {payableDespesas.length} pendentes
+              {filteredContas.length} itens
             </span>
           </h2>
           <p className="text-gray-500 text-sm mt-1">
-             Total: <span className="font-bold text-red-600">{formatCurrency(payableDespesas.reduce((acc, t) => acc + t.amount, 0))}</span>
+             Total Pendente: <span className="font-bold text-red-600">{formatCurrency(totalPending)}</span>
           </p>
         </div>
-
+        
         <div className="flex flex-wrap gap-2 relative items-center">
           {/* Selected Total Display */}
-          {selectedIds.size > 0 && (
+          {selectedIds.length > 0 && (
              <div className="hidden sm:block mr-2 animate-fade-in text-right">
                 <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Valor selecionado</div>
                 <div className="text-sm font-bold text-purple-700">{formatCurrency(selectedTotal)}</div>
@@ -274,289 +223,315 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({ despesas, onMa
           )}
 
           {/* Bulk Action Button */}
-          {selectedIds.size > 0 && (
+          {selectedIds.length > 0 && (
             <button 
               type="button"
               onClick={initiateBulkPayment}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-bold shadow-sm flex items-center gap-2 transition-colors animate-fade-in text-sm"
             >
               <CheckCircle2 size={18} />
-              Pagar {selectedIds.size}
+              Pagar {selectedIds.length}
             </button>
           )}
 
-          {/* Export Dropdown */}
-          <div className="relative" ref={exportMenuRef}>
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2"
-              title="Exportar dados"
-            >
-              <Download size={18} /> 
-              <span className="hidden sm:inline">Exportar</span>
-              <ChevronDown size={14} />
-            </button>
-
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-100 animate-fade-in">
-                <div className="py-1">
-                  <button
-                    onClick={handleExportCSV}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <FileSpreadsheet size={16} className="text-green-600" /> Excel (CSV)
-                  </button>
-                  <button
-                    onClick={handleExportPDF}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <FileIcon size={16} className="text-red-600" /> Arquivo PDF
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="flex gap-2">
+             <button onClick={handleExportPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
+               <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
+             </button>
+             <button onClick={handleExportExcel} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar Excel">
+               <FileSpreadsheet size={18} /> <span className="hidden sm:inline">Excel</span>
+             </button>
           </div>
-          
+
           <button
-            onClick={handlePrint}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2"
-            title="Imprimir lista"
+            onClick={onOpenNew}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
           >
-            <Printer size={18} /> <span className="hidden sm:inline">Imprimir</span>
+            <Plus size={18} /> Nova Conta
           </button>
         </div>
       </div>
       
       {/* Mobile Selected Value (Shows below title on mobile only when selected) */}
-      {selectedIds.size > 0 && (
+      {selectedIds.length > 0 && (
         <div className="sm:hidden bg-purple-50 p-2 rounded-md border border-purple-100 flex justify-between items-center animate-fade-in -mt-4">
              <span className="text-xs font-bold text-gray-600 uppercase">Valor selecionado:</span>
              <span className="text-sm font-bold text-purple-700">{formatCurrency(selectedTotal)}</span>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col min-h-[400px]">
-        {/* Filters Bar - Copied Logic, Adapted UI */}
-        <div className="p-4 border-b bg-gray-50">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
-            
-            {/* Month/Year Selection */}
-            <div className="flex gap-2">
-              <select 
-                value={month} 
-                onChange={(e) => setMonth(Number(e.target.value))}
-                disabled={!!startDate || !!endDate}
-                className="flex-1 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:bg-gray-100 disabled:text-gray-400"
-              >
-                <option value="-1">Todos os Meses</option>
-                {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-              </select>
-              <select 
-                value={year} 
-                onChange={(e) => setYear(Number(e.target.value))}
-                disabled={!!startDate || !!endDate}
-                className="w-24 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:bg-gray-100 disabled:text-gray-400"
-              >
-                <option value="-1">Todos</option>
-                {years.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
+      {/* Filters Section */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-4">
+          
+          {/* Month/Year Selection */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+             <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md flex-1 md:flex-none">
+               <Calendar size={18} className="text-gray-500 ml-2" />
+               <select 
+                 value={month} 
+                 onChange={(e) => setMonth(Number(e.target.value))} 
+                 className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer w-full md:w-auto"
+               >
+                 <option value={-1}>Todos</option>
+                 {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+               </select>
+             </div>
+             <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
+               <select 
+                 value={year} 
+                 onChange={(e) => setYear(Number(e.target.value))} 
+                 className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer"
+               >
+                 <option value={-1}>Todos</option>
+                 {years.map(y => <option key={y} value={y}>{y}</option>)}
+               </select>
+             </div>
+          </div>
 
-            {/* Installment Filter */}
-            <select 
-              value={installmentFilter} 
-              onChange={(e) => setInstallmentFilter(e.target.value as any)}
-              className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
-            >
-              <option value="all">Parcelado: Todos</option>
-              <option value="installment">Parcelados</option>
-              <option value="single">À Vista</option>
-            </select>
+          {/* Search */}
+          <div className="relative w-full md:w-auto flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Buscar conta..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-full focus:ring-2 focus:ring-purple-500 outline-none text-sm"
+            />
+          </div>
 
-            {/* Sort */}
-            <div className="relative">
-              <ArrowDownUp size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select 
-                value={sortBy} 
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="w-full pl-9 p-2 border border-gray-300 rounded-md text-sm outline-none bg-white appearance-none"
-              >
-                <option value="date-asc">Data (Antiga → Nova)</option>
-                <option value="date-desc">Data (Nova → Antiga)</option>
-                <option value="alpha-asc">Nome (A → Z)</option>
-                <option value="alpha-desc">Nome (Z → A)</option>
-                <option value="amount-asc">Valor (Menor → Maior)</option>
-                <option value="amount-desc">Valor (Maior → Menor)</option>
-              </select>
-            </div>
-
+          <div className="flex gap-2 w-full md:w-auto">
             <button 
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md border text-sm font-medium transition-colors ${showFilters ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${showFilters ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
-              <Filter size={18} /> Filtros Avançados
+              <Filter size={16} /> Filtros
             </button>
+            
+            <div className="flex bg-gray-100 rounded-full p-1">
+               <button onClick={() => setSortBy('date-asc')} className={`p-2 rounded-full ${sortBy.includes('date') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Data"><Calendar size={16} /></button>
+               <button onClick={() => setSortBy('amount-desc')} className={`p-2 rounded-full ${sortBy.includes('amount') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Valor"><ArrowDownUp size={16} /></button>
+            </div>
           </div>
-
-           {/* Collapsible Advanced Filters */}
-          {showFilters && (
-            <div className="border-t border-gray-200 pt-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-              {/* Period Custom */}
-              <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 uppercase">Período (Customizado)</label>
-                  <div className="flex gap-2 items-center">
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                    <span className="text-gray-400">-</span>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                  </div>
-              </div>
-
-              {/* Values */}
-              <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 uppercase">Valor (R$)</label>
-                  <div className="flex gap-2 items-center">
-                    <input type="number" placeholder="Min" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                    <span className="text-gray-400">-</span>
-                    <input type="number" placeholder="Max" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="w-full p-2 border rounded text-sm" />
-                  </div>
-              </div>
-
-              {/* Search */}
-              <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 uppercase">Busca</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    <input 
-                      type="text" 
-                      placeholder="Título ou Categoria" 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-9 p-2 border border-gray-300 rounded-md text-sm outline-none"
-                    />
-                  </div>
-              </div>
-              
-              <div className="md:col-span-2 lg:col-span-3 flex justify-end">
-                  <button onClick={clearFilters} className="text-sm text-red-500 hover:text-red-700 underline">Limpar todos os filtros</button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* List */}
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-4 w-10">
-                  <button onClick={toggleAll} className="text-gray-500 hover:text-purple-600">
-                    {payableDespesas.length > 0 && selectedIds.size === payableDespesas.length ? <CheckSquare /> : <Square />}
-                  </button>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Título</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimento</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
-                <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {payableDespesas.map((t) => (
-                <tr 
-                  key={t.id} 
-                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.has(t.id) ? 'bg-purple-50' : ''}`}
-                  onClick={() => toggleSelection(t.id)}
-                >
-                  <td className="px-6 py-4">
-                    <div className={`text-gray-400 ${selectedIds.has(t.id) ? 'text-purple-600' : ''}`}>
-                      {selectedIds.has(t.id) ? <CheckSquare size={20} /> : <Square size={20} />}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    {t.title}
-                    {t.installments && t.installments.total > 1 && (
-                       <span className="ml-2 inline-flex items-center text-xs font-normal text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">
-                          <Layers size={10} className="mr-1" /> {t.installments.current}/{t.installments.total}
-                       </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{formatDate(t.date)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs print:border print:border-gray-300">
-                      {t.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right text-sm font-bold text-red-600">
-                    {formatCurrency(t.amount)}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={(e) => initiateSinglePayment(e, t.id)}
-                      className="text-green-600 hover:text-green-800 hover:bg-green-100 p-2 rounded-full transition-colors"
-                      title="Marcar como pago"
-                    >
-                      <Check size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {payableDespesas.length === 0 && (
-            <div className="p-10 text-center text-gray-400 flex flex-col items-center">
-              <CalendarCheck size={48} className="mb-4 opacity-20" />
-              <p>Nenhuma conta pendente encontrada para os filtros selecionados.</p>
-            </div>
-          )}
-        </div>
+        {/* Collapsible Advanced Filters */}
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-gray-100 animate-fade-in-down">
+             {/* Period Custom */}
+             <div className="md:col-span-2 flex gap-2 items-center">
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
+                <span className="text-gray-400">-</span>
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+             </div>
+
+             {/* Category */}
+             <select 
+               value={categoryFilter} 
+               onChange={(e) => setCategoryFilter(e.target.value)}
+               className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+               <option value="all">Categoria: Todas</option>
+               {categories.filter(c => c.type === 'expense' || c.type === 'both').map(c => (
+                   <option key={c.id} value={c.name}>{c.name}</option>
+               ))}
+             </select>
+
+             {/* Values */}
+             <div className="flex gap-2 items-center md:col-span-2">
+                <input type="number" placeholder="Min R$" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" />
+                <span className="text-gray-400">-</span>
+                <input type="number" placeholder="Max R$" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" />
+             </div>
+             
+             <div className="md:col-span-3 lg:col-span-5 flex justify-end">
+                <button onClick={clearFilters} className="text-xs text-red-500 hover:underline">Limpar Filtros</button>
+             </div>
+          </div>
+        )}
       </div>
 
-      {/* Payment Date Confirmation Modal */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-fade-in-up">
-            <div className="flex justify-between items-center p-4 border-b bg-green-50">
-              <h3 className="text-lg font-bold text-green-800 flex items-center gap-2">
-                <Calendar size={20} /> Confirmar Pagamento
-              </h3>
-              <button 
-                onClick={() => setIsPaymentModalOpen(false)} 
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      {/* Bulk Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center gap-4 animate-fade-in-up">
+          <span className="font-medium">{selectedIds.length} selecionados</span>
+          <div className="h-4 w-px bg-gray-700"></div>
+          <button 
+            onClick={() => setShowBulkPaymentModal(true)}
+            className="flex items-center gap-2 hover:text-green-400 transition-colors font-medium"
+          >
+            <CheckCircle2 size={18} /> Marcar como Pago
+          </button>
+          <button 
+            onClick={() => setSelectedIds([])}
+            className="ml-2 p-1 hover:bg-gray-800 rounded-full"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Bulk Payment Modal */}
+      {showBulkPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Confirmar Pagamento em Lote</h3>
+            <p className="text-gray-600 mb-4">
+              Deseja marcar {selectedIds.length} contas como pagas?
+            </p>
             
-            <div className="p-6">
-              <p className="text-gray-600 mb-4 text-sm">
-                Confirme a data em que o pagamento foi realizado para {pendingPaymentIds.length} conta(s).
-              </p>
-              
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Data do Pagamento</label>
               <input 
-                type="date"
-                value={paymentDateInput}
-                onChange={(e) => setPaymentDateInput(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 outline-none"
+                type="date" 
+                value={bulkPaymentDate}
+                onChange={(e) => setBulkPaymentDate(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
 
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={() => setIsPaymentModalOpen(false)}
-                  className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded border border-gray-300 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={confirmPayment}
-                  className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors shadow-sm"
-                >
-                  Confirmar Baixa
-                </button>
-              </div>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setShowBulkPaymentModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleBulkPayment}
+                className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-md transition-colors"
+              >
+                Confirmar Pagamento
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Grid of Cards */}
+      {filteredContas.length > 0 ? (
+        <>
+          {/* Select All / Deselect All */}
+          <div className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-gray-100 mb-4">
+             <div className="flex items-center gap-2 cursor-pointer text-gray-700 hover:text-blue-600 transition-colors" onClick={toggleSelectAll}>
+                {selectedIds.length === filteredContas.length ? (
+                    <CheckSquare size={20} className="text-blue-600" />
+                ) : (
+                    <Square size={20} />
+                )}
+                <span className="font-medium text-sm">
+                   {selectedIds.length === filteredContas.length ? 'Remover todas as seleções' : 'Selecionar tudo'}
+                </span>
+             </div>
+             <div className="text-sm text-gray-500">
+                {selectedIds.length} de {filteredContas.length} selecionados
+             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredContas.map((t) => (
+            <div 
+              key={t.id} 
+              className={`bg-white rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md relative overflow-hidden group ${selectedIds.includes(t.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+              onClick={() => toggleSelection(t.id)}
+            >
+              <div className="p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    <div className="mt-1 cursor-pointer text-gray-400 hover:text-blue-500 transition-colors" onClick={(e) => { e.stopPropagation(); toggleSelection(t.id); }}>
+                        {selectedIds.includes(t.id) ? (
+                            <CheckSquare size={20} className="text-blue-600" />
+                        ) : (
+                            <Square size={20} />
+                        )}
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                            {t.category}
+                        </span>
+                        {t.isAutoGenerated && (
+                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1" title="Lançado automaticamente pelo sistema">
+                                <Repeat size={10} /> Lançado auto
+                            </span>
+                        )}
+                        {t.installments && t.installments.total > 1 && (
+                            <span className="inline-flex items-center text-xs font-normal text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">
+                                <Layers size={10} className="mr-1" /> {t.installments.current}/{t.installments.total}
+                            </span>
+                        )}
+                        </div>
+                    </div>
+                  </div>
+                  <div className="text-right mt-1 mr-6">
+                     <span className="block font-bold text-lg text-gray-800">
+                        {formatCurrency(t.amount)}
+                     </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-4 pl-8">
+                   <div className="flex items-center text-sm text-gray-600">
+                      <Calendar size={14} className="mr-2 opacity-70" />
+                      <span className="mr-1">Vencimento:</span>
+                      <span className={`font-medium ${new Date(t.date) < new Date() ? 'text-red-600' : ''}`}>
+                          {formatDate(t.date)}
+                      </span>
+                   </div>
+
+                   <div className="flex items-center text-sm text-red-700 bg-red-50 p-1.5 rounded w-fit">
+                      <Clock size={14} className="mr-2" />
+                      <span className="font-bold text-xs">PENDENTE</span>
+                   </div>
+
+                   {t.observation && (
+                     <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
+                        <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                        <p className="line-clamp-2">{t.observation}</p>
+                     </div>
+                   )}
+                </div>
+
+                <div className="flex items-end justify-between pt-3 border-t border-gray-100 pl-8">
+                   <div className="text-xs text-gray-400 italic">
+                      {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
+                   </div>
+                   <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditConta(t);
+                        }}
+                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteConta(t.id);
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                   </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
+      ) : (
+         <div className="p-12 text-center text-gray-400 flex flex-col items-center bg-white rounded-lg shadow-sm">
+           <CalendarCheck size={48} className="mb-4 opacity-20" />
+           <p>Nenhuma conta encontrada para os filtros selecionados.</p>
+         </div>
       )}
     </div>
   );

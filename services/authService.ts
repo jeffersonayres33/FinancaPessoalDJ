@@ -232,6 +232,27 @@ export const authService = {
       if (error) throw new Error('Erro ao atualizar configuração: ' + error.message);
   },
 
+  // Verifica se a opção "Marcar como Pago" nas despesas está habilitada
+  isExpenseMarkPaidEnabled: async (): Promise<boolean> => {
+      const { data, error } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'expense_mark_paid_enabled')
+          .single();
+      
+      if (error || !data) return false; // Default false
+      return data.value === true || data.value === 'true';
+  },
+
+  // Alterna o status da opção "Marcar como Pago" nas despesas (Apenas Admin)
+  toggleExpenseMarkPaid: async (enabled: boolean): Promise<void> => {
+      const { error } = await supabase
+          .from('app_settings')
+          .upsert({ key: 'expense_mark_paid_enabled', value: enabled });
+      
+      if (error) throw new Error('Erro ao atualizar configuração: ' + error.message);
+  },
+
   // Retorna todos os usuários (Apenas Admin)
   getAllUsers: async (): Promise<User[]> => {
       const { data, error } = await supabase

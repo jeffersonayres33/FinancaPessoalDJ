@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare } from 'lucide-react';
 import { authService } from '../services/authService';
 import { User } from '../types';
 
@@ -12,6 +12,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
   const [isPublicRegistration, setIsPublicRegistration] = useState(false);
+  const [isExpenseMarkPaidEnabled, setIsExpenseMarkPaidEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -21,8 +22,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
 
   const loadSettings = async () => {
     try {
-      const enabled = await authService.isPublicRegistrationEnabled();
+      const [enabled, expenseMarkPaidEnabled] = await Promise.all([
+        authService.isPublicRegistrationEnabled(),
+        authService.isExpenseMarkPaidEnabled()
+      ]);
       setIsPublicRegistration(enabled);
+      setIsExpenseMarkPaidEnabled(expenseMarkPaidEnabled);
     } catch (e) {
       console.error("Erro ao carregar configurações:", e);
     } finally {
@@ -52,6 +57,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
       setIsPublicRegistration(newValue);
       setMessage({ 
         text: `Cadastro público ${newValue ? 'HABILITADO' : 'DESABILITADO'} com sucesso.`, 
+        type: 'success' 
+      });
+    } catch (e: any) {
+      setMessage({ text: e.message || 'Erro ao alterar configuração.', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggleExpenseMarkPaid = async () => {
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      const newValue = !isExpenseMarkPaidEnabled;
+      await authService.toggleExpenseMarkPaid(newValue);
+      setIsExpenseMarkPaidEnabled(newValue);
+      setMessage({ 
+        text: `Opção "Marcar como Pago" nas Despesas ${newValue ? 'HABILITADA' : 'DESABILITADA'} com sucesso.`, 
         type: 'success' 
       });
     } catch (e: any) {
@@ -150,6 +173,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                 {loadingUsers ? <Loader2 size={16} className="animate-spin" /> : <Users size={16} />}
                 {showUserList ? 'Atualizar Lista' : 'Ver Lista de Usuários'}
               </button>
+            </div>
+
+            {/* Card de Configuração de Despesas */}
+            <div className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${isExpenseMarkPaidEnabled ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                    <CheckSquare size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">Botão "Marcar como Pago"</h3>
+                    <p className="text-sm text-gray-500">Habilitar botão de pagamento rápido nas Despesas</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleToggleExpenseMarkPaid}
+                  disabled={isLoading}
+                  className={`text-2xl transition-colors focus:outline-none ${isExpenseMarkPaidEnabled ? 'text-blue-500 hover:text-blue-600' : 'text-gray-300 hover:text-gray-400'}`}
+                >
+                  {isLoading ? <Loader2 size={24} className="animate-spin text-purple-600" /> : (
+                    isExpenseMarkPaidEnabled ? <ToggleRight size={40} /> : <ToggleLeft size={40} />
+                  )}
+                </button>
+              </div>
+              
+              <div className={`text-sm p-3 rounded-lg ${isExpenseMarkPaidEnabled ? 'bg-blue-50 text-blue-800' : 'bg-gray-50 text-gray-600'}`}>
+                Status: <strong>{isExpenseMarkPaidEnabled ? 'HABILITADO' : 'DESABILITADO'}</strong>
+                <p className="mt-1 text-xs opacity-80">
+                  {isExpenseMarkPaidEnabled 
+                    ? 'O botão de "Marcar como Pago" aparecerá na lista de Despesas.' 
+                    : 'Apenas a edição completa da despesa permitirá alterar o status.'}
+                </p>
+              </div>
             </div>
           </div>
 

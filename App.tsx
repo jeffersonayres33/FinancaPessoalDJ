@@ -107,26 +107,152 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     isVisible: false
   });
 
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type, isVisible: true });
+  }, []);
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: () => void;
+    action: 'delete_transaction' | 'delete_category' | null;
+    targetId: string | null;
+    checkboxLabel?: string;
+    isCheckboxChecked?: boolean;
   }>({
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {}
+    action: null,
+    targetId: null,
+    isCheckboxChecked: false
   });
 
   // DATA STATES
   const [categories, setCategories] = useState<Category[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
 
-  // --- HANDLERS ---
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type, isVisible: true });
-  }, []);
+  // ...
+
+  const handleConfirmModalAction = async () => {
+    if (!confirmModal.targetId) return;
+
+    if (confirmModal.action === 'delete_transaction') {
+        const id = confirmModal.targetId;
+        const stopFuture = confirmModal.isCheckboxChecked;
+
+        try {
+            if (!navigator.onLine) {
+              syncService.addToQueue('DELETE_TRANSACTION', id);
+              setDespesas((prev) => {
+                const updated = prev.filter((t) => t.id !== id);
+                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast('Transação removida localmente.', 'success');
+            } else {
+              if (stopFuture) {
+                  const transactionToDelete = despesas.find(t => t.id === id);
+                  await dataService.stopRecurringAndDeleteTransaction(id, user.dataContextId, transactionToDelete);
+                  
+                  // Atualiza estado local: remove a atual e atualiza anteriores para não fixas
+                  setDespesas((prev) => {
+                      const deleted = prev.find(t => t.id === id);
+                      let updated = prev.filter((t) => t.id !== id);
+                      
+                      if (deleted) {
+                          updated = updated.map(t => {
+                              // Critério para encontrar "pais": mesmo título, valor, categoria, fixa e data anterior
+                              if (t.isFixed && t.title === deleted.title && t.amount === deleted.amount && t.category === deleted.category && t.date < deleted.date) {
+                                  return { ...t, isFixed: false };
+                              }
+                              return t;
+                          });
+                      }
+                      localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                      return updated;
+                  });
+                  showToast('Transação e recorrência futura removidas.', 'success');
+              } else {
+                  await dataService.deleteTransaction(id);
+                  setDespesas((prev) => {
+                    const updated = prev.filter((t) => t.id !== id);
+                    localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                    return updated;
+                  });
+                  showToast('Transação removida com sucesso.', 'success');
+              }
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao remover.', 'error');
+        }
+    } else if (confirmModal.action === 'delete_category') {
+        const id = confirmModal.targetId;
+        try {
+            if (!navigator.onLine) {
+              syncService.addToQueue('DELETE_CATEGORY', id);
+              setCategories(prev => {
+                const updated = prev.filter(c => c.id !== id);
+                localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast('Categoria excluída localmente.', 'success');
+            } else {
+              await dataService.deleteCategory(id);
+              setCategories(prev => {
+                const updated = prev.filter(c => c.id !== id);
+                localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast('Categoria excluída.', 'success');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao excluir categoria.', 'error');
+        }
+    }
+    
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteDespesa = useCallback((id: string) => {
+    const transaction = despesas.find(t => t.id === id);
+    const isFixed = transaction?.isFixed;
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Transação",
+      message: "Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.",
+      action: 'delete_transaction',
+      targetId: id,
+      checkboxLabel: isFixed ? "O sistema não lançará mais essa transação fixa para data futuro" : undefined,
+      isCheckboxChecked: isFixed ? true : undefined
+    });
+  }, [despesas]);
+  
+  const handleDeleteCategory = useCallback((id: string) => {
+      const categoryToDelete = categories.find(c => c.id === id);
+      if (!categoryToDelete) return;
+      
+      const isCategoryInUse = despesas.some(t => t.category === categoryToDelete.name);
+      if (isCategoryInUse) {
+        showToast('Erro de Integridade: Categoria em uso por transações existentes.', 'error');
+        return;
+      }
+
+      setConfirmModal({
+         isOpen: true,
+         title: "Excluir Categoria",
+         message: `Deseja excluir "${categoryToDelete.name}"?`,
+         action: 'delete_category',
+         targetId: id
+      });
+  }, [categories, despesas, showToast]);
+
+
+
+
 
   // --- DATA FETCHING (SUPABASE) ---
   const loadData = useCallback(async () => {
@@ -191,6 +317,16 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         
         setCategories(cats);
         setDespesas(trans);
+
+        // Verifica e gera despesas recorrentes (apenas se online)
+        if (navigator.onLine) {
+            const newRecurring = await dataService.checkAndGenerateRecurringExpenses(trans, user.dataContextId);
+            if (newRecurring.length > 0) {
+                trans = [...newRecurring, ...trans]; // Atualiza a lista local com as novas
+                setDespesas(trans);
+                showToast(`${newRecurring.length} transação(ões) recorrente(s) gerada(s) automaticamente.`, 'success');
+            }
+        }
 
         // Salva no cache local para uso offline
         localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(cats));
@@ -303,20 +439,50 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const handleBackup = useCallback(async () => {
     try {
       showToast('Gerando backup...', 'success');
-      const [cats, trans] = await Promise.all([
-        dataService.fetchCategories(user.dataContextId),
-        dataService.fetchTransactions(user.dataContextId)
-      ]);
+      
+      // Coletar todos os dataContextIds (usuário logado + membros)
+      const dataContextIds = new Set<string>();
+      dataContextIds.add(user.dataContextId);
+      
+      const formattedMembers = (user.members || []).map((m: any) => {
+        const memberDataContextId = m.data_context_id || m.dataContextId;
+        if (memberDataContextId) {
+          dataContextIds.add(memberDataContextId);
+        }
+        return {
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          dataContextId: memberDataContextId,
+          parentId: m.parent_id || m.parentId,
+          role: m.role
+        };
+      });
+
+      // Buscar dados para todos os dataContextIds
+      const allCategories: any[] = [];
+      const allTransactions: any[] = [];
+
+      await Promise.all(Array.from(dataContextIds).map(async (dcId) => {
+        const [cats, trans] = await Promise.all([
+          dataService.fetchCategories(dcId),
+          dataService.fetchTransactions(dcId)
+        ]);
+        allCategories.push(...cats);
+        allTransactions.push(...trans);
+      }));
       
       const backupData = {
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
-          dataContextId: user.dataContextId
+          dataContextId: user.dataContextId,
+          role: user.role
         },
-        categories: cats,
-        transactions: trans,
+        members: formattedMembers,
+        categories: allCategories,
+        transactions: allTransactions,
         exportDate: new Date().toISOString()
       };
 
@@ -332,9 +498,31 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
       
       showToast('Backup concluído!', 'success');
     } catch (e) {
+      console.error("Erro no backup:", e);
       showToast('Erro ao gerar backup.', 'error');
     }
   }, [user, showToast]);
+
+  const handleRestoreBackup = useCallback(async (file: File) => {
+    try {
+      showToast('Lendo arquivo de backup...', 'success');
+      const text = await file.text();
+      const backupData = JSON.parse(text);
+
+      if (!backupData.categories || !backupData.transactions) {
+        throw new Error("Arquivo de backup inválido.");
+      }
+
+      showToast('Restaurando dados...', 'success');
+      await dataService.restoreBackup(user, backupData);
+      
+      showToast('Backup restaurado com sucesso!', 'success');
+      loadData(); // Recarrega os dados da tela
+    } catch (e: any) {
+      console.error(e);
+      showToast(e.message || 'Erro ao restaurar backup.', 'error');
+    }
+  }, [user, showToast, loadData]);
 
   const handleReturnToParent = useCallback(async () => {
     if (user.parentId) {
@@ -358,13 +546,14 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     date: string, 
     paymentDate?: string, 
     installmentsCount: number = 1, 
-    observation?: string
+    observation?: string,
+    isFixed?: boolean
   ) => {
     try {
         const createdAt = new Date().toISOString();
         const newTransactions: Despesa[] = [];
 
-        if (type === 'expense' && installmentsCount > 1) {
+        if (type === 'expense' && installmentsCount > 1 && !isFixed) {
             const installmentValue = amount / installmentsCount;
             const [startYear, startMonth, startDay] = date.split('-').map(Number);
             
@@ -389,7 +578,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
                     installments: {
                         current: i + 1,
                         total: installmentsCount
-                    }
+                    },
+                    isFixed: false
                 });
             }
         } else {
@@ -404,7 +594,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
                 paymentDate: status === 'paid' && type === 'expense' ? paymentDate : undefined,
                 createdAt,
                 observation,
-                installments: undefined
+                installments: undefined,
+                isFixed: !!isFixed
             });
         }
 
@@ -434,6 +625,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     } catch (e) {
         console.error(e);
         showToast('Erro ao salvar transação.', 'error');
+        throw e; // Re-throw para o formulário
     }
   }, [user.dataContextId, showToast]);
 
@@ -466,7 +658,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           showToast('Transação atualizada com sucesso!', 'success');
         }
     } catch (e) {
+        console.error('Erro em handleUpdateDespesa:', e);
         showToast('Erro ao atualizar.', 'error');
+        throw e; // Re-throw para que o formulário saiba que falhou
     }
   }, [showToast, user.dataContextId]);
 
@@ -500,38 +694,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
   }, [showToast, user.dataContextId]);
 
-  const handleDeleteDespesa = useCallback((id: string) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Excluir Transação",
-      message: "Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.",
-      onConfirm: async () => {
-        try {
-            if (!navigator.onLine) {
-              syncService.addToQueue('DELETE_TRANSACTION', id);
-              setDespesas((prev) => {
-                const updated = prev.filter((t) => t.id !== id);
-                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
-                return updated;
-              });
-              showToast('Transação removida localmente.', 'success');
-            } else {
-              await dataService.deleteTransaction(id);
-              setDespesas((prev) => {
-                const updated = prev.filter((t) => t.id !== id);
-                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
-                return updated;
-              });
-              showToast('Transação removida com sucesso.', 'success');
-            }
-        } catch (e) {
-            showToast('Erro ao remover.', 'error');
-        } finally {
-            setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      }
-    });
-  }, [showToast, user.dataContextId]);
+
 
   const handleMarkAsPaid = useCallback(async (ids: string[], paymentDate: string) => {
     try {
@@ -628,47 +791,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
   }, [showToast, user.dataContextId]);
 
-  const requestDeleteCategory = useCallback((id: string) => {
-     const categoryToDelete = categories.find(c => c.id === id);
-     if (!categoryToDelete) return;
-     
-     const isCategoryInUse = despesas.some(t => t.category === categoryToDelete.name);
-     if (isCategoryInUse) {
-       showToast('Erro de Integridade: Categoria em uso por transações existentes.', 'error');
-       return;
-     }
 
-     setConfirmModal({
-        isOpen: true,
-        title: "Excluir Categoria",
-        message: `Deseja excluir "${categoryToDelete.name}"?`,
-        onConfirm: async () => {
-            try {
-                if (!navigator.onLine) {
-                  syncService.addToQueue('DELETE_CATEGORY', id);
-                  setCategories(prev => {
-                    const updated = prev.filter(c => c.id !== id);
-                    localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
-                    return updated;
-                  });
-                  showToast('Categoria excluída localmente.', 'success');
-                } else {
-                  await dataService.deleteCategory(id);
-                  setCategories(prev => {
-                    const updated = prev.filter(c => c.id !== id);
-                    localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
-                    return updated;
-                  });
-                  showToast('Categoria excluída.', 'success');
-                }
-            } catch (e) {
-                showToast('Erro ao excluir categoria.', 'error');
-            } finally {
-                setConfirmModal(prev => ({ ...prev, isOpen: false }));
-            }
-        }
-     });
-  }, [categories, despesas, showToast, user.dataContextId]);
 
   const openNewDespesaModal = useCallback(() => {
     setEditingDespesa(null);
@@ -824,6 +947,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         onLogout={onLogout}
         onReturnToMain={handleReturnToParent} 
         onBackup={handleBackup}
+        onRestoreBackup={handleRestoreBackup}
         onInstall={onInstall}
       />
       
@@ -837,6 +961,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             onEditDespesa={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
+            onToggleStatus={handleToggleStatus}
           />
         )}
 
@@ -867,6 +992,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             despesas={despesas} 
             onMarkAsPaid={handleMarkAsPaid} 
             categories={categories}
+            onDeleteConta={handleDeleteDespesa}
+            onEditConta={openEditDespesaModal}
+            onOpenNew={openNewDespesaModal}
           />
         )}
 
@@ -875,7 +1003,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             categories={categories}
             onAdd={handleAddCategory}
             onEdit={handleEditCategory}
-            onDelete={requestDeleteCategory}
+            onDelete={handleDeleteCategory}
           />
         )}
 
@@ -921,8 +1049,11 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}
         message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm}
+        onConfirm={handleConfirmModalAction}
         onCancel={closeConfirmModal}
+        checkboxLabel={confirmModal.checkboxLabel}
+        isCheckboxChecked={confirmModal.isCheckboxChecked}
+        onCheckboxChange={(checked) => setConfirmModal(prev => ({ ...prev, isCheckboxChecked: checked }))}
       />
     </div>
   );

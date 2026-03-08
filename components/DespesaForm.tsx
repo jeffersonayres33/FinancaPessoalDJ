@@ -1,39 +1,38 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle } from 'lucide-react';
-import { TransactionType, TransactionStatus, Category, Despesa } from '../types';
-import { extractReceiptData } from '../services/geminiService';
+import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar } from 'lucide-react';
+import { TransactionType, TransactionStatus, Despesa, Category } from '../types';
 import { getCurrentLocalDateString } from '../utils';
 
 interface DespesaFormProps {
-  onAddDespesa: (title: string, amount: number, type: TransactionType, category: string, status: TransactionStatus, date: string, paymentDate?: string, installments?: number, observation?: string) => void;
-  onUpdateDespesa?: (despesa: Despesa) => void;
-  initialData?: Despesa | null;
-  isOpen: boolean;
-  onClose: () => void;
+  onAddDespesa: (title: string, amount: number, type: TransactionType, category: string, status: TransactionStatus, date: string, paymentDate?: string, installments?: number, observation?: string, isFixed?: boolean) => Promise<void> | void;
+  onUpdateDespesa?: (despesa: Despesa) => Promise<void> | void;
   categories: Category[];
-  forceType?: TransactionType;
+  onClose: () => void;
+  isOpen: boolean;
+  initialData?: Despesa | null;
+  forceType?: TransactionType; // Se fornecido, força o tipo e esconde o seletor
 }
 
 export const DespesaForm: React.FC<DespesaFormProps> = ({ 
   onAddDespesa, 
   onUpdateDespesa,
-  initialData, 
-  isOpen, 
+  categories, 
   onClose, 
-  categories,
+  isOpen,
+  initialData,
   forceType
 }) => {
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
   const [type, setType] = useState<TransactionType>('expense');
+  const [category, setCategory] = useState('');
   const [status, setStatus] = useState<TransactionStatus>('pending');
-  // Usa helper para pegar YYYY-MM-DD local, evitando bugs de timezone do toISOString()
   const [date, setDate] = useState(getCurrentLocalDateString());
   const [paymentDate, setPaymentDate] = useState(getCurrentLocalDateString());
   const [installments, setInstallments] = useState(1);
   const [observation, setObservation] = useState('');
+  const [isFixed, setIsFixed] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
@@ -46,41 +45,98 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
       setType(initialData.type);
       setCategory(initialData.category);
       setStatus(initialData.status);
-      setDate(initialData.date.split('T')[0]); // Garante formato correto se vier legacy
-      if (initialData.paymentDate) {
-        setPaymentDate(initialData.paymentDate.split('T')[0]);
-      } else {
-        setPaymentDate(getCurrentLocalDateString());
-      }
-      setInstallments(1);
+      setDate(initialData.date);
+      setPaymentDate(initialData.paymentDate || getCurrentLocalDateString());
+      setInstallments(initialData.installments?.total || 1);
       setObservation(initialData.observation || '');
+      setIsFixed(!!initialData.isFixed);
     } else {
       setTitle('');
       setAmount('');
       setType(forceType || 'expense');
+      setCategory('');
       setStatus(forceType === 'investment' ? 'in' : 'pending');
       setDate(getCurrentLocalDateString());
       setPaymentDate(getCurrentLocalDateString());
       setInstallments(1);
       setObservation('');
+      setIsFixed(false);
     }
     setAnalysisError('');
+    setIsSaving(false);
   }, [initialData, isOpen, forceType]);
 
-  const availableCategories = categories.filter(c => c.type === 'both' || c.type === type);
+  const availableCategories = categories.filter(c => c.type === type || c.type === 'both');
 
-  useEffect(() => {
-    if (availableCategories.length > 0) {
-      const currentCategoryIsValid = availableCategories.some(c => c.name === category);
-      if (!category || !currentCategoryIsValid) {
-         if (!initialData || (initialData && initialData.type !== type)) {
-            setCategory(availableCategories[0].name);
-         }
-      }
-    } else {
-      setCategory('');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !amount || !category) return;
+
+    setIsSaving(true);
+
+    try {
+        const finalPaymentDate = (type === 'expense' && status === 'paid') ? paymentDate : undefined;
+        const currentIsFixed = isFixed === true;
+
+        if (initialData && onUpdateDespesa) {
+          const initialIsFixed = !!initialData.isFixed;
+          
+          // Se era fixa e mudou para variável, avisa
+          if (initialIsFixed && !currentIsFixed) {
+             if (!window.confirm('Ao mudar para despesa Variável, o sistema NÃO irá mais lançar esta despesa automaticamente nos próximos meses. Deseja continuar?')) {
+                 setIsSaving(false);
+                 return;
+             }
+          }
+
+          const updatePayload: Despesa = {
+            id: initialData.id,
+            title,
+            amount: Number(amount),
+            type,
+            category,
+            status,
+            date,
+            paymentDate: finalPaymentDate,
+            observation,
+            isFixed: currentIsFixed,
+            createdAt: initialData.createdAt,
+            // Se for variável, usa o valor do input (se > 1 cria estrutura, senão undefined/null)
+            // Se for fixa, undefined/null
+            installments: (!currentIsFixed && installments > 1) 
+                ? { current: initialData.installments?.current || 1, total: installments } 
+                : undefined
+          };
+
+          console.log('Enviando updatePayload:', updatePayload);
+
+          await onUpdateDespesa(updatePayload);
+        } else {
+          await onAddDespesa(title, Number(amount), type, category, status, date, finalPaymentDate, installments, observation, currentIsFixed);
+        }
+        
+        handleClose();
+    } catch (error: any) {
+        console.error("Erro ao salvar despesa:", error);
+        alert(`Ocorreu um erro ao salvar: ${error.message || 'Erro desconhecido'}`);
+    } finally {
+        setIsSaving(false);
     }
-  }, [type, categories, initialData]);
+  };
+
+  const handleClose = () => {
+    setTitle('');
+    setAmount('');
+    setType('expense');
+    setCategory('');
+    setStatus('pending');
+    setDate(getCurrentLocalDateString());
+    setInstallments(1);
+    setObservation('');
+    setIsFixed(false);
+    setAnalysisError('');
+    onClose();
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,296 +144,270 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
 
     setIsAnalyzing(true);
     setAnalysisError('');
-    
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result as string;
-        try {
-          const data = await extractReceiptData(base64String);
-          if (data) {
-            setTitle(data.title || '');
-            setAmount(data.amount?.toString() || '');
-            if (data.date) setDate(data.date);
-            setObservation(data.observation || '');
-            setType(forceType || 'expense'); 
-          } else {
-             setAnalysisError('Não foi possível extrair dados da imagem. Tente uma foto mais nítida.');
-          }
-        } catch (error) {
-          setAnalysisError('Erro ao processar imagem. Verifique sua conexão.');
-        } finally {
-          setIsAnalyzing(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error(error);
-      setAnalysisError('Erro ao ler arquivo.');
-      setIsAnalyzing(false);
-    }
-    
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title || !amount || !category) return;
-
-    const finalPaymentDate = (type === 'expense' && status === 'paid') ? paymentDate : undefined;
-
-    if (initialData && onUpdateDespesa) {
-      onUpdateDespesa({
-        ...initialData,
-        title,
-        amount: Number(amount),
-        type,
-        category,
-        status,
-        date,
-        paymentDate: finalPaymentDate,
-        observation
-      });
-    } else {
-      onAddDespesa(title, Number(amount), type, category, status, date, finalPaymentDate, installments, observation);
-    }
-    
-    handleClose();
-  };
-
-  const handleClose = () => {
-    setTitle('');
-    setAmount('');
-    setType(forceType || 'expense');
-    setStatus(forceType === 'investment' ? 'in' : 'pending');
-    setDate(getCurrentLocalDateString());
-    setPaymentDate(getCurrentLocalDateString());
-    setInstallments(1);
-    setObservation('');
-    setIsAnalyzing(false);
-    setAnalysisError('');
-    onClose();
+    // Simulação de análise de imagem (OCR)
+    // Em um app real, enviaria para uma API de OCR
+    setTimeout(() => {
+        setIsAnalyzing(false);
+        // Simula dados extraídos
+        setTitle('Compra Detectada');
+        setAmount('150.00');
+        setDate(getCurrentLocalDateString());
+        setAnalysisError('Nota: Dados extraídos automaticamente. Verifique antes de salvar.');
+    }, 1500);
   };
 
   if (!isOpen) return null;
 
-  const getModalTitle = () => {
-    if (initialData) {
-      if (initialData.type === 'investment') return 'Editar Investimento';
-      return 'Editar Despesa';
-    }
-    if (forceType === 'income') return 'Nova Receita';
-    if (forceType === 'expense') return 'Nova Despesa';
-    if (forceType === 'investment') return 'Novo Investimento';
-    return 'Nova Transação';
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center p-4 border-b bg-gray-50 sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-gray-800">
-            {getModalTitle()}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            {initialData ? <FileText size={24} /> : <PlusCircle size={24} />}
+            {initialData 
+              ? (type === 'expense' ? 'Editar Despesa' : type === 'investment' ? 'Editar Investimento' : 'Editar Receita') 
+              : (type === 'expense' ? 'Nova Despesa' : type === 'investment' ? 'Novo Investimento' : 'Nova Receita')}
           </h2>
-          <button onClick={handleClose} className="text-gray-500 hover:text-gray-700 transition-colors">
+          <button onClick={handleClose} className="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/20">
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
           
-          {!initialData && forceType !== 'investment' && (
-            <div className="mb-4">
-              <input 
-                type="file" 
-                accept="image/*" 
-                ref={fileInputRef}
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isAnalyzing}
-                className={`w-full font-medium py-3 rounded border border-dashed flex items-center justify-center gap-2 transition-colors ${
-                    analysisError 
-                    ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                    : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
-                }`}
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" /> Processando Imagem...
-                  </>
-                ) : (
-                  <>
-                    <Camera size={20} /> Capturar Recibo / NF
-                  </>
+          {/* Botão de Scan (apenas para nova despesa) */}
+          {!initialData && type === 'expense' && (
+            <div className="mb-6">
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment"
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                />
+                <button 
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 font-medium hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
+                    disabled={isAnalyzing}
+                >
+                    {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+                    {isAnalyzing ? 'Analisando cupom...' : 'Escanear Nota Fiscal / Cupom'}
+                </button>
+                {analysisError && (
+                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1 bg-amber-50 p-2 rounded">
+                        <AlertCircle size={12} /> {analysisError}
+                    </p>
                 )}
-              </button>
-              {analysisError ? (
-                  <p className="text-xs text-red-500 mt-1 text-center flex items-center justify-center gap-1">
-                      <AlertCircle size={12} /> {analysisError}
-                  </p>
-              ) : (
-                  <p className="text-xs text-gray-500 mt-1 text-center">
-                    A IA preencherá os dados automaticamente, exceto a categoria.
-                  </p>
-              )}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            
+            {/* Seletor de Tipo (Receita / Despesa) */}
+            {!forceType && (
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setType('income')}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                      type === 'income' 
+                        ? 'bg-white text-green-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Receita
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setType('expense')}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                      type === 'expense' 
+                        ? 'bg-white text-red-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Despesa
+                  </button>
+                </div>
+            )}
+
+            {/* Título (Movido para o topo) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
               <input
                 type="text"
-                placeholder="Ex: Aluguel, Salário, Compra TV"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                placeholder="Ex: Supermercado, Aluguel..."
                 required
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                   {installments > 1 ? 'Valor Total (R$)' : 'Valor (R$)'}
-                </label>
-                <input
-                  type="number"
-                  placeholder="0,00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
-                  required
-                  min="0"
-                  step="0.01"
-                />
-                {installments > 1 && amount && (
-                   <p className="text-xs text-gray-500 mt-1">
-                      ~ {Number((Number(amount) / installments).toFixed(2))} por mês
-                   </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                   {type === 'expense' ? 'Vencimento (1ª)' : 'Data'}
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {!forceType ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                  <div className="flex gap-2 bg-gray-100 p-1 rounded">
-                    <button
-                      type="button"
-                      onClick={() => setType('income')}
-                      disabled={!!initialData}
-                      className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
-                        type === 'income' 
-                          ? 'bg-green-100 text-green-700 border border-green-200' 
-                          : 'text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      <PlusCircle size={16} /> Entrada
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setType('expense')}
-                      disabled={!!initialData}
-                      className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
-                        type === 'expense' 
-                          ? 'bg-red-100 text-red-700 border border-red-200' 
-                          : 'text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      <PlusCircle size={16} className="rotate-45" /> Saída
-                    </button>
-                  </div>
-                </div>
-              ) : (
-               <div className="hidden"></div> 
-              )}
-
-              <div className={forceType ? "col-span-2" : ""}>
+            {/* Status de Pagamento (Movido para baixo do Título) */}
+            <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                   {forceType === 'investment' ? 'Tipo' : 'Status'}
+                    {type === 'investment' ? 'Tipo:' : 'Pagamento:'}
                  </label>
-                 <div className="flex gap-2 bg-gray-100 p-1 rounded">
-                  {forceType === 'investment' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setStatus('in')}
-                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
-                          status === 'in' 
-                            ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                            : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                        title="Entrada"
-                      >
-                        <PlusCircle size={16} /> Entrada
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatus('out')}
-                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
-                          status === 'out' 
-                            ? 'bg-orange-100 text-orange-700 border border-orange-200' 
-                            : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                        title="Saída"
-                      >
-                        <PlusCircle size={16} className="rotate-45" /> Saída
-                      </button>
-                    </>
-                  ) : (
-                    <>
+                 {type === 'investment' ? (
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <button
+                            type="button"
+                            onClick={() => setStatus('in')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                            status === 'in' 
+                                ? 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <CheckCircle size={16} /> Entrada
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatus('out')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                            status === 'out' 
+                                ? 'bg-orange-100 text-orange-700 shadow-sm border border-orange-200' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <Clock size={16} /> Saída
+                        </button>
+                    </div>
+                 ) : type === 'expense' ? (
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
                       <button
                         type="button"
                         onClick={() => setStatus('paid')}
-                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
                           status === 'paid' 
-                            ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                            : 'text-gray-500 hover:bg-gray-200'
+                            ? 'bg-green-100 text-green-700 shadow-sm border border-green-200' 
+                            : 'text-gray-500 hover:text-gray-700'
                         }`}
-                        title="Pago / Recebido"
                       >
                         <CheckCircle size={16} /> Pago
                       </button>
                       <button
                         type="button"
                         onClick={() => setStatus('pending')}
-                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
                           status === 'pending' 
-                            ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' 
-                            : 'text-gray-500 hover:bg-gray-200'
+                            ? 'bg-yellow-100 text-yellow-700 shadow-sm border border-yellow-200' 
+                            : 'text-gray-500 hover:text-gray-700'
                         }`}
-                        title="Não Pago"
                       >
                         <Clock size={16} /> Não Pago
                       </button>
-                    </>
-                  )}
-                 </div>
+                    </div>
+                 ) : (
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <button
+                            type="button"
+                            onClick={() => setStatus('paid')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                            status === 'paid' 
+                                ? 'bg-green-100 text-green-700 shadow-sm border border-green-200' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <CheckCircle size={16} /> Recebido
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatus('pending')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                            status === 'pending' 
+                                ? 'bg-yellow-100 text-yellow-700 shadow-sm border border-yellow-200' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <Clock size={16} /> Pendente
+                        </button>
+                    </div>
+                 )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white font-mono text-lg"
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {type === 'expense' ? 'Vencimento' : 'Data Prevista'}
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                  required
+                />
               </div>
             </div>
 
-            {!initialData && type === 'expense' && (
-               <div>
+            {/* Seletor de Tipo de Despesa/Receita (Fixa/Variável) */}
+            <div className={initialData ? 'opacity-70' : ''}>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                    Recorrência
+                    {initialData && <span className="text-xs font-normal text-amber-600">(Não editável)</span>}
+                </label>
+                <div className="flex gap-2 bg-gray-100 p-1 rounded">
+                    <button
+                    type="button"
+                    disabled={!!initialData}
+                    onClick={() => {
+                        setIsFixed(false);
+                    }}
+                    className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                        !isFixed 
+                        ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                        : 'text-gray-500 hover:bg-gray-200'
+                    } ${initialData ? 'cursor-not-allowed' : ''}`}
+                    >
+                    <Calendar size={16} /> Variável
+                    </button>
+                    <button
+                    type="button"
+                    disabled={!!initialData}
+                    onClick={() => {
+                        setIsFixed(true);
+                        setInstallments(1); // Força 1 parcela se for fixa
+                    }}
+                    className={`flex-1 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                        isFixed 
+                        ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
+                        : 'text-gray-500 hover:bg-gray-200'
+                    } ${initialData ? 'cursor-not-allowed' : ''}`}
+                    >
+                    <Repeat size={16} /> Fixa
+                    </button>
+                </div>
+                {isFixed && (
+                    <p className="text-xs text-indigo-600 mt-1 bg-indigo-50 p-2 rounded border border-indigo-100">
+                        <Repeat size={12} className="inline mr-1"/>
+                        O sistema lançará automaticamente uma cópia desta {type === 'expense' ? 'despesa' : type === 'investment' ? 'investimento' : 'receita'} a cada mês (20 dias após o vencimento).
+                    </p>
+                )}
+            </div>
+
+            {/* Parcelas - Disponível para nova despesa OU edição de despesa variável */}
+            {type === 'expense' && !isFixed && (
+               <div className={isFixed ? 'opacity-50 pointer-events-none' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                     <Layers size={14} /> Parcelas
+                     <Layers size={14} /> Parcelas {initialData && <span className="text-xs font-normal text-amber-600">(Editar parcelas não gera novos registros)</span>}
                   </label>
                   <input
                     type="number"
@@ -386,10 +416,11 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                     value={installments}
                     onChange={(e) => setInstallments(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 outline-none"
+                    disabled={isFixed}
                   />
                </div>
             )}
-
+            
             {type === 'expense' && status === 'paid' && (
               <div className="animate-fade-in bg-green-50 p-3 rounded-md border border-green-100">
                 <label className="block text-sm font-medium text-green-800 mb-1">

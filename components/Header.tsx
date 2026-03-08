@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare, Upload } from 'lucide-react';
 import { User } from '../types';
 
 interface HeaderProps {
@@ -10,14 +10,16 @@ interface HeaderProps {
   onLogout?: () => void;
   onReturnToMain?: () => void;
   onBackup?: () => void;
+  onRestoreBackup?: (file: File) => void;
   onInstall?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onInstall }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onRestoreBackup, onInstall }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
@@ -216,6 +218,29 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                       <Download size={20} />
                       <span>Backup</span>
                     </button>
+                  )}
+                  {onRestoreBackup && (
+                    <>
+                      <input 
+                        type="file" 
+                        accept=".json" 
+                        ref={fileInputRef} 
+                        style={{ display: 'none' }} 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            onRestoreBackup(file);
+                            setIsMenuOpen(false);
+                          }
+                          // Reset input
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }} 
+                      />
+                      <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 mt-2">
+                        <Upload size={20} />
+                        <span>Restaurar Backup</span>
+                      </button>
+                    </>
                   )}
                 </nav>
               )}
