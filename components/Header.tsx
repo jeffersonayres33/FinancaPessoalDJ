@@ -88,10 +88,10 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                 </>
               ) : (
                 <>
-                  <p>Para instalar no Android/Chrome:</p>
+                  <p>Para instalar no Android ou Computador:</p>
                   <ol className="list-decimal list-inside space-y-2 text-sm">
-                    <li>Toque no menu do navegador (três pontos no canto superior).</li>
-                    <li>Selecione <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</li>
+                    <li>No Computador: Clique no ícone de instalação <Download size={16} className="inline" /> na barra de endereços do Chrome.</li>
+                    <li>No Android: Toque no menu do navegador (três pontos) e selecione <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</li>
                     <li>Siga as instruções na tela.</li>
                   </ol>
                 </>
