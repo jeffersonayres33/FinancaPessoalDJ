@@ -335,6 +335,10 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     } catch (e: any) {
         if (isMounted) {
             console.error("Erro fatal ao carregar dados:", e);
+            if (e.message?.includes("Refresh Token") || e.message?.includes("invalid claim") || e.message?.includes("JWT")) {
+                onLogout();
+                return;
+            }
             setConnectionError(true);
             setConnectionErrorMessage(e.message || 'Erro desconhecido ao conectar ao Supabase.');
         }
@@ -345,7 +349,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     return () => {
         isMounted = false;
     };
-  }, [user.dataContextId, showToast]);
+  }, [user.dataContextId, showToast, onLogout]);
 
   useEffect(() => {
     loadData();
@@ -1132,10 +1136,10 @@ const App: React.FC = () => {
     setUser(loggedInUser);
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     authService.logout();
     setUser(null);
-  };
+  }, []);
 
   if (isCheckingSession) {
     return (

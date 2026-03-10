@@ -2,9 +2,11 @@ const CACHE_NAME = 'financas-ai-v1';
 
 // Apenas cachear o shell básico. O restante será cacheado dinamicamente.
 const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json'
+  '/FinancaPessoalDJ/',
+  '/FinancaPessoalDJ/index.html',
+  '/FinancaPessoalDJ/manifest.json',
+  '/FinancaPessoalDJ/icon-192.png',
+  '/FinancaPessoalDJ/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {

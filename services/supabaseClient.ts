@@ -15,6 +15,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
+// Intercepta erros globais de token de atualização inválido do Supabase
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason && event.reason.message && event.reason.message.includes('Refresh Token')) {
+      console.warn('Supabase Refresh Token Error capturado globalmente:', event.reason.message);
+      event.preventDefault(); // Evita que o erro apareça no console como uncaught
+      // Opcional: forçar logout aqui se necessário
+      supabase.auth.signOut().catch(() => {});
+      localStorage.removeItem('finances_current_user');
+      window.location.reload();
+    }
+  });
+}
+
 export const validateConfig = () => {
   if (!SUPABASE_URL || !SUPABASE_URL.includes('supabase.co')) {
     return { valid: false, message: 'URL do Supabase inválida.' };
