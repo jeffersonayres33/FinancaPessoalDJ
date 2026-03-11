@@ -242,13 +242,6 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({
                <FileSpreadsheet size={18} /> <span className="hidden sm:inline">Excel</span>
              </button>
           </div>
-
-          <button
-            onClick={onOpenNew}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <Plus size={18} /> Nova Conta
-          </button>
         </div>
       </div>
       
