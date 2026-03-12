@@ -1082,6 +1082,11 @@ const App: React.FC = () => {
         // Limpa usuário local se o Supabase deslogar ou revogar token
         setUser(null);
         localStorage.removeItem('finances_current_user');
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
       }
     });
 

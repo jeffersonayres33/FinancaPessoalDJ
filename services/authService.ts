@@ -344,6 +344,12 @@ export const authService = {
       console.warn("Erro ao fazer logout no Supabase (provavelmente já deslogado):", e);
     }
     localStorage.removeItem(CURRENT_USER_KEY);
+    // Remove explicitly any supabase auth tokens to prevent refresh token loops
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    });
   },
 
   getCurrentUser: (): User | null => {
@@ -376,8 +382,11 @@ export const authService = {
           return authService.getCurrentUser();
       }
       return null;
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro inesperado ao verificar sessão:", err);
+      if (err?.message?.includes("Refresh Token") || err?.message?.includes("invalid claim")) {
+         await authService.logout();
+      }
       return null;
     }
   },

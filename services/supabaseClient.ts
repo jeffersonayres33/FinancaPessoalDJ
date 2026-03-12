@@ -24,6 +24,11 @@ if (typeof window !== 'undefined') {
       // Opcional: forçar logout aqui se necessário
       supabase.auth.signOut().catch(() => {});
       localStorage.removeItem('finances_current_user');
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-')) {
+          localStorage.removeItem(key);
+        }
+      });
       window.location.reload();
     }
   });
