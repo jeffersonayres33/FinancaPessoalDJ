@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat } from 'lucide-react';
 import { Despesa, Category } from '../types';
 import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
@@ -18,7 +18,7 @@ interface AccountsPayableProps {
 
 type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc';
 
-export const AccountsPayable: React.FC<AccountsPayableProps> = ({ 
+export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({ 
   despesas, 
   onDeleteConta, 
   onEditConta,
@@ -528,4 +528,4 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = ({
       )}
     </div>
   );
-};
+});

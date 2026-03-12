@@ -256,7 +256,6 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   // --- DATA FETCHING (SUPABASE) ---
   const loadData = useCallback(async () => {
-    let isMounted = true;
     setLoadingData(true);
     setConnectionError(false);
     setConnectionErrorMessage('');
@@ -266,26 +265,22 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
       try {
         const cachedCats = localStorage.getItem(`finances_cats_${user.dataContextId}`);
         const cachedTrans = localStorage.getItem(`finances_trans_${user.dataContextId}`);
-        if (isMounted) {
-            if (cachedCats) setCategories(JSON.parse(cachedCats));
-            if (cachedTrans) setDespesas(JSON.parse(cachedTrans));
-            showToast('Modo offline. Dados carregados do cache.', 'success');
-        }
+        if (cachedCats) setCategories(JSON.parse(cachedCats));
+        if (cachedTrans) setDespesas(JSON.parse(cachedTrans));
+        showToast('Modo offline. Dados carregados do cache.', 'success');
       } catch (e) {
         console.error("Erro ao carregar cache local:", e);
       } finally {
-        if (isMounted) setLoadingData(false);
+        setLoadingData(false);
       }
       return;
     }
 
     const configCheck = validateConfig();
     if (!configCheck.valid) {
-        if (isMounted) {
-            setLoadingData(false);
-            setConnectionError(true);
-            setConnectionErrorMessage(configCheck.message || 'Erro de configuração do Supabase.');
-        }
+        setLoadingData(false);
+        setConnectionError(true);
+        setConnectionErrorMessage(configCheck.message || 'Erro de configuração do Supabase.');
         return;
     }
 
@@ -305,8 +300,6 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         );
 
         let [cats, trans] = await Promise.race([fetchPromise, timeoutPromise]);
-
-        if (!isMounted) return;
 
         // 2. Se não houver categorias (primeiro acesso), popula com as iniciais
         if (cats.length === 0) {
@@ -333,22 +326,16 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(trans));
 
     } catch (e: any) {
-        if (isMounted) {
-            console.error("Erro fatal ao carregar dados:", e);
-            if (e.message?.includes("Refresh Token") || e.message?.includes("invalid claim") || e.message?.includes("JWT")) {
-                onLogout();
-                return;
-            }
-            setConnectionError(true);
-            setConnectionErrorMessage(e.message || 'Erro desconhecido ao conectar ao Supabase.');
+        console.error("Erro fatal ao carregar dados:", e);
+        if (e.message?.includes("Refresh Token") || e.message?.includes("invalid claim") || e.message?.includes("JWT")) {
+            onLogout();
+            return;
         }
+        setConnectionError(true);
+        setConnectionErrorMessage(e.message || 'Erro desconhecido ao conectar ao Supabase.');
     } finally {
-        if (isMounted) setLoadingData(false);
+        setLoadingData(false);
     }
-
-    return () => {
-        isMounted = false;
-    };
   }, [user.dataContextId, showToast, onLogout]);
 
   useEffect(() => {

@@ -16,7 +16,7 @@ interface IncomeListProps {
   onToggleStatus: (receita: Despesa) => void;
 }
 
-export const IncomeList: React.FC<IncomeListProps> = ({ 
+export const IncomeList: React.FC<IncomeListProps> = React.memo(({ 
   receitas, 
   onDeleteReceita, 
   onEditReceita,
@@ -429,4 +429,4 @@ export const IncomeList: React.FC<IncomeListProps> = ({
       )}
     </div>
   );
-};
+});

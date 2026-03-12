@@ -15,7 +15,7 @@ interface InvestmentListProps {
   onToggleStatus: (investimento: Despesa) => void;
 }
 
-export const InvestmentList: React.FC<InvestmentListProps> = ({ 
+export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({ 
   investimentos, 
   onDeleteInvestimento, 
   onEditInvestimento,
@@ -434,4 +434,4 @@ export const InvestmentList: React.FC<InvestmentListProps> = ({
       )}
     </div>
   );
-};
+});

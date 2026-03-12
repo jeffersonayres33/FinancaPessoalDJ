@@ -16,7 +16,7 @@ interface ExpenseListProps {
   onToggleStatus?: (despesa: Despesa) => void;
 }
 
-export const ExpenseList: React.FC<ExpenseListProps> = ({ 
+export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({ 
   despesas, 
   onDeleteDespesa, 
   onEditDespesa, 
@@ -443,4 +443,4 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
       )}
     </div>
   );
-};
+});
