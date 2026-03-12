@@ -1,4 +1,4 @@
-const CACHE_NAME = 'financas-ai-v1';
+const CACHE_NAME = 'financas-ai-v2';
 
 // Apenas cachear o shell básico. O restante será cacheado dinamicamente.
 const ASSETS_TO_CACHE = [
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Força o novo service worker a assumir o controle imediatamente
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
@@ -30,17 +31,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Estratégia Stale-While-Revalidate para assets estáticos
+  // Estratégia Network-First para assets estáticos (HTML, JS, CSS) para garantir a versão mais recente
+  // Especialmente importante para o GitHub Pages
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Atualiza o cache com a nova versão
+        const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, networkResponse.clone());
+          cache.put(event.request, responseToCache);
         });
         return networkResponse;
-      });
-      return cachedResponse || fetchPromise;
-    })
+      })
+      .catch(() => {
+        // Se falhar (offline), tenta buscar do cache
+        return caches.match(event.request);
+      })
   );
 });
 
@@ -54,6 +60,8 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
+    }).then(() => {
+      return self.clients.claim(); // Garante que as abas abertas usem o novo SW
     })
   );
 });
