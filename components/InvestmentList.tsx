@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat } from 'lucide-react';
-import { Despesa, Category } from '../types';
+import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -13,6 +13,7 @@ interface InvestmentListProps {
   onOpenNew: () => void;
   categories: Category[];
   onToggleStatus: (investimento: Despesa) => void;
+  user?: User;
 }
 
 export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({ 
@@ -21,7 +22,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   onEditInvestimento,
   onOpenNew,
   categories,
-  onToggleStatus
+  onToggleStatus,
+  user
 }) => {
   const currentDate = new Date();
   
@@ -117,13 +119,25 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
   const exportToPDF = () => {
     const doc = new jsPDF();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
     const periodText = (month === -1 && year === -1) ? 'Todos os Períodos' : 
                        (month === -1) ? `Ano ${year}` :
                        (year === -1) ? `${months[month]} (Todos os Anos)` :
                        `${months[month]}/${year}`;
     
-    doc.text(`Relatório de Investimentos - ${periodText}`, 14, 10);
+    doc.setFontSize(18);
+    doc.text(`Relatório de Investimentos - ${periodText}`, 14, 15);
     
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
+    doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
+    doc.text(`Total Entradas (Filtrado): ${formatCurrency(filteredTotalIn)}`, 14, 32);
+    doc.text(`Total Saídas (Filtrado): ${formatCurrency(filteredTotalOut)}`, 14, 37);
+    doc.text(`Quantidade de itens: ${filteredInvestments.length}`, 14, 42);
+
     const tableData = filteredInvestments.map(t => [
       formatDate(t.date),
       t.title,
@@ -135,11 +149,12 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     autoTable(doc, {
       head: [['Data', 'Título', 'Categoria', 'Tipo', 'Valor']],
       body: tableData,
-      startY: 20,
+      startY: 50,
       headStyles: { fillColor: [59, 130, 246] }, // Blue header
     });
 
-    doc.save(`investimentos_relatorio.pdf`);
+    // Abrir em nova aba em vez de baixar
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const exportToExcel = () => {

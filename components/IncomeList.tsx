@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat } from 'lucide-react';
-import { Despesa, Category } from '../types';
+import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -14,6 +14,7 @@ interface IncomeListProps {
   onOpenNew: () => void;
   categories: Category[];
   onToggleStatus: (receita: Despesa) => void;
+  user?: User;
 }
 
 export const IncomeList: React.FC<IncomeListProps> = React.memo(({ 
@@ -22,7 +23,8 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
   onEditReceita,
   onOpenNew,
   categories,
-  onToggleStatus
+  onToggleStatus,
+  user
 }) => {
   const currentDate = new Date();
   const [month, setMonth] = useState<number>(currentDate.getMonth());
@@ -119,13 +121,24 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
 
   const exportToPDF = () => {
     const doc = new jsPDF();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
     const periodText = (month === -1 && year === -1) ? 'Todos os Períodos' : 
                        (month === -1) ? `Ano ${year}` :
                        (year === -1) ? `${months[month]} (Todos os Anos)` :
                        `${months[month]}/${year}`;
 
-    doc.text(`Relatório de Receitas - ${periodText}`, 14, 10);
+    doc.setFontSize(18);
+    doc.text(`Relatório de Receitas - ${periodText}`, 14, 15);
     
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
+    doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
+    doc.text(`Total Receitas (Filtrado): ${formatCurrency(totalFiltered)}`, 14, 32);
+    doc.text(`Quantidade de itens: ${filteredIncome.length}`, 14, 37);
+
     const tableData = filteredIncome.map(t => [
       formatDate(t.date),
       t.title,
@@ -138,11 +151,12 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
     autoTable(doc, {
       head: [['Data', 'Título', 'Categoria', 'Tipo', 'Status', 'Valor']],
       body: tableData,
-      startY: 20,
+      startY: 45,
       headStyles: { fillColor: [22, 163, 74] }, // Green header
     });
 
-    doc.save(`receitas_relatorio.pdf`);
+    // Abrir em nova aba em vez de baixar
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const exportToExcel = () => {

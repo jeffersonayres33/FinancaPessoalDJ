@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { Search, Filter, Trash2, Edit2, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat } from 'lucide-react';
-import { Despesa, Category } from '../types';
-import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
+import { Despesa, Category, User } from '../types';
+import { formatCurrency, formatDate, getCurrentLocalDateString } from '../utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -13,6 +13,7 @@ interface AccountsPayableProps {
   onEditConta: (conta: Despesa) => void;
   categories: Category[];
   onMarkAsPaid: (ids: string[], date: string) => void;
+  user?: User;
 }
 
 type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc';
@@ -22,7 +23,8 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   onDeleteConta, 
   onEditConta,
   categories,
-  onMarkAsPaid
+  onMarkAsPaid,
+  user
 }) => {
   const currentDate = new Date();
   
@@ -160,13 +162,18 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     doc.setFontSize(18);
     doc.text("Relatório de Contas a Pagar", 14, 15);
     
     doc.setFontSize(10);
-    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 22);
-    doc.text(`Total Pendente (Filtrado): ${formatCurrency(totalPending)}`, 14, 27);
+    doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
+    doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
+    doc.text(`Total Pendente (Filtrado): ${formatCurrency(totalPending)}`, 14, 32);
+    doc.text(`Quantidade de itens: ${filteredContas.length}`, 14, 37);
 
     const tableData = filteredContas.map(t => [
       formatDate(t.date),
@@ -179,13 +186,14 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     autoTable(doc, {
       head: [['Data', 'Título', 'Categoria', 'Valor', 'Status']],
       body: tableData,
-      startY: 35,
+      startY: 45,
       theme: 'grid',
       styles: { fontSize: 8 },
       headStyles: { fillColor: [220, 38, 38] }, // Red header
     });
 
-    doc.save(`relatorio_contas_${getCurrentLocalDateString()}.pdf`);
+    // Abrir em nova aba em vez de baixar
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const months = [

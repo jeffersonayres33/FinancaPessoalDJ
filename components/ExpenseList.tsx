@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Repeat } from 'lucide-react';
-import { Despesa, TransactionStatus, Category } from '../types';
+import { Despesa, TransactionStatus, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -14,6 +14,7 @@ interface ExpenseListProps {
   onOpenNew: () => void;
   categories: Category[];
   onToggleStatus?: (despesa: Despesa) => void;
+  user?: User;
 }
 
 export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({ 
@@ -22,7 +23,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   onEditDespesa, 
   onOpenNew,
   categories,
-  onToggleStatus
+  onToggleStatus,
+  user
 }) => {
   const currentDate = new Date();
   const [month, setMonth] = useState<number>(currentDate.getMonth());
@@ -132,13 +134,24 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
 
   const exportToPDF = () => {
     const doc = new jsPDF();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
     const periodText = (month === -1 && year === -1) ? 'Todos os Períodos' : 
                        (month === -1) ? `Ano ${year}` :
                        (year === -1) ? `${months[month]} (Todos os Anos)` :
                        `${months[month]}/${year}`;
 
-    doc.text(`Relatório de Despesas - ${periodText}`, 14, 10);
+    doc.setFontSize(18);
+    doc.text(`Relatório de Despesas - ${periodText}`, 14, 15);
     
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
+    doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
+    doc.text(`Total Despesas (Filtrado): ${formatCurrency(totalFiltered)}`, 14, 32);
+    doc.text(`Quantidade de itens: ${filteredExpenses.length}`, 14, 37);
+
     const tableData = filteredExpenses.map(t => [
       formatDate(t.date),
       t.title,
@@ -151,10 +164,11 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
     autoTable(doc, {
       head: [['Data', 'Título', 'Categoria', 'Tipo', 'Status', 'Valor']],
       body: tableData,
-      startY: 20,
+      startY: 45,
     });
 
-    doc.save(`despesas_relatorio.pdf`);
+    // Abrir em nova aba em vez de baixar
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const exportToExcel = () => {

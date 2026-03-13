@@ -953,6 +953,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             onOpenNew={openNewDespesaModal}
             categories={categories}
             onToggleStatus={handleToggleStatus}
+            user={user}
           />
         )}
 
@@ -964,6 +965,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             onOpenNew={openNewDespesaModal}
             categories={categories}
             onToggleStatus={handleToggleStatus}
+            user={user}
           />
         )}
 
@@ -975,6 +977,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             onOpenNew={openNewDespesaModal}
             categories={categories}
             onToggleStatus={handleToggleStatus}
+            user={user}
           />
         )}
 
@@ -985,6 +988,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             categories={categories}
             onDeleteConta={handleDeleteDespesa}
             onEditConta={openEditDespesaModal}
+            user={user}
           />
         )}
 
