@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat } from 'lucide-react';
 import { Despesa, Category } from '../types';
 import { formatCurrency, formatDate, printData, getCurrentLocalDateString } from '../utils';
 import jsPDF from 'jspdf';
