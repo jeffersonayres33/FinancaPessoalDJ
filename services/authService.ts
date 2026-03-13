@@ -346,7 +346,7 @@ export const authService = {
     localStorage.removeItem(CURRENT_USER_KEY);
     // Remove explicitly any supabase auth tokens to prevent refresh token loops
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('sb-')) {
+      if (key.startsWith('sb-') || key.includes('supabase.auth.token')) {
         localStorage.removeItem(key);
       }
     });
@@ -371,7 +371,8 @@ export const authService = {
       if (error) {
         console.warn("Erro na sessão Supabase:", error.message);
         // Se o token for inválido, forçamos o logout para limpar o estado
-        if (error.message.includes("Refresh Token") || error.message.includes("invalid claim")) {
+        const lowerMsg = error.message.toLowerCase();
+        if (lowerMsg.includes("refresh token") || lowerMsg.includes("invalid claim") || lowerMsg.includes("not found")) {
            await authService.logout();
         }
         return null;
@@ -384,7 +385,8 @@ export const authService = {
       return null;
     } catch (err: any) {
       console.error("Erro inesperado ao verificar sessão:", err);
-      if (err?.message?.includes("Refresh Token") || err?.message?.includes("invalid claim")) {
+      const errMsg = err?.message?.toLowerCase() || "";
+      if (errMsg.includes("refresh token") || errMsg.includes("invalid claim") || errMsg.includes("not found")) {
          await authService.logout();
       }
       return null;

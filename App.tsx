@@ -985,7 +985,6 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             categories={categories}
             onDeleteConta={handleDeleteDespesa}
             onEditConta={openEditDespesaModal}
-            onOpenNew={openNewDespesaModal}
           />
         )}
 
@@ -1078,22 +1077,35 @@ const App: React.FC = () => {
   useEffect(() => {
     // Escuta mudanças de estado de autenticação (ex: token expirado, logout em outra aba)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
+      console.log(`Supabase Auth Event: ${event}`);
+      
+      if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
         // Limpa usuário local se o Supabase deslogar ou revogar token
         setUser(null);
         localStorage.removeItem('finances_current_user');
         Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('sb-')) {
+          if (key.startsWith('sb-') || key.includes('supabase.auth.token')) {
             localStorage.removeItem(key);
           }
         });
+      }
+      
+      // Se o evento for INITIAL_SESSION e não houver sessão, mas houver usuário local,
+      // pode ser um sinal de que o refresh token falhou silenciosamente.
+      if (event === 'INITIAL_SESSION' && !session && user) {
+          console.warn("Sessão inicial vazia mas usuário local existe. Verificando...");
+          authService.checkSession().then(sUser => {
+              if (!sUser) {
+                  setUser(null);
+              }
+          });
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [user]);
 
   const handleInstallClick = () => {
     if (deferredPrompt) {

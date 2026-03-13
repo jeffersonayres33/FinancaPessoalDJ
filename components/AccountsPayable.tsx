@@ -11,7 +11,6 @@ interface AccountsPayableProps {
   despesas: Despesa[];
   onDeleteConta: (id: string) => void;
   onEditConta: (conta: Despesa) => void;
-  onOpenNew: () => void;
   categories: Category[];
   onMarkAsPaid: (ids: string[], date: string) => void;
 }
@@ -22,7 +21,6 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   despesas, 
   onDeleteConta, 
   onEditConta,
-  onOpenNew,
   categories,
   onMarkAsPaid
 }) => {
