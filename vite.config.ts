@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
     const apiKey = env.GEMINI_API_KEY || env.API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
 
     return {
-      base: '/', // Caminho base para AI Studio
+      base: process.env.GITHUB_ACTIONS ? '/FinancaPessoalDJ/' : '/', // Caminho base para GitHub Pages ou AI Studio
       server: {
         port: 3000,
         host: '0.0.0.0',
