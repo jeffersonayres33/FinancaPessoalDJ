@@ -7,15 +7,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = (): GoogleGenAI => {
   if (!aiInstance) {
-    let key = '';
-    if (typeof process !== 'undefined' && process.env) {
-      key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    }
-    
-    if (!key) {
-      key = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY || '';
-    }
-
+    const key = process.env.GEMINI_API_KEY;
     if (!key) {
       throw new Error("API key must be set when using the Gemini API.");
     }
