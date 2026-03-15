@@ -37,7 +37,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -147,31 +148,67 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setAnalysisError('');
 
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result as string;
-        try {
-          const data = await extractReceiptData(base64String);
-          if (data) {
-            setTitle(data.title || '');
-            setAmount(data.amount ? data.amount.toString() : '');
-            if (data.date) setDate(data.date);
-            if (data.observation) setObservation(data.observation);
-            setAnalysisError('Nota: Dados extraídos automaticamente. Verifique antes de salvar.');
-          } else {
-            setAnalysisError('Não foi possível extrair os dados da imagem.');
-          }
-        } catch (error) {
-          console.error("Erro na extração:", error);
-          setAnalysisError('Erro ao analisar a imagem. Tente novamente.');
-        } finally {
-          setIsAnalyzing(false);
-        }
+      const compressImage = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 1024;
+              const MAX_HEIGHT = 1024;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.onerror = (error) => reject(error);
+          };
+          reader.onerror = (error) => reject(error);
+        });
       };
-      reader.readAsDataURL(file);
+
+      const base64String = await compressImage(file);
+      
+      try {
+        const data = await extractReceiptData(base64String);
+        if (data) {
+          setTitle(data.title || '');
+          setAmount(data.amount ? data.amount.toString() : '');
+          if (data.date) setDate(data.date);
+          if (data.observation) setObservation(data.observation);
+          setAnalysisError('Nota: Dados extraídos automaticamente. Verifique antes de salvar.');
+        } else {
+          setAnalysisError('Não foi possível extrair os dados da imagem.');
+        }
+      } catch (error: any) {
+        console.error("Erro na extração:", error);
+        setAnalysisError(`Erro ao analisar a imagem: ${error.message || 'Tente novamente.'}`);
+      } finally {
+        setIsAnalyzing(false);
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
+        if (galleryInputRef.current) galleryInputRef.current.value = '';
+      }
     } catch (error) {
-      console.error("Erro ao ler arquivo:", error);
-      setAnalysisError('Erro ao processar a imagem.');
+      console.error("Erro ao processar arquivo:", error);
+      setAnalysisError('Erro ao processar a imagem localmente.');
       setIsAnalyzing(false);
     }
   };
@@ -198,22 +235,41 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
           {/* Botão de Scan (apenas para nova despesa) */}
           {!initialData && type === 'expense' && (
             <div className="mb-6">
-                <input 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                />
-                <button 
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 font-medium hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
-                    disabled={isAnalyzing}
-                >
-                    {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
-                    {isAnalyzing ? 'Analisando cupom...' : 'Escanear Nota Fiscal / Cupom'}
-                </button>
+                <div className="flex gap-3">
+                  <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment"
+                      className="hidden" 
+                      ref={cameraInputRef}
+                      onChange={handleFileChange}
+                  />
+                  <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      ref={galleryInputRef}
+                      onChange={handleFileChange}
+                  />
+                  <button 
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex-1 py-3 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 font-medium hover:bg-purple-50 transition-colors flex flex-col items-center justify-center gap-1"
+                      disabled={isAnalyzing}
+                  >
+                      {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+                      <span className="text-sm">Tirar Foto</span>
+                  </button>
+                  <button 
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="flex-1 py-3 border-2 border-dashed border-indigo-300 rounded-xl text-indigo-600 font-medium hover:bg-indigo-50 transition-colors flex flex-col items-center justify-center gap-1"
+                      disabled={isAnalyzing}
+                  >
+                      {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <Layers size={20} />}
+                      <span className="text-sm">Galeria</span>
+                  </button>
+                </div>
                 {analysisError && (
                     <p className="text-xs text-amber-600 mt-2 flex items-center gap-1 bg-amber-50 p-2 rounded">
                         <AlertCircle size={12} /> {analysisError}
