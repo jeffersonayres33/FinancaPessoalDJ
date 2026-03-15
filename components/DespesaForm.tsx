@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar } from 'lucide-react';
 import { TransactionType, TransactionStatus, Despesa, Category } from '../types';
 import { getCurrentLocalDateString } from '../utils';
+import { extractReceiptData } from '../services/geminiService';
 
 interface DespesaFormProps {
   onAddDespesa: (title: string, amount: number, type: TransactionType, category: string, status: TransactionStatus, date: string, paymentDate?: string, installments?: number, observation?: string, isFixed?: boolean) => Promise<void> | void;
@@ -145,16 +146,34 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setIsAnalyzing(true);
     setAnalysisError('');
 
-    // Simulação de análise de imagem (OCR)
-    // Em um app real, enviaria para uma API de OCR
-    setTimeout(() => {
-        setIsAnalyzing(false);
-        // Simula dados extraídos
-        setTitle('Compra Detectada');
-        setAmount('150.00');
-        setDate(getCurrentLocalDateString());
-        setAnalysisError('Nota: Dados extraídos automaticamente. Verifique antes de salvar.');
-    }, 1500);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        try {
+          const data = await extractReceiptData(base64String);
+          if (data) {
+            setTitle(data.title || '');
+            setAmount(data.amount ? data.amount.toString() : '');
+            if (data.date) setDate(data.date);
+            if (data.observation) setObservation(data.observation);
+            setAnalysisError('Nota: Dados extraídos automaticamente. Verifique antes de salvar.');
+          } else {
+            setAnalysisError('Não foi possível extrair os dados da imagem.');
+          }
+        } catch (error) {
+          console.error("Erro na extração:", error);
+          setAnalysisError('Erro ao analisar a imagem. Tente novamente.');
+        } finally {
+          setIsAnalyzing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Erro ao ler arquivo:", error);
+      setAnalysisError('Erro ao processar a imagem.');
+      setIsAnalyzing(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -182,7 +201,6 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                 <input 
                     type="file" 
                     accept="image/*" 
-                    capture="environment"
                     className="hidden" 
                     ref={fileInputRef}
                     onChange={handleFileChange}
