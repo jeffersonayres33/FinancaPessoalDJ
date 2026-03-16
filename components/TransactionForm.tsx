@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText } from 'lucide-react';
+import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, Settings } from 'lucide-react';
 import { TransactionType, TransactionStatus, Category, Transaction } from '../types';
 import { extractReceiptData } from '../services/geminiService';
 import { getCurrentLocalDateString } from '../utils';
@@ -162,7 +162,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up max-h-[90vh] overflow-y-auto relative">
+        {isAnalyzing && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+            <Settings size={48} className="text-white animate-spin mb-4" />
+            <p className="text-white text-lg font-medium animate-pulse">Carregando... aguarde!</p>
+          </div>
+        )}
         <div className="flex justify-between items-center p-4 border-b bg-gray-50 sticky top-0 bg-white z-10">
           <h2 className="text-xl font-bold text-gray-800">
             {initialData ? 'Editar Transação' : (forceType === 'expense' ? 'Nova Despesa' : 'Nova Transação')}

@@ -18,6 +18,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { MemberManager } from './components/MemberManager';
 import { UserProfileModal } from './components/UserProfileModal';
 import { AdminPanel } from './components/AdminPanel';
+import { BackupModal } from './components/BackupModal';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
@@ -97,6 +98,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   });
 
   const [isDespesaModalOpen, setIsDespesaModalOpen] = useState(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -427,19 +429,19 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-  const handleBackup = useCallback(async () => {
+  const handleBackup = useCallback(() => {
+    setIsBackupModalOpen(true);
+  }, []);
+
+  const executeBackup = useCallback(async (selections: Record<string, any>) => {
     try {
       showToast('Gerando backup...', 'success');
       
-      // Coletar todos os dataContextIds (usuário logado + membros)
       const dataContextIds = new Set<string>();
-      dataContextIds.add(user.dataContextId);
+      Object.keys(selections).forEach(id => dataContextIds.add(id));
       
       const formattedMembers = (user.members || []).map((m: any) => {
         const memberDataContextId = m.data_context_id || m.dataContextId;
-        if (memberDataContextId) {
-          dataContextIds.add(memberDataContextId);
-        }
         return {
           id: m.id,
           name: m.name,
@@ -448,19 +450,33 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           parentId: m.parent_id || m.parentId,
           role: m.role
         };
-      });
+      }).filter((m: any) => dataContextIds.has(m.dataContextId));
 
-      // Buscar dados para todos os dataContextIds
       const allCategories: any[] = [];
       const allTransactions: any[] = [];
 
       await Promise.all(Array.from(dataContextIds).map(async (dcId) => {
+        const userSelections = selections[dcId];
+        if (!userSelections) return;
+
         const [cats, trans] = await Promise.all([
           dataService.fetchCategories(dcId),
           dataService.fetchTransactions(dcId)
         ]);
-        allCategories.push(...cats);
-        allTransactions.push(...trans);
+
+        if (userSelections.categories) {
+          allCategories.push(...cats);
+        }
+
+        const filteredTrans = trans.filter(t => {
+          if (t.type === 'expense' && t.status === 'paid' && userSelections.expenses) return true;
+          if (t.type === 'expense' && t.status === 'pending' && userSelections.payables) return true;
+          if (t.type === 'income' && userSelections.incomes) return true;
+          if (t.type === 'investment' && userSelections.investments) return true;
+          return false;
+        });
+
+        allTransactions.push(...filteredTrans);
       }));
       
       const backupData = {
@@ -1030,6 +1046,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         onClose={() => setIsProfileModalOpen(false)}
         onUpdateUser={onUpdateUser}
         showToast={showToast}
+      />
+
+      <BackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        user={user}
+        onConfirm={executeBackup}
       />
 
       <Toast 

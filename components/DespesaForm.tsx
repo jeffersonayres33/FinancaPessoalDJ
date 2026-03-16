@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar } from 'lucide-react';
+import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar, Settings } from 'lucide-react';
 import { TransactionType, TransactionStatus, Despesa, Category } from '../types';
 import { getCurrentLocalDateString } from '../utils';
 import { extractReceiptData } from '../services/geminiService';
@@ -217,7 +217,13 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 relative">
+        {isAnalyzing && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+            <Settings size={48} className="text-white animate-spin mb-4" />
+            <p className="text-white text-lg font-medium animate-pulse">Carregando... aguarde!</p>
+          </div>
+        )}
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             {initialData ? <FileText size={24} /> : <PlusCircle size={24} />}

@@ -23,8 +23,11 @@ const getAI = (): GoogleGenAI => {
     }
 
     if (!key) {
+      console.error("Erro Crítico: Chave da API do Gemini não encontrada!");
+      console.error("Verifique se a variável GEMINI_API_KEY ou VITE_GEMINI_API_KEY está configurada corretamente no seu ambiente de deploy (ex: GitHub Actions).");
       throw new Error("API key must be set when using the Gemini API.");
     }
+    
     aiInstance = new GoogleGenAI({ apiKey: key });
   }
   return aiInstance;
