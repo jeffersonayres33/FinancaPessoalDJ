@@ -7,7 +7,21 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = (): GoogleGenAI => {
   if (!aiInstance) {
-    const key = process.env.GEMINI_API_KEY;
+    let key = '';
+    
+    // Tenta pegar a chave injetada pelo AI Studio ou pelo build do Vite
+    try {
+      key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    } catch (e) {
+      // Ignora erro se process não estiver definido no navegador
+    }
+    
+    // Tenta pegar a chave das variáveis de ambiente do Vite (se existirem)
+    if (!key) {
+      // @ts-ignore
+      key = import.meta.env?.VITE_GEMINI_API_KEY || import.meta.env?.VITE_API_KEY || '';
+    }
+
     if (!key) {
       throw new Error("API key must be set when using the Gemini API.");
     }

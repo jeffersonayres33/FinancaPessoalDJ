@@ -13,6 +13,12 @@ export default defineConfig(({ mode }) => {
     // Pega a chave da variável GEMINI_API_KEY ou API_KEY
     const apiKey = env.GEMINI_API_KEY || env.API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
 
+    const defineObj: Record<string, any> = {};
+    if (apiKey) {
+      defineObj['process.env.API_KEY'] = JSON.stringify(apiKey);
+      defineObj['process.env.GEMINI_API_KEY'] = JSON.stringify(apiKey);
+    }
+
     return {
       base: process.env.GITHUB_ACTIONS ? '/FinancaPessoalDJ/' : '/', // Caminho base para GitHub Pages ou AI Studio
       server: {
@@ -20,10 +26,7 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(apiKey),
-        'process.env.GEMINI_API_KEY': JSON.stringify(apiKey)
-      },
+      define: defineObj,
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
