@@ -37,6 +37,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
+  const [analysisSuccess, setAnalysisSuccess] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,13 +195,16 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
           setAmount(data.amount ? data.amount.toString() : '');
           if (data.date) setDate(data.date);
           if (data.observation) setObservation(data.observation);
-          setAnalysisError('Nota: Dados extraídos automaticamente. Verifique antes de salvar.');
+          setAnalysisError('Concluído: Dados extraídos automaticamente. Verifique antes de salvar.');
+          setAnalysisSuccess(true);
         } else {
           setAnalysisError('Não foi possível extrair os dados da imagem.');
+          setAnalysisSuccess(false);
         }
       } catch (error: any) {
         console.error("Erro na extração:", error);
         setAnalysisError(`Erro ao analisar a imagem: ${error.message || 'Tente novamente.'}`);
+        setAnalysisSuccess(false);
       } finally {
         setIsAnalyzing(false);
         if (cameraInputRef.current) cameraInputRef.current.value = '';
@@ -277,8 +281,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                   </button>
                 </div>
                 {analysisError && (
-                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1 bg-amber-50 p-2 rounded">
-                        <AlertCircle size={12} /> {analysisError}
+                    <p className={`text-xs mt-2 flex items-center gap-1 p-2 rounded ${analysisSuccess ? 'text-green-700 bg-green-50' : 'text-amber-600 bg-amber-50'}`}>
+                        {analysisSuccess ? <CheckCircle size={12} /> : <AlertCircle size={12} />} {analysisError}
                     </p>
                 )}
             </div>

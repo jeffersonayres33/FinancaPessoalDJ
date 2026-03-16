@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, Settings } from 'lucide-react';
+import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, Settings, AlertCircle } from 'lucide-react';
 import { TransactionType, TransactionStatus, Category, Transaction } from '../types';
 import { extractReceiptData } from '../services/geminiService';
 import { getCurrentLocalDateString } from '../utils';
@@ -35,6 +35,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   // Image Capture State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
+  const [analysisSuccess, setAnalysisSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load initial data when editing
@@ -102,9 +104,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setObservation(data.observation || '');
             // Se forceType estiver definido, mantém ele, senão assume expense para recibos
             setType(forceType || 'expense'); 
+            setAnalysisError('Concluído: Dados extraídos automaticamente. Verifique antes de salvar.');
+            setAnalysisSuccess(true);
+          } else {
+            setAnalysisError('Não foi possível extrair os dados da imagem.');
+            setAnalysisSuccess(false);
           }
-        } catch (error) {
-          alert('Não foi possível ler os dados do recibo. Tente novamente com uma imagem mais clara.');
+        } catch (error: any) {
+          setAnalysisError(`Erro ao analisar a imagem: ${error.message || 'Tente novamente.'}`);
+          setAnalysisSuccess(false);
         } finally {
           setIsAnalyzing(false);
         }
@@ -209,6 +217,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <p className="text-xs text-gray-500 mt-1 text-center">
                 A IA preencherá os dados automaticamente, exceto a categoria.
               </p>
+              {analysisError && (
+                  <p className={`text-xs mt-2 flex items-center gap-1 p-2 rounded ${analysisSuccess ? 'text-green-700 bg-green-50' : 'text-amber-600 bg-amber-50'}`}>
+                      {analysisSuccess ? <CheckCircle size={12} /> : <AlertCircle size={12} />} {analysisError}
+                  </p>
+              )}
             </div>
           )}
 
