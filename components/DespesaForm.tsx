@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar, Settings } from 'lucide-react';
 import { TransactionType, TransactionStatus, Despesa, Category } from '../types';
-import { getCurrentLocalDateString } from '../utils';
+import { getCurrentLocalDateString, formatCurrency } from '../utils';
 import { extractReceiptData } from '../services/geminiService';
 
 interface DespesaFormProps {
@@ -502,6 +502,11 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                     className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 outline-none"
                     disabled={isFixed}
                   />
+                  {installments > 1 && amount && !isNaN(parseFloat(amount)) && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Valor de cada parcela: <span className="font-semibold">{formatCurrency(parseFloat(amount) / installments)}</span>
+                    </p>
+                  )}
                </div>
             )}
             
