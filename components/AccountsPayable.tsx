@@ -494,7 +494,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
                    )}
                 </div>
 
-                <div className="flex items-end justify-between pt-3 border-t border-gray-100 pl-8">
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100 pl-8">
                    <div className="text-xs text-gray-400 italic">
                       {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
                    </div>

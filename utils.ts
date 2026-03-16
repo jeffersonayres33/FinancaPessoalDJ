@@ -10,9 +10,13 @@ export const formatCurrency = (value: number): string => {
 export const formatDate = (dateString: string): string => {
   if (!dateString) return '-';
   try {
-    // Correção de Fuso Horário:
-    // Ao invés de criar new Date(dateString) que assume UTC ou Local dependendo do formato,
-    // nós dividimos a string YYYY-MM-DD e criamos a data explicitamente no fuso local.
+    // Se for uma string ISO com tempo (ex: 2026-03-16T16:06:12.000Z)
+    if (dateString.includes('T')) {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('pt-BR').format(date);
+    }
+
+    // Correção de Fuso Horário para datas no formato YYYY-MM-DD
     const [year, month, day] = dateString.split('-').map(Number);
     
     // Verifica se os componentes são válidos

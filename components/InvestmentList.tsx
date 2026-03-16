@@ -410,7 +410,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                    )}
                 </div>
 
-                <div className="flex items-end justify-between pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                    <div className="text-xs text-gray-400 italic">
                       {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
                    </div>
