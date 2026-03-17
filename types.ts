@@ -60,4 +60,5 @@ export interface User {
   dataContextId: string; // ID usado para buscar os dados (pode ser o próprio ID ou do pai)
   members?: User[]; // Membros adicionados por este usuário
   role?: 'admin' | 'user'; // Nível de acesso
+  themeColor?: 'orange' | 'blue' | 'pink' | 'green';
 }

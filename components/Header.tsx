@@ -110,7 +110,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
 
       {/* Aviso de Modo de Acesso (Apenas se estiver acessando como membro) */}
       {isMemberAccess && onReturnToMain && (
-        <div className="bg-orange-500 text-white text-sm py-2 px-4 shadow-md print:hidden relative z-50">
+        <div className={`text-white text-sm py-2 px-4 shadow-md print:hidden relative z-50 ${
+          user.themeColor === 'blue' ? 'bg-blue-500' :
+          user.themeColor === 'pink' ? 'bg-pink-500' :
+          user.themeColor === 'green' ? 'bg-green-500' :
+          'bg-orange-500'
+        }`}>
            <div className="max-w-6xl mx-auto flex justify-between items-center">
               <div className="flex items-center gap-2">
                  <ShieldAlert size={16} />
@@ -118,7 +123,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
               </div>
               <button 
                 onClick={onReturnToMain}
-                className="bg-white text-orange-600 hover:bg-orange-50 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors shadow-sm"
+                className={`bg-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors shadow-sm ${
+                  user.themeColor === 'blue' ? 'text-blue-600 hover:bg-blue-50' :
+                  user.themeColor === 'pink' ? 'text-pink-600 hover:bg-pink-50' :
+                  user.themeColor === 'green' ? 'text-green-600 hover:bg-green-50' :
+                  'text-orange-600 hover:bg-orange-50'
+                }`}
               >
                 <ArrowLeftCircle size={14} /> Voltar para Conta Principal
               </button>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, Lock, User as UserIcon, Mail } from 'lucide-react';
+import { X, Save, Lock, User as UserIcon, Mail, Palette } from 'lucide-react';
 import { User } from '../types';
 import { authService } from '../services/authService';
 
@@ -13,6 +13,7 @@ interface UserProfileModalProps {
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen, onClose, onUpdateUser, showToast }) => {
   const [name, setName] = useState(user.name);
+  const [themeColor, setThemeColor] = useState(user.themeColor || 'orange');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,6 +26,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
     setLoading(true);
 
     try {
+      let updatedUser = { ...user };
+      let hasChanges = false;
+
       // 1. Atualizar Nome (se mudou)
       if (name !== user.name) {
         if (!name.trim()) {
@@ -33,11 +37,23 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
           return;
         }
         await authService.updateUserName(user.id, name);
-        onUpdateUser({ ...user, name });
-        showToast('Nome atualizado com sucesso!', 'success');
+        updatedUser.name = name;
+        hasChanges = true;
       }
 
-      // 2. Atualizar Senha (se preencheu os campos e for a conta principal)
+      // 2. Atualizar Cor do Tema (se mudou)
+      if (themeColor !== (user.themeColor || 'orange')) {
+        await authService.updateUserThemeColor(user.id, themeColor);
+        updatedUser.themeColor = themeColor as any;
+        hasChanges = true;
+      }
+
+      if (hasChanges) {
+        onUpdateUser(updatedUser);
+        showToast('Perfil atualizado com sucesso!', 'success');
+      }
+
+      // 3. Atualizar Senha (se preencheu os campos e for a conta principal)
       if (!user.parentId && (currentPassword || newPassword || confirmPassword)) {
         if (!currentPassword || !newPassword || !confirmPassword) {
           showToast('Preencha todos os campos de senha para alterá-la.', 'error');
@@ -123,6 +139,32 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
               />
             </div>
           </div>
+
+          {/* Cor do Tema - Só mostra se for um membro (tem parentId) */}
+          {!!user.parentId && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                <Palette size={16} className="text-gray-500" />
+                Cor do Perfil
+              </label>
+              <div className="flex gap-4">
+                {[
+                  { id: 'orange', class: 'bg-orange-500 ring-orange-200' },
+                  { id: 'blue', class: 'bg-blue-500 ring-blue-200' },
+                  { id: 'pink', class: 'bg-pink-500 ring-pink-200' },
+                  { id: 'green', class: 'bg-green-500 ring-green-200' }
+                ].map(color => (
+                  <button
+                    key={color.id}
+                    type="button"
+                    onClick={() => setThemeColor(color.id)}
+                    className={`w-10 h-10 rounded-full ${color.class} transition-all ${themeColor === color.id ? 'ring-4 scale-110' : 'hover:scale-105'}`}
+                    aria-label={`Selecionar cor ${color.id}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Alterar Senha - Só mostra se for a conta principal */}
           {!user.parentId && (

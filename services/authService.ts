@@ -81,12 +81,21 @@ export const authService = {
       .select('*')
       .eq('parent_id', profile.id);
 
+    const mappedMembers = (members || []).map(m => ({
+      ...m,
+      dataContextId: m.data_context_id,
+      parentId: m.parent_id,
+      role: m.role || 'user',
+      themeColor: m.theme_color
+    }));
+
     const user: User = {
       ...profile,
       dataContextId: profile.data_context_id,
       parentId: profile.parent_id,
-      members: members || [],
-      role: profile.role || 'user'
+      members: mappedMembers,
+      role: profile.role || 'user',
+      themeColor: profile.theme_color
     };
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
@@ -303,9 +312,17 @@ export const authService = {
         .select('*')
         .eq('parent_id', adminUser.id);
     
+    const mappedMembers = (members || []).map(m => ({
+      ...m,
+      dataContextId: m.data_context_id,
+      parentId: m.parent_id,
+      role: m.role || 'user',
+      themeColor: m.theme_color
+    }));
+
     const updatedAdmin = { 
         ...adminUser,
-        members: members || [] 
+        members: mappedMembers 
     };
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedAdmin));
@@ -326,11 +343,20 @@ export const authService = {
     // Busca membros do alvo (se houver)
     const { data: members } = await supabase.from('app_users').select('*').eq('parent_id', data.id);
 
+    const mappedMembers = (members || []).map(m => ({
+      ...m,
+      dataContextId: m.data_context_id,
+      parentId: m.parent_id,
+      role: m.role || 'user',
+      themeColor: m.theme_color
+    }));
+
     const user: User = {
       ...data,
       dataContextId: data.data_context_id,
       parentId: data.parent_id,
-      members: members || []
+      members: mappedMembers,
+      themeColor: data.theme_color
     };
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
@@ -414,6 +440,30 @@ export const authService = {
     if (currentUser && currentUser.id === userId) {
       currentUser.name = newName;
       localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+    }
+  },
+
+  updateUserThemeColor: async (userId: string, themeColor: string): Promise<void> => {
+    const { error: dbError } = await supabase
+      .from('app_users')
+      .update({ theme_color: themeColor })
+      .eq('id', userId);
+
+    if (dbError) throw new Error('Erro ao atualizar cor do tema: ' + dbError.message);
+
+    // Atualiza no localStorage
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      if (currentUser.id === userId) {
+        currentUser.themeColor = themeColor as any;
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+      } else if (currentUser.members) {
+        const memberIndex = currentUser.members.findIndex(m => m.id === userId);
+        if (memberIndex !== -1) {
+          currentUser.members[memberIndex].themeColor = themeColor as any;
+          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+        }
+      }
     }
   },
 
