@@ -291,11 +291,11 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
                 <span className="text-sm text-gray-600">Todos</span>
               </div>
             )}
-            <div className="flex p-1 bg-gray-100 rounded-lg w-full sm:w-auto">
-              <button onClick={() => setTypeFilter('all')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'all' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}>Todos</button>
-              <button onClick={() => setTypeFilter('expense')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}>Despesas</button>
-              <button onClick={() => setTypeFilter('income')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'income' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Receitas</button>
-              <button onClick={() => setTypeFilter('investment')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'investment' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Investimentos</button>
+            <div className="grid grid-cols-2 sm:flex sm:flex-row p-1 bg-gray-100 rounded-lg w-full sm:w-auto gap-1">
+              <button onClick={() => setTypeFilter('all')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${typeFilter === 'all' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}>Todos</button>
+              <button onClick={() => setTypeFilter('expense')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${typeFilter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}>Despesas</button>
+              <button onClick={() => setTypeFilter('income')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${typeFilter === 'income' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Receitas</button>
+              <button onClick={() => setTypeFilter('investment')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${typeFilter === 'investment' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Investimentos</button>
             </div>
           </div>
           <div className="relative w-full sm:w-64">
