@@ -36,7 +36,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
   const [recurrenceFilter, setRecurrenceFilter] = useState<'all' | 'fixed' | 'variable'>('all');
   const [installmentFilter, setInstallmentFilter] = useState<'all' | 'installment' | 'single'>('all');
-  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title' | 'createdAt'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
   const [isMarkPaidEnabled, setIsMarkPaidEnabled] = useState(false);
@@ -124,6 +124,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
         } else if (sortBy === 'amount') {
           comparison = a.amount - b.amount;
+        } else if (sortBy === 'createdAt') {
+          comparison = new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime();
         } else {
           comparison = a.title.localeCompare(b.title);
         }
@@ -273,6 +275,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
              
              <div className="flex bg-gray-100 rounded-full p-1">
                 <button onClick={() => { setSortBy('date'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'date' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Data"><Calendar size={16} /></button>
+                <button onClick={() => { setSortBy('createdAt'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'createdAt' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Data de Criação"><Clock size={16} /></button>
                 <button onClick={() => { setSortBy('amount'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'amount' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Valor"><ArrowDownUp size={16} /></button>
              </div>
            </div>

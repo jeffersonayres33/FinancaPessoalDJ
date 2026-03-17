@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
@@ -34,7 +34,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'out'>('all');
-  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title' | 'createdAt'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -104,6 +104,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
         } else if (sortBy === 'amount') {
           comparison = a.amount - b.amount;
+        } else if (sortBy === 'createdAt') {
+          comparison = new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime();
         } else {
           comparison = a.title.localeCompare(b.title);
         }
@@ -290,6 +292,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
              
              <div className="flex bg-gray-100 rounded-full p-1">
                 <button onClick={() => { setSortBy('date'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'date' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`} title="Ordenar por Data"><Calendar size={16} /></button>
+                <button onClick={() => { setSortBy('createdAt'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'createdAt' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`} title="Ordenar por Data de Criação"><Clock size={16} /></button>
                 <button onClick={() => { setSortBy('amount'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }} className={`p-2 rounded-full ${sortBy === 'amount' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`} title="Ordenar por Valor"><ArrowDownUp size={16} /></button>
              </div>
            </div>

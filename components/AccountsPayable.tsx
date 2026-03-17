@@ -16,7 +16,7 @@ interface AccountsPayableProps {
   user?: User;
 }
 
-type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc';
+type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc' | 'createdAt-asc' | 'createdAt-desc';
 
 export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({ 
   despesas, 
@@ -93,6 +93,10 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
             return a.amount - b.amount;
           case 'amount-desc':
             return b.amount - a.amount;
+          case 'createdAt-asc':
+            return new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime();
+          case 'createdAt-desc':
+            return new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime();
           default:
             return 0;
         }
@@ -309,8 +313,9 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
             </button>
             
             <div className="flex bg-gray-100 rounded-full p-1">
-               <button onClick={() => setSortBy('date-asc')} className={`p-2 rounded-full ${sortBy.includes('date') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Data"><Calendar size={16} /></button>
-               <button onClick={() => setSortBy('amount-desc')} className={`p-2 rounded-full ${sortBy.includes('amount') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Valor"><ArrowDownUp size={16} /></button>
+               <button onClick={() => setSortBy(sortBy === 'date-asc' ? 'date-desc' : 'date-asc')} className={`p-2 rounded-full ${sortBy.includes('date') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Data"><Calendar size={16} /></button>
+               <button onClick={() => setSortBy(sortBy === 'createdAt-asc' ? 'createdAt-desc' : 'createdAt-asc')} className={`p-2 rounded-full ${sortBy.includes('createdAt') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Data de Criação"><Clock size={16} /></button>
+               <button onClick={() => setSortBy(sortBy === 'amount-desc' ? 'amount-asc' : 'amount-desc')} className={`p-2 rounded-full ${sortBy.includes('amount') ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`} title="Ordenar por Valor"><ArrowDownUp size={16} /></button>
             </div>
           </div>
         </div>
