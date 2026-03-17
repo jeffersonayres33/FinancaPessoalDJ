@@ -117,8 +117,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     isOpen: boolean;
     title: string;
     message: string;
-    action: 'delete_transaction' | 'delete_category' | null;
+    action: 'delete_transaction' | 'delete_category' | 'delete_multiple_transactions' | 'delete_multiple_categories' | null;
     targetId: string | null;
+    targetIds?: string[];
     checkboxLabel?: string;
     isCheckboxChecked?: boolean;
   }>({
@@ -127,6 +128,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     message: '',
     action: null,
     targetId: null,
+    targetIds: [],
     isCheckboxChecked: false
   });
 
@@ -137,9 +139,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   // ...
 
   const handleConfirmModalAction = async () => {
-    if (!confirmModal.targetId) return;
+    if (!confirmModal.targetId && (!confirmModal.targetIds || confirmModal.targetIds.length === 0)) return;
 
-    if (confirmModal.action === 'delete_transaction') {
+    if (confirmModal.action === 'delete_transaction' && confirmModal.targetId) {
         const id = confirmModal.targetId;
         const stopFuture = confirmModal.isCheckboxChecked;
 
@@ -189,7 +191,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             console.error(e);
             showToast('Erro ao remover.', 'error');
         }
-    } else if (confirmModal.action === 'delete_category') {
+    } else if (confirmModal.action === 'delete_category' && confirmModal.targetId) {
         const id = confirmModal.targetId;
         try {
             if (!navigator.onLine) {
@@ -212,6 +214,62 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         } catch (e) {
             console.error(e);
             showToast('Erro ao excluir categoria.', 'error');
+        }
+    } else if (confirmModal.action === 'delete_multiple_transactions') {
+        const ids = confirmModal.targetIds || [];
+        if (ids.length === 0) return;
+        try {
+            if (!navigator.onLine) {
+              ids.forEach(id => syncService.addToQueue('DELETE_TRANSACTION', id));
+              setDespesas((prev) => {
+                const updated = prev.filter((t) => !ids.includes(t.id));
+                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast(`${ids.length} transações removidas localmente.`, 'success');
+            } else {
+              // We can delete them one by one or create a bulk delete in dataService.
+              // For simplicity, we'll delete them sequentially for now.
+              for (const id of ids) {
+                 await dataService.deleteTransaction(id);
+              }
+              setDespesas((prev) => {
+                const updated = prev.filter((t) => !ids.includes(t.id));
+                localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast(`${ids.length} transações removidas com sucesso.`, 'success');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao remover transações.', 'error');
+        }
+    } else if (confirmModal.action === 'delete_multiple_categories') {
+        const ids = confirmModal.targetIds || [];
+        if (ids.length === 0) return;
+        try {
+            if (!navigator.onLine) {
+              ids.forEach(id => syncService.addToQueue('DELETE_CATEGORY', id));
+              setCategories(prev => {
+                const updated = prev.filter(c => !ids.includes(c.id));
+                localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast(`${ids.length} categorias excluídas localmente.`, 'success');
+            } else {
+              for (const id of ids) {
+                 await dataService.deleteCategory(id);
+              }
+              setCategories(prev => {
+                const updated = prev.filter(c => !ids.includes(c.id));
+                localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast(`${ids.length} categorias excluídas.`, 'success');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao excluir categorias.', 'error');
         }
     }
     
@@ -250,6 +308,36 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
          action: 'delete_category',
          targetId: id
       });
+  }, [categories, despesas, showToast]);
+
+  const handleBulkDeleteTransactions = useCallback((ids: string[]) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Transações",
+      message: `Tem certeza que deseja excluir as ${ids.length} transações selecionadas? Esta ação não pode ser desfeita.`,
+      action: 'delete_multiple_transactions',
+      targetId: null,
+      targetIds: ids
+    });
+  }, []);
+
+  const handleBulkDeleteCategories = useCallback((ids: string[]) => {
+    const categoriesToDelete = categories.filter(c => ids.includes(c.id));
+    const isCategoryInUse = categoriesToDelete.some(c => despesas.some(t => t.category === c.name));
+    
+    if (isCategoryInUse) {
+      showToast('Erro de Integridade: Uma ou mais categorias selecionadas estão em uso por transações existentes.', 'error');
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Categorias",
+      message: `Tem certeza que deseja excluir as ${ids.length} categorias selecionadas?`,
+      action: 'delete_multiple_categories',
+      targetId: null,
+      targetIds: ids
+    });
   }, [categories, despesas, showToast]);
 
 
@@ -965,6 +1053,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           <ExpenseList 
             despesas={despesas}
             onDeleteDespesa={handleDeleteDespesa}
+            onBulkDeleteDespesas={handleBulkDeleteTransactions}
             onEditDespesa={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
@@ -977,6 +1066,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           <IncomeList 
             receitas={despesas}
             onDeleteReceita={handleDeleteDespesa}
+            onBulkDeleteReceitas={handleBulkDeleteTransactions}
             onEditReceita={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
@@ -989,6 +1079,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           <InvestmentList 
             investimentos={despesas}
             onDeleteInvestimento={handleDeleteDespesa}
+            onBulkDeleteInvestimentos={handleBulkDeleteTransactions}
             onEditInvestimento={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
@@ -1014,10 +1105,11 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             onAdd={handleAddCategory}
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}
+            onBulkDelete={handleBulkDeleteCategories}
           />
         )}
 
-        {currentView === 'members' && (
+        {currentView === 'members' && !user.parentId && (
           <MemberManager 
              currentUser={user}
              onUpdateUser={onUpdateUser}

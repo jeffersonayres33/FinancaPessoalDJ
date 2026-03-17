@@ -277,16 +277,18 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <button 
-                    onClick={() => handleNavigate('members')}
-                    className={`flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors font-medium ${
-                      currentView === 'members' 
-                        ? 'bg-purple-100 text-purple-800' 
-                        : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Users size={16} /> Gerenciar Membros
-                  </button>
+                  {!user.parentId && (
+                    <button 
+                      onClick={() => handleNavigate('members')}
+                      className={`flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors font-medium ${
+                        currentView === 'members' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Users size={16} /> Gerenciar Membros
+                    </button>
+                  )}
                   
                   {onLogout && (
                     <button 

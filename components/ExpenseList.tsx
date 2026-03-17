@@ -10,6 +10,7 @@ import { authService } from '../services/authService';
 interface ExpenseListProps {
   despesas: Despesa[];
   onDeleteDespesa: (id: string) => void;
+  onBulkDeleteDespesas?: (ids: string[]) => void;
   onEditDespesa: (despesa: Despesa) => void;
   onOpenNew: () => void;
   categories: Category[];
@@ -20,6 +21,7 @@ interface ExpenseListProps {
 export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({ 
   despesas, 
   onDeleteDespesa, 
+  onBulkDeleteDespesas,
   onEditDespesa, 
   onOpenNew,
   categories,
@@ -38,6 +40,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
   const [isMarkPaidEnabled, setIsMarkPaidEnabled] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchSetting = async () => {
@@ -328,9 +331,39 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
         )}
 
         {/* Resumo Rápido */}
-        <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100 text-sm">
-            <div className="text-gray-500">Exibindo {filteredExpenses.length} despesas</div>
-            <div className="flex gap-4 font-medium">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 pt-4 border-t border-gray-100 text-sm gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-gray-500">Exibindo {filteredExpenses.length} despesas</div>
+              {filteredExpenses.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.length === filteredExpenses.length && filteredExpenses.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(filteredExpenses.map(t => t.id));
+                      } else {
+                        setSelectedIds([]);
+                      }
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <span className="text-gray-600">Selecionar Todos</span>
+                </div>
+              )}
+              {selectedIds.length > 0 && onBulkDeleteDespesas && (
+                <button
+                  onClick={() => {
+                    onBulkDeleteDespesas(selectedIds);
+                    setSelectedIds([]);
+                  }}
+                  className="text-red-600 hover:text-red-800 font-medium flex items-center gap-1 bg-red-50 px-2 py-1 rounded-md transition-colors"
+                >
+                  <Trash2 size={14} /> Excluir Selecionados ({selectedIds.length})
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4 font-medium flex-wrap">
                 <span className="text-green-600">Pago: {formatCurrency(totalPaid)}</span>
                 <span className="text-yellow-600">Pendente: {formatCurrency(totalPending)}</span>
                 <span className="text-gray-800">Total: {formatCurrency(totalFiltered)}</span>
@@ -344,8 +377,22 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
           {filteredExpenses.map((t) => (
             <div 
               key={t.id} 
-              className="bg-white rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md relative overflow-hidden group"
+              className={`bg-white rounded-xl shadow-sm border transition-all hover:shadow-md relative overflow-hidden group ${selectedIds.includes(t.id) ? 'border-purple-400 ring-1 ring-purple-400' : 'border-gray-100'}`}
             >
+              <div className="absolute top-4 right-4 z-10">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(t.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(prev => [...prev, t.id]);
+                    } else {
+                      setSelectedIds(prev => prev.filter(id => id !== t.id));
+                    }
+                  }}
+                  className="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                />
+              </div>
               <div className="p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>

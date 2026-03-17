@@ -9,11 +9,13 @@ interface CategoryManagerProps {
   onAdd: (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
   onEdit: (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
   onDelete: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => void;
 }
 
-export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete }) => {
+export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onBulkDelete }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income' | 'investment'>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
   // Add State
   const [newName, setNewName] = useState('');
@@ -98,8 +100,25 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
         {cats.map(cat => (
           <div 
             key={cat.id} 
-            className={`bg-white rounded-lg p-4 shadow-sm border transition-all hover:shadow-md group ${editingId === cat.id ? 'ring-2 ring-purple-500 border-transparent' : 'border-gray-100'}`}
+            className={`bg-white rounded-lg p-4 shadow-sm border transition-all hover:shadow-md relative group ${editingId === cat.id ? 'ring-2 ring-purple-500 border-transparent' : selectedIds.includes(cat.id) ? 'border-purple-400 ring-1 ring-purple-400' : 'border-gray-100'}`}
           >
+            {!editingId && (
+              <div className="absolute top-3 right-3 z-10">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(cat.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(prev => [...prev, cat.id]);
+                    } else {
+                      setSelectedIds(prev => prev.filter(id => id !== cat.id));
+                    }
+                  }}
+                  className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ opacity: selectedIds.includes(cat.id) ? 1 : undefined }}
+                />
+              </div>
+            )}
             {editingId === cat.id ? (
               <div className="space-y-3 animate-fade-in">
                 <input
@@ -183,13 +202,27 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
             <h2 className="text-2xl font-bold text-gray-800">Categorias</h2>
             <p className="text-gray-500 text-sm">Gerencie como você organiza suas finanças</p>
           </div>
-          <button 
-            onClick={() => setIsAdding(!isAdding)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isAdding ? 'bg-gray-100 text-gray-600' : 'bg-purple-600 text-white hover:bg-purple-700 shadow-md'}`}
-          >
-            {isAdding ? <X size={20} /> : <Plus size={20} />}
-            {isAdding ? 'Cancelar' : 'Nova Categoria'}
-          </button>
+          <div className="flex items-center gap-3">
+            {selectedIds.length > 0 && onBulkDelete && (
+              <button
+                onClick={() => {
+                  onBulkDelete(selectedIds);
+                  setSelectedIds([]);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+              >
+                <Trash2 size={20} />
+                Excluir Selecionados ({selectedIds.length})
+              </button>
+            )}
+            <button 
+              onClick={() => setIsAdding(!isAdding)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isAdding ? 'bg-gray-100 text-gray-600' : 'bg-purple-600 text-white hover:bg-purple-700 shadow-md'}`}
+            >
+              {isAdding ? <X size={20} /> : <Plus size={20} />}
+              {isAdding ? 'Cancelar' : 'Nova Categoria'}
+            </button>
+          </div>
         </div>
 
         {/* Add Form */}
@@ -240,11 +273,30 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
 
         {/* Global Filters */}
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between border-t border-gray-100 pt-4">
-          <div className="flex p-1 bg-gray-100 rounded-lg w-full sm:w-auto">
-            <button onClick={() => setTypeFilter('all')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'all' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}>Todos</button>
-            <button onClick={() => setTypeFilter('expense')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}>Despesas</button>
-            <button onClick={() => setTypeFilter('income')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'income' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Receitas</button>
-            <button onClick={() => setTypeFilter('investment')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'investment' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Investimentos</button>
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            {filteredCategories.length > 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === filteredCategories.length && filteredCategories.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(filteredCategories.map(c => c.id));
+                    } else {
+                      setSelectedIds([]);
+                    }
+                  }}
+                  className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                />
+                <span className="text-sm text-gray-600">Todos</span>
+              </div>
+            )}
+            <div className="flex p-1 bg-gray-100 rounded-lg w-full sm:w-auto">
+              <button onClick={() => setTypeFilter('all')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'all' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}>Todos</button>
+              <button onClick={() => setTypeFilter('expense')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}>Despesas</button>
+              <button onClick={() => setTypeFilter('income')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'income' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Receitas</button>
+              <button onClick={() => setTypeFilter('investment')} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${typeFilter === 'investment' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Investimentos</button>
+            </div>
           </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
