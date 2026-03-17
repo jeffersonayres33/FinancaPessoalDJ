@@ -217,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                       <span>Painel Admin</span>
                     </button>
                   )}
-                  {!isStandalone && (
+                  {onInstall && !isStandalone && (
                     <button onClick={handleInstallClick} className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full text-purple-600 bg-purple-50 hover:bg-purple-100 hover:text-purple-800 mt-2">
                       <Download size={20} />
                       <span>Instalar App</span>
