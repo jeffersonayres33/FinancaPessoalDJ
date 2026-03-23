@@ -38,10 +38,26 @@ create table public.transactions (
   created_at timestamp with time zone default now()
 );
 
+-- 4. Table: ai_analyses
+create table public.ai_analyses (
+  id uuid primary key default gen_random_uuid(),
+  data_context_id uuid not null,
+  user_id uuid not null,
+  summary text not null,
+  tips text[] not null,
+  anomalies text[] not null,
+  total_expenses numeric not null,
+  total_income numeric not null,
+  total_investments numeric not null default 0,
+  transaction_count integer not null,
+  created_at timestamp with time zone default now()
+);
+
 -- Enable Row Level Security (RLS)
 alter table public.app_users enable row level security;
 alter table public.categories enable row level security;
 alter table public.transactions enable row level security;
+alter table public.ai_analyses enable row level security;
 
 -- Policies for app_users
 -- Allow users to view their own profile and profiles they manage (members)
@@ -81,6 +97,18 @@ create policy "Users can manage transactions in their context"
     or exists (
       select 1 from public.app_users 
       where id = transactions.data_context_id 
+      and parent_id = auth.uid()
+    )
+  );
+
+-- Policies for ai_analyses
+create policy "Users can manage ai_analyses in their context"
+  on public.ai_analyses for all
+  using (
+    data_context_id = auth.uid() 
+    or exists (
+      select 1 from public.app_users 
+      where id = ai_analyses.data_context_id 
       and parent_id = auth.uid()
     )
   );

@@ -43,6 +43,17 @@ export interface AIAnalysisResult {
   anomalies: string[];
 }
 
+export interface AIAnalysis extends AIAnalysisResult {
+  id: string;
+  dataContextId: string;
+  userId: string; // ID do usuário que gerou a análise
+  createdAt: string;
+  totalExpenses: number;
+  totalIncome: number;
+  totalInvestments: number;
+  transactionCount: number;
+}
+
 export interface ReceiptData {
   title: string;
   amount: number;

@@ -1,7 +1,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from './supabaseClient';
-import { Despesa, Category } from '../types';
+import { Despesa, Category, AIAnalysis } from '../types';
 import { INITIAL_CATEGORIES } from '../constants';
 
 // Helper para limpar o payload antes de enviar ao Supabase
@@ -24,6 +24,104 @@ const sanitizeTransactionPayload = (despesa: Despesa, dataContextId?: string) =>
 };
 
 export const dataService = {
+  // --- ANÁLISES AI ---
+  fetchLatestAnalysis: async (dataContextId: string, userId: string): Promise<AIAnalysis | null> => {
+    const { data, error } = await supabase
+      .from('ai_analyses')
+      .select('*')
+      .eq('data_context_id', dataContextId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Erro ao buscar última análise:', error);
+      return null;
+    }
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      dataContextId: data.data_context_id,
+      userId: data.user_id,
+      createdAt: data.created_at,
+      summary: data.summary,
+      tips: data.tips,
+      anomalies: data.anomalies,
+      totalExpenses: data.total_expenses,
+      totalIncome: data.total_income,
+      totalInvestments: data.total_investments || 0,
+      transactionCount: data.transaction_count
+    };
+  },
+
+  fetchAnalysisHistory: async (dataContextId: string, userId: string): Promise<AIAnalysis[]> => {
+    const { data, error } = await supabase
+      .from('ai_analyses')
+      .select('*')
+      .eq('data_context_id', dataContextId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Erro ao buscar histórico de análises:', error);
+      return [];
+    }
+
+    return (data || []).map(item => ({
+      id: item.id,
+      dataContextId: item.data_context_id,
+      userId: item.user_id,
+      createdAt: item.created_at,
+      summary: item.summary,
+      tips: item.tips,
+      anomalies: item.anomalies,
+      totalExpenses: item.total_expenses,
+      totalIncome: item.total_income,
+      totalInvestments: item.total_investments || 0,
+      transactionCount: item.transaction_count
+    }));
+  },
+
+  saveAnalysis: async (analysis: Omit<AIAnalysis, 'id' | 'createdAt'>): Promise<AIAnalysis | null> => {
+    const { data, error } = await supabase
+      .from('ai_analyses')
+      .insert({
+        data_context_id: analysis.dataContextId,
+        user_id: analysis.userId,
+        summary: analysis.summary,
+        tips: analysis.tips,
+        anomalies: analysis.anomalies,
+        total_expenses: analysis.totalExpenses,
+        total_income: analysis.totalIncome,
+        total_investments: analysis.totalInvestments,
+        transaction_count: analysis.transactionCount
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Erro ao salvar análise:', error);
+      throw new Error('Erro ao salvar análise AI');
+    }
+
+    return {
+      id: data.id,
+      dataContextId: data.data_context_id,
+      userId: data.user_id,
+      createdAt: data.created_at,
+      summary: data.summary,
+      tips: data.tips,
+      anomalies: data.anomalies,
+      totalExpenses: data.total_expenses,
+      totalIncome: data.total_income,
+      totalInvestments: data.total_investments || 0,
+      transactionCount: data.transaction_count
+    };
+  },
+
   // --- CATEGORIAS ---
   fetchCategories: async (dataContextId: string, retries = 3): Promise<Category[]> => {
     if (!dataContextId) {

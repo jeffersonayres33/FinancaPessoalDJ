@@ -100,26 +100,38 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
     };
   }
 
-  // Filter last 50 transactions to keep payload reasonable
-  const recentTransactions = despesas.slice(0, 50).map(t => ({
-    title: t.title,
-    amount: t.amount,
-    type: t.type,
-    category: t.category,
-    date: t.date
+  // OTIMIZAÇÃO: Agregação de dados por categoria para reduzir tokens
+  const aggregation: Record<string, { total: number, count: number, type: string }> = {};
+  
+  despesas.forEach(t => {
+    const key = `${t.type}_${t.category}`;
+    if (!aggregation[key]) {
+      aggregation[key] = { total: 0, count: 0, type: t.type };
+    }
+    aggregation[key].total += t.amount;
+    aggregation[key].count += 1;
+  });
+
+  const aggregatedData = Object.entries(aggregation).map(([key, data]) => ({
+    category: key.split('_')[1],
+    type: data.type,
+    totalAmount: data.total.toFixed(2),
+    transactionCount: data.count
   }));
 
   const prompt = `
     Atue como um consultor financeiro pessoal experiente.
-    Analise os seguintes dados financeiros (JSON) e forneça um resumo breve, 3 dicas práticas de economia e identifique se há algo fora do comum (anomalias).
+    Analise os seguintes dados financeiros AGREGADOS (JSON) que incluem Receitas, Despesas e Investimentos.
+    Forneça um resumo breve, 3 dicas práticas de economia/investimento e identifique se há algo fora do comum (anomalias).
     Responda EXCLUSIVAMENTE em formato JSON seguindo o schema.
-    Dados: ${JSON.stringify(recentTransactions)}
+    
+    Dados Agregados: ${JSON.stringify(aggregatedData)}
   `;
 
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview', // Modelo mais econômico
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -183,7 +195,7 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
     // 2. Análise Semântica com Gemini (Apenas Texto)
     console.log("Enviando texto extraído para o Gemini...");
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview', // Modelo mais econômico
       contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
       Extraia os dados e retorne ESTRITAMENTE um JSON válido.
       

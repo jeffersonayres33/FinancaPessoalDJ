@@ -919,7 +919,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} />;
         case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${months[filterMonth]}`} />;
         case 'chart_income': return <Charts despesas={dashboardData.filteredTransactions} type="income" title={`Receitas: ${months[filterMonth]}`} />;
-        case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} />;
+        case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} />;
         default: return null;
       }
     };
