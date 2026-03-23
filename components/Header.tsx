@@ -17,6 +17,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onRestoreBackup, onInstall }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
 
   // Prevent scrolling when menu is open
   useEffect(() => {
-    if (isMenuOpen || showInstallInstructions) {
+    if (isMenuOpen || showInstallInstructions || showLogoutConfirm) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -36,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isMenuOpen, showInstallInstructions]);
+  }, [isMenuOpen, showInstallInstructions, showLogoutConfirm]);
 
   const getLinkClass = (view: string) => 
     `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer text-base font-medium w-full ${
@@ -65,6 +66,42 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
 
   return (
     <>
+      {/* Modal de Confirmação de Logout */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Sair da Conta</h3>
+              <button onClick={() => setShowLogoutConfirm(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Você realmente deseja sair da conta?
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Não
+              </button>
+              <button 
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  if (onLogout) onLogout();
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Instruções de Instalação */}
       {showInstallInstructions && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowInstallInstructions(false)}>
@@ -292,7 +329,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                   
                   {onLogout && (
                     <button 
-                      onClick={onLogout}
+                      onClick={() => setShowLogoutConfirm(true)}
                       className="flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors font-medium bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
                     >
                       <LogOut size={16} /> Sair da Conta
