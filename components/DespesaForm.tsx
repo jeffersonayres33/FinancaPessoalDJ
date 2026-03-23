@@ -158,8 +158,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
             img.src = event.target?.result as string;
             img.onload = () => {
               const canvas = document.createElement('canvas');
-              const MAX_WIDTH = 1024;
-              const MAX_HEIGHT = 1024;
+              const MAX_WIDTH = 2048;
+              const MAX_HEIGHT = 2048;
               let width = img.width;
               let height = img.height;
 
@@ -178,7 +178,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
               canvas.height = height;
               const ctx = canvas.getContext('2d');
               ctx?.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL('image/jpeg', 0.7));
+              resolve(canvas.toDataURL('image/jpeg', 0.95));
             };
             img.onerror = (error) => reject(error);
           };

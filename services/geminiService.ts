@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Despesa, AIAnalysisResult, ReceiptData } from '../types';
 import { getCurrentLocalDateString } from '../utils';
+import Tesseract, { createWorker, PSM } from 'tesseract.js';
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -31,6 +32,63 @@ const getAI = (): GoogleGenAI => {
     aiInstance = new GoogleGenAI({ apiKey: key });
   }
   return aiInstance;
+};
+
+// Função para melhorar a imagem antes do OCR (Grayscale + Contraste)
+const enhanceImageForOCR = (base64: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      // Limita o tamanho máximo para evitar travamentos, mas mantém resolução alta para OCR
+      const MAX_DIMENSION = 2048;
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height && width > MAX_DIMENSION) {
+        height *= MAX_DIMENSION / width;
+        width = MAX_DIMENSION;
+      } else if (height > MAX_DIMENSION) {
+        width *= MAX_DIMENSION / height;
+        height = MAX_DIMENSION;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(base64);
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      
+      // Aumentar contraste e converter para tons de cinza
+      const contrast = 60; // Nível de contraste
+      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Luminância (Grayscale)
+        const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        
+        // Contraste
+        let c = factor * (v - 128) + 128;
+        c = Math.max(0, Math.min(255, c));
+        
+        data[i] = c;
+        data[i + 1] = c;
+        data[i + 2] = c;
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL('image/jpeg', 0.95));
+    };
+    img.onerror = () => resolve(base64);
+    img.src = base64;
+  });
 };
 
 export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisResult> => {
@@ -104,42 +162,43 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
   try {
     const ai = getAI();
     
-    let mimeType = 'image/jpeg';
-    let base64Data = base64Image;
+    // 1. Extração de Texto Local com Tesseract.js (OCR)
+    console.log("Melhorando imagem para OCR...");
+    const enhancedImage = await enhanceImageForOCR(base64Image);
 
-    if (base64Image.startsWith('data:')) {
-      const matches = base64Image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        mimeType = matches[1];
-        base64Data = matches[2];
-      } else {
-        base64Data = base64Image.split(',')[1] || base64Image;
-      }
+    console.log("Iniciando OCR local com Tesseract.js...");
+    const worker = await createWorker('por');
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK, // PSM 6: Assume a single uniform block of text. Good for receipts.
+    });
+    const { data: { text: extractedText } } = await worker.recognize(enhancedImage);
+    await worker.terminate();
+    
+    console.log("Texto extraído com sucesso:", extractedText);
+
+    if (!extractedText || extractedText.trim() === '') {
+      throw new Error("Não foi possível ler nenhum texto na imagem.");
     }
 
+    // 2. Análise Semântica com Gemini (Apenas Texto)
+    console.log("Enviando texto extraído para o Gemini...");
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Data
-            }
-          },
-          {
-            text: `Analise esta imagem de recibo/nota fiscal. Extraia os dados e retorne ESTRITAMENTE um JSON válido.
-            
-            Estrutura do JSON desejado:
-            {
-              "title": "string (Nome do estabelecimento)",
-              "amount": number (Valor total numérico),
-              "date": "string (YYYY-MM-DD, se não encontrar use ${getCurrentLocalDateString()})",
-              "observation": "string (Resumo dos itens)"
-            }`
-          }
-        ]
-      },
+      contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
+      Extraia os dados e retorne ESTRITAMENTE um JSON válido.
+      
+      Texto extraído:
+      """
+      ${extractedText}
+      """
+      
+      Estrutura do JSON desejado:
+      {
+        "title": "string (Nome do estabelecimento)",
+        "amount": number (Valor total numérico),
+        "date": "string (YYYY-MM-DD, se não encontrar use ${getCurrentLocalDateString()})",
+        "observation": "string (Resumo dos itens)"
+      }`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
