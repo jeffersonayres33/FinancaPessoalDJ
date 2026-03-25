@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Trash2, Search, Filter, CheckCircle, Clock } from 'lucide-react';
+import { Trash2, Search, Filter, CheckCircle, Clock, Layers } from 'lucide-react';
 import { Transaction, Category } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 
@@ -109,14 +109,27 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                   ) : (
                     <span className="flex items-center text-yellow-600 text-xs font-medium bg-yellow-100 px-2 py-1 rounded-full w-fit">
                       <Clock size={12} className="mr-1" />
-                      Não Pago
+                      {transaction.type === 'income' ? 'Pendente' : 'Não Pago'}
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">{transaction.title}</td>
-                <td className={`px-6 py-4 text-sm font-medium ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                  {transaction.type === 'expense' && '- '}
-                  {formatCurrency(transaction.amount)}
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                  <div className="flex flex-col gap-1">
+                    <span>{transaction.title}</span>
+                    {transaction.installments && transaction.installments.total > 1 && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1 w-fit">
+                        <Layers size={10} /> Parcelado {transaction.installments.current}/{transaction.installments.total}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className={`px-6 py-4 text-sm font-medium ${
+                  transaction.type === 'income' || (transaction.type === 'investment' && transaction.amount >= 0) 
+                    ? 'text-green-600' 
+                    : 'text-red-600'
+                }`}>
+                  {(transaction.type === 'expense' || (transaction.type === 'investment' && transaction.amount < 0)) && '- '}
+                  {formatCurrency(Math.abs(transaction.amount))}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">{transaction.category}</td>
                 <td className="px-6 py-4 text-sm text-gray-500">{formatDate(transaction.date)}</td>

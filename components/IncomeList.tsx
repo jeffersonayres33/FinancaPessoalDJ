@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat, TrendingUp, TrendingDown } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
@@ -421,20 +421,24 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
                       <span className="font-medium">{formatDate(t.date)}</span>
                    </div>
 
-                   {t.status === 'paid' ? (
-                     <div className="flex items-center text-sm text-green-700 bg-green-50 p-1.5 rounded">
-                        <CheckCircle size={14} className="mr-2" />
-                        <div>
-                          <span className="font-bold block text-xs">RECEBIDO</span>
-                          {t.paymentDate && <span className="text-xs">em {formatDate(t.paymentDate)}</span>}
-                        </div>
+                   <div className="flex flex-col gap-2">
+                     <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
+                        <TrendingUp size={10} className="mr-1" />
+                        ENTRADA
                      </div>
-                   ) : (
-                     <div className="flex items-center text-sm text-yellow-700 bg-yellow-50 p-1.5 rounded">
-                        <Clock size={14} className="mr-2" />
-                        <span className="font-bold text-xs">PENDENTE</span>
-                     </div>
-                   )}
+
+                     {t.status === 'paid' ? (
+                       <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
+                          <CheckCircle size={10} className="mr-1" />
+                          <span>RECEBIDO {t.paymentDate && <span className="font-normal opacity-80 ml-1">em {formatDate(t.paymentDate)}</span>}</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-yellow-700 bg-yellow-50 border border-yellow-100">
+                          <Clock size={10} className="mr-1" />
+                          <span>PENDENTE</span>
+                       </div>
+                     )}
+                   </div>
 
                    {t.observation && (
                      <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">

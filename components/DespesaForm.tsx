@@ -34,6 +34,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   const [observation, setObservation] = useState('');
   const [isFixed, setIsFixed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [investmentType, setInvestmentType] = useState<'in' | 'out'>('in');
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
@@ -44,10 +45,17 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   useEffect(() => {
     if (initialData) {
       setTitle(initialData.title);
-      setAmount(initialData.amount.toString());
+      setAmount(Math.abs(initialData.amount).toString());
       setType(initialData.type);
       setCategory(initialData.category);
-      setStatus(initialData.status);
+      let initialStatus = initialData.status;
+      if (initialData.type === 'investment' && (initialStatus === 'in' || initialStatus === 'out')) {
+        setInvestmentType(initialStatus);
+        initialStatus = 'paid'; // Default legacy to paid, or pending. Let's use paid.
+      } else if (initialData.type === 'investment') {
+        setInvestmentType(initialData.amount < 0 ? 'out' : 'in');
+      }
+      setStatus(initialStatus);
       setDate(initialData.date);
       setPaymentDate(initialData.paymentDate || getCurrentLocalDateString());
       setInstallments(initialData.installments?.total || 1);
@@ -58,12 +66,13 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
       setAmount('');
       setType(forceType || 'expense');
       setCategory('');
-      setStatus(forceType === 'investment' ? 'in' : 'pending');
+      setStatus(forceType === 'income' ? 'pending' : 'pending');
       setDate(getCurrentLocalDateString());
       setPaymentDate(getCurrentLocalDateString());
       setInstallments(1);
       setObservation('');
       setIsFixed(false);
+      setInvestmentType('in');
     }
     setAnalysisError('');
     setIsSaving(false);
@@ -78,8 +87,9 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setIsSaving(true);
 
     try {
-        const finalPaymentDate = (type === 'expense' && status === 'paid') ? paymentDate : undefined;
+        const finalPaymentDate = ((type === 'expense' || type === 'investment') && status === 'paid') ? paymentDate : undefined;
         const currentIsFixed = isFixed === true;
+        const finalAmount = type === 'investment' && investmentType === 'out' ? -Math.abs(Number(amount)) : Math.abs(Number(amount));
 
         if (initialData && onUpdateDespesa) {
           const initialIsFixed = !!initialData.isFixed;
@@ -95,7 +105,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
           const updatePayload: Despesa = {
             id: initialData.id,
             title,
-            amount: Number(amount),
+            amount: finalAmount,
             type,
             category,
             status,
@@ -115,7 +125,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
 
           await onUpdateDespesa(updatePayload);
         } else {
-          await onAddDespesa(title, Number(amount), type, category, status, date, finalPaymentDate, installments, observation, currentIsFixed);
+          await onAddDespesa(title, finalAmount, type, category, status, date, finalPaymentDate, installments, observation, currentIsFixed);
         }
         
         handleClose();
@@ -137,6 +147,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setInstallments(1);
     setObservation('');
     setIsFixed(false);
+    setInvestmentType('in');
     setAnalysisError('');
     onClose();
   };
@@ -334,34 +345,9 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
             {/* Status de Pagamento (Movido para baixo do Título) */}
             <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {type === 'investment' ? 'Tipo:' : 'Pagamento:'}
+                    Pagamento:
                  </label>
-                 {type === 'investment' ? (
-                    <div className="flex bg-gray-100 p-1 rounded-lg">
-                        <button
-                            type="button"
-                            onClick={() => setStatus('in')}
-                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
-                            status === 'in' 
-                                ? 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' 
-                                : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                        >
-                            <CheckCircle size={16} /> Entrada
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setStatus('out')}
-                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
-                            status === 'out' 
-                                ? 'bg-orange-100 text-orange-700 shadow-sm border border-orange-200' 
-                                : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                        >
-                            <Clock size={16} /> Saída
-                        </button>
-                    </div>
-                 ) : type === 'expense' ? (
+                 {type === 'expense' || type === 'investment' ? (
                     <div className="flex bg-gray-100 p-1 rounded-lg">
                       <button
                         type="button"
@@ -413,6 +399,38 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                     </div>
                  )}
             </div>
+
+            {type === 'investment' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Investimento:
+                </label>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setInvestmentType('in')}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                      investmentType === 'in' 
+                        ? 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Entrada
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvestmentType('out')}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                      investmentType === 'out' 
+                        ? 'bg-orange-100 text-orange-700 shadow-sm border border-orange-200' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Saída
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -487,8 +505,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                 )}
             </div>
 
-            {/* Parcelas - Disponível para nova despesa OU edição de despesa variável */}
-            {type === 'expense' && !isFixed && (
+            {/* Parcelas - Disponível para nova despesa/investimento OU edição de variável */}
+            {(type === 'expense' || type === 'investment') && !isFixed && (
                <div className={isFixed ? 'opacity-50 pointer-events-none' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                      <Layers size={14} /> Parcelas {initialData && <span className="text-xs font-normal text-amber-600">(Editar parcelas não gera novos registros)</span>}
@@ -510,7 +528,7 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                </div>
             )}
             
-            {type === 'expense' && status === 'paid' && (
+            {(type === 'expense' || type === 'investment') && status === 'paid' && (
               <div className="animate-fade-in bg-green-50 p-3 rounded-md border border-green-100">
                 <label className="block text-sm font-medium text-green-800 mb-1">
                   Data do Pagamento

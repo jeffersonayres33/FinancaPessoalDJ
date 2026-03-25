@@ -648,7 +648,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         const createdAt = new Date().toISOString();
         const newTransactions: Despesa[] = [];
 
-        if (type === 'expense' && installmentsCount > 1 && !isFixed) {
+        if ((type === 'expense' || type === 'investment') && installmentsCount > 1 && !isFixed) {
             const installmentValue = amount / installmentsCount;
             const [startYear, startMonth, startDay] = date.split('-').map(Number);
             
@@ -666,7 +666,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
                     type,
                     category,
                     date: formattedDate,
-                    status: i === 0 ? status : 'pending', 
+                    status: (i === 0 ? status : 'pending'),
                     paymentDate: (i === 0 && status === 'paid') ? paymentDate : undefined,
                     createdAt,
                     observation: i === 0 ? observation : undefined,

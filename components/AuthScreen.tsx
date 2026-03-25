@@ -14,6 +14,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPublicRegistration, setIsPublicRegistration] = useState(false);
@@ -21,6 +22,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   React.useEffect(() => {
     // Verifica se o cadastro público está habilitado ao carregar a tela
     authService.isPublicRegistrationEnabled().then(setIsPublicRegistration);
+    
+    // Carrega o e-mail salvo, se houver
+    const savedEmail = localStorage.getItem('rememberedEmail');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberEmail(true);
+    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,6 +40,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       if (isLogin) {
         const user = await authService.login(email, password);
         if (user) {
+          if (rememberEmail) {
+            localStorage.setItem('rememberedEmail', email);
+          } else {
+            localStorage.removeItem('rememberedEmail');
+          }
           onLoginSuccess(user);
         } else {
           setError('Login falhou. Verifique suas credenciais.');
@@ -153,6 +166,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+
+            {isLogin && (
+              <div className="flex items-center justify-between mt-2">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberEmail}
+                    onChange={(e) => setRememberEmail(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  />
+                  Lembrar meu e-mail
+                </label>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2 border border-red-100 animate-fade-in">

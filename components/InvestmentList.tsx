@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock, Layers, CheckCircle } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
@@ -33,7 +33,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   const [year, setYear] = useState<number>(currentDate.getFullYear());
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'out'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title' | 'createdAt'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
@@ -41,6 +41,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [recurrenceFilter, setRecurrenceFilter] = useState<'all' | 'fixed' | 'variable'>('all');
+  const [installmentFilter, setInstallmentFilter] = useState<'all' | 'single' | 'installment'>('all');
 
   // Filtros Avançados
   const [minAmount, setMinAmount] = useState('');
@@ -59,6 +60,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     setStatusFilter('all');
     setCategoryFilter('all');
     setRecurrenceFilter('all');
+    setInstallmentFilter('all');
     setMinAmount('');
     setMaxAmount('');
     setStartDate('');
@@ -92,11 +94,15 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                                 (recurrenceFilter === 'fixed' && t.isFixed) || 
                                 (recurrenceFilter === 'variable' && !t.isFixed);
         
+        let installmentMatch = true;
+        if (installmentFilter === 'installment') installmentMatch = !!t.installments;
+        if (installmentFilter === 'single') installmentMatch = !t.installments;
+        
         let amountMatch = true;
         if (minAmount) amountMatch = amountMatch && t.amount >= Number(minAmount);
         if (maxAmount) amountMatch = amountMatch && t.amount <= Number(maxAmount);
 
-        return dateMatch && statusMatch && searchMatch && amountMatch && categoryMatch && recurrenceMatch;
+        return dateMatch && statusMatch && searchMatch && amountMatch && categoryMatch && recurrenceMatch && installmentMatch;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -111,16 +117,22 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [investimentos, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, categoryFilter, recurrenceFilter]);
+  }, [investimentos, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, categoryFilter, recurrenceFilter, installmentFilter]);
 
   // Calculate totals for all time (not just filtered)
   const allTimeInvestments = useMemo(() => investimentos.filter(t => t.type === 'investment'), [investimentos]);
-  const totalIn = allTimeInvestments.filter(t => t.status === 'in').reduce((acc, t) => acc + t.amount, 0);
-  const totalOut = allTimeInvestments.filter(t => t.status === 'out').reduce((acc, t) => acc + t.amount, 0);
-  const totalBalance = totalIn - totalOut;
+  const totalInPaid = allTimeInvestments.filter(t => t.status === 'paid' && t.amount >= 0).reduce((acc, t) => acc + t.amount, 0);
+  const totalInPending = allTimeInvestments.filter(t => t.status === 'pending' && t.amount >= 0).reduce((acc, t) => acc + t.amount, 0);
+  const totalOutPaid = allTimeInvestments.filter(t => t.status === 'paid' && t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  const totalOutPending = allTimeInvestments.filter(t => t.status === 'pending' && t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
 
-  const filteredTotalIn = filteredInvestments.filter(t => t.status === 'in').reduce((acc, t) => acc + t.amount, 0);
-  const filteredTotalOut = filteredInvestments.filter(t => t.status === 'out').reduce((acc, t) => acc + t.amount, 0);
+  const filteredTotalInPaid = filteredInvestments.filter(t => t.status === 'paid' && t.amount >= 0).reduce((acc, t) => acc + t.amount, 0);
+  const filteredTotalInPending = filteredInvestments.filter(t => t.status === 'pending' && t.amount >= 0).reduce((acc, t) => acc + t.amount, 0);
+  const filteredTotalOutPaid = filteredInvestments.filter(t => t.status === 'paid' && t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  const filteredTotalOutPending = filteredInvestments.filter(t => t.status === 'pending' && t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+
+  const filteredTotalPaid = filteredTotalInPaid - filteredTotalOutPaid;
+  const filteredTotalPending = filteredTotalInPending - filteredTotalOutPending;
 
   const exportToPDF = () => {
     const doc = new jsPDF();
@@ -139,22 +151,25 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     doc.setFontSize(10);
     doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
     doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
-    doc.text(`Total Entradas (Filtrado): ${formatCurrency(filteredTotalIn)}`, 14, 32);
-    doc.text(`Total Saídas (Filtrado): ${formatCurrency(filteredTotalOut)}`, 14, 37);
-    doc.text(`Quantidade de itens: ${filteredInvestments.length}`, 14, 42);
+    doc.text(`Entradas Totais Pagas (Filtrado): ${formatCurrency(filteredTotalInPaid)}`, 14, 32);
+    doc.text(`Entradas Totais Pendentes (Filtrado): ${formatCurrency(filteredTotalInPending)}`, 14, 37);
+    doc.text(`Saídas Totais Pagas (Filtrado): ${formatCurrency(filteredTotalOutPaid)}`, 14, 42);
+    doc.text(`Saídas Totais Pendentes (Filtrado): ${formatCurrency(filteredTotalOutPending)}`, 14, 47);
+    doc.text(`Quantidade de itens: ${filteredInvestments.length}`, 14, 52);
 
     const tableData = filteredInvestments.map(t => [
       formatDate(t.date),
       t.title,
       t.category,
-      t.status === 'in' ? 'Entrada' : 'Saída',
-      formatCurrency(t.amount)
+      t.status === 'paid' ? 'Pago' : 'Pendente',
+      t.amount >= 0 ? 'Entrada' : 'Saída',
+      formatCurrency(Math.abs(t.amount))
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Título', 'Categoria', 'Tipo', 'Valor']],
+      head: [['Data', 'Título', 'Categoria', 'Status', 'Tipo', 'Valor']],
       body: tableData,
-      startY: 50,
+      startY: 60,
       headStyles: { fillColor: [59, 130, 246] }, // Blue header
     });
 
@@ -167,8 +182,9 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
       Data: formatDate(t.date),
       Título: t.title,
       Categoria: t.category,
-      Tipo: t.status === 'in' ? 'Entrada' : 'Saída',
-      Valor: t.amount,
+      Status: t.status === 'paid' ? 'Pago' : 'Pendente',
+      Tipo: t.amount >= 0 ? 'Entrada' : 'Saída',
+      Valor: Math.abs(t.amount),
       Observação: t.observation || ''
     })));
     const wb = XLSX.utils.book_new();
@@ -179,32 +195,41 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Resumo Geral (All Time) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500 flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 font-medium">Investimento Total</p>
-            <h3 className="text-2xl font-bold text-gray-800 mt-1">{formatCurrency(totalIn)}</h3>
+            <p className="text-sm text-gray-500 font-medium">Entradas Totais Pagas</p>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalInPaid)}</h3>
           </div>
           <div className="p-3 bg-blue-50 rounded-full text-blue-600">
             <TrendingUp size={24} />
           </div>
         </div>
+        <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-300 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Entradas Totais Pendentes</p>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalInPending)}</h3>
+          </div>
+          <div className="p-3 bg-blue-50 rounded-full text-blue-400">
+            <Clock size={24} />
+          </div>
+        </div>
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-orange-500 flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 font-medium">Saída Total</p>
-            <h3 className="text-2xl font-bold text-gray-800 mt-1">{formatCurrency(totalOut)}</h3>
+            <p className="text-sm text-gray-500 font-medium">Saídas Totais Pagas</p>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalOutPaid)}</h3>
           </div>
           <div className="p-3 bg-orange-50 rounded-full text-orange-600">
             <TrendingDown size={24} />
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-emerald-500 flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-orange-300 flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 font-medium">Saldo Total</p>
-            <h3 className="text-2xl font-bold text-gray-800 mt-1">{formatCurrency(totalBalance)}</h3>
+            <p className="text-sm text-gray-500 font-medium">Saídas Totais Pendentes</p>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalOutPending)}</h3>
           </div>
-          <div className="p-3 bg-emerald-50 rounded-full text-emerald-600">
-            <DollarSign size={24} />
+          <div className="p-3 bg-orange-50 rounded-full text-orange-400">
+            <Clock size={24} />
           </div>
         </div>
       </div>
@@ -219,8 +244,10 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
             </span>
           </h2>
           <p className="text-gray-500 text-sm mt-1">
-             Entradas: <span className="font-bold text-blue-600">{formatCurrency(filteredTotalIn)}</span> | 
-             Saídas: <span className="font-bold text-orange-600">{formatCurrency(filteredTotalOut)}</span>
+             Entradas Totais Pagas: <span className="font-bold text-blue-600">{formatCurrency(filteredTotalInPaid)}</span> | 
+             Entradas Totais Pendentes: <span className="font-bold text-blue-400">{formatCurrency(filteredTotalInPending)}</span> | 
+             Saídas Totais Pagas: <span className="font-bold text-orange-600">{formatCurrency(filteredTotalOutPaid)}</span> | 
+             Saídas Totais Pendentes: <span className="font-bold text-orange-400">{formatCurrency(filteredTotalOutPending)}</span>
           </p>
         </div>
         
@@ -305,9 +332,9 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                 onChange={(e) => setStatusFilter(e.target.value as any)}
                 className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
              >
-                <option value="all">Tipo: Todos</option>
-                <option value="in">Entradas</option>
-                <option value="out">Saídas</option>
+                <option value="all">Status: Todos</option>
+                <option value="paid">Pagos</option>
+                <option value="pending">Pendentes</option>
              </select>
 
              <select 
@@ -318,6 +345,16 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                 <option value="all">Recorrência: Todas</option>
                 <option value="fixed">Fixos</option>
                 <option value="variable">Variáveis</option>
+             </select>
+
+             <select 
+                value={installmentFilter} 
+                onChange={(e) => setInstallmentFilter(e.target.value as any)}
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+                <option value="all">Parcelamento: Todos</option>
+                <option value="single">À vista</option>
+                <option value="installment">Parcelados</option>
              </select>
 
              <select 
@@ -374,8 +411,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
               )}
             </div>
             <div className="flex gap-4 font-medium flex-wrap">
-                <span className="text-blue-600">Entradas: {formatCurrency(filteredTotalIn)}</span>
-                <span className="text-orange-600">Saídas: {formatCurrency(filteredTotalOut)}</span>
+                <span className="text-green-600">Pagos: {formatCurrency(filteredTotalPaid)}</span>
+                <span className="text-yellow-600">Pendentes: {formatCurrency(filteredTotalPending)}</span>
             </div>
         </div>
       </div>
@@ -420,11 +457,16 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                             <Repeat size={10} /> Lançado auto
                          </span>
                        )}
+                       {t.installments && t.installments.total > 1 && (
+                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1">
+                            <Layers size={10} /> Parcelado {t.installments.current}/{t.installments.total}
+                         </span>
+                       )}
                     </div>
                   </div>
                   <div className="text-right mt-1 mr-6">
-                     <span className={`block font-bold text-lg ${t.status === 'in' ? 'text-blue-600' : 'text-orange-600'}`}>
-                        {t.status === 'out' ? '-' : ''}{formatCurrency(t.amount)}
+                     <span className={`block font-bold text-lg ${t.amount >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                        {t.amount < 0 ? '-' : ''}{formatCurrency(Math.abs(t.amount))}
                      </span>
                   </div>
                 </div>
@@ -436,21 +478,24 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                       <span className="font-medium">{formatDate(t.date)}</span>
                    </div>
 
-                   {t.status === 'in' ? (
-                     <div className="flex items-center text-sm text-blue-700 bg-blue-50 p-1.5 rounded">
-                        <TrendingUp size={14} className="mr-2" />
-                        <div>
-                          <span className="font-bold block text-xs">ENTRADA</span>
-                        </div>
+                   <div className="flex flex-col gap-2">
+                     <div className={`flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit ${t.amount >= 0 ? 'text-blue-700 bg-blue-50 border border-blue-100' : 'text-orange-700 bg-orange-50 border border-orange-100'}`}>
+                        {t.amount >= 0 ? <TrendingUp size={10} className="mr-1" /> : <TrendingDown size={10} className="mr-1" />}
+                        {t.amount >= 0 ? 'ENTRADA' : 'SAÍDA'}
                      </div>
-                   ) : (
-                     <div className="flex items-center text-sm text-orange-700 bg-orange-50 p-1.5 rounded">
-                        <TrendingDown size={14} className="mr-2" />
-                        <div>
-                          <span className="font-bold block text-xs">SAÍDA</span>
-                        </div>
-                     </div>
-                   )}
+
+                     {t.status === 'paid' ? (
+                       <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
+                          <CheckCircle size={10} className="mr-1" />
+                          <span>PAGO {t.paymentDate && <span className="font-normal opacity-80 ml-1">em {formatDate(t.paymentDate)}</span>}</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-yellow-700 bg-yellow-50 border border-yellow-100">
+                          <Clock size={10} className="mr-1" />
+                          <span>PENDENTE</span>
+                       </div>
+                     )}
+                   </div>
 
                    {t.observation && (
                      <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
@@ -465,6 +510,16 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                       {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
                    </div>
                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onToggleStatus) onToggleStatus(t);
+                        }}
+                        className={`p-2 rounded-full transition-colors ${t.status === 'paid' ? 'text-yellow-500 hover:bg-yellow-50' : 'text-green-500 hover:bg-green-50'}`}
+                        title={t.status === 'paid' ? 'Marcar como Pendente' : 'Marcar como Pago'}
+                      >
+                         {t.status === 'paid' ? <Clock size={16} /> : <CheckCircle size={16} />}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
