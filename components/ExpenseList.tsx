@@ -434,11 +434,6 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                    </div>
 
                    <div className="flex flex-col gap-2">
-                     <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-orange-700 bg-orange-50 border border-orange-100">
-                        <TrendingDown size={10} className="mr-1" />
-                        SAÍDA
-                     </div>
-
                      {t.status === 'paid' ? (
                        <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
                           <CheckCircle size={10} className="mr-1" />

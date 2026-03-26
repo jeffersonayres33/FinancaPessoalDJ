@@ -468,9 +468,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const dashboardData = useMemo(() => {
     const filtered = despesas.filter(t => {
       const [y, m] = t.date.split('-').map(Number);
-      // t.date is YYYY-MM-DD. m is 1-12. filterMonth is 0-11.
-      // So m - 1 === filterMonth is correct.
-      return (m - 1) === filterMonth && y === filterYear;
+      const monthMatch = filterMonth === -1 || (m - 1) === filterMonth;
+      const yearMatch = filterYear === -1 || y === filterYear;
+      return monthMatch && yearMatch;
     });
 
     let income = 0;
@@ -912,13 +912,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'total_income': return <StatCard title="Receitas Totais" value={formatCurrency(dashboardData.income)} icon={ArrowUpCircle} colorClass="text-green-600" bgClass="bg-green-100" />;
         case 'total_expense': return <StatCard title="Despesas Totais" value={formatCurrency(dashboardData.expense)} icon={ArrowDownCircle} colorClass="text-red-600" bgClass="bg-red-100" />;
         case 'pending_expenses': return <StatCard title="Contas a Pagar" value={formatCurrency(dashboardData.pending)} icon={Clock} colorClass="text-yellow-600" bgClass="bg-yellow-100" borderClass="border-l-4 border-yellow-400" />;
-        case 'balance': return <StatCard title="Saldo do Mês" value={formatCurrency(dashboardData.total)} icon={DollarSign} colorClass={dashboardData.total >= 0 ? "text-blue-600" : "text-red-600"} bgClass={dashboardData.total >= 0 ? "bg-blue-100" : "bg-red-100"} borderClass={dashboardData.total >= 0 ? "border-l-4 border-blue-500" : "border-l-4 border-red-500"} />;
+        case 'balance': return <StatCard title={filterMonth === -1 ? "Saldo Total" : "Saldo do Mês"} value={formatCurrency(dashboardData.total)} icon={DollarSign} colorClass={dashboardData.total >= 0 ? "text-blue-600" : "text-red-600"} bgClass={dashboardData.total >= 0 ? "bg-blue-100" : "bg-red-100"} borderClass={dashboardData.total >= 0 ? "border-l-4 border-blue-500" : "border-l-4 border-red-500"} />;
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
         case 'balance_by_category': return <BalanceByCategory categories={categories} expenses={dashboardData.filteredTransactions} />;
         case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} />;
         case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} />;
-        case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${months[filterMonth]}`} />;
-        case 'chart_income': return <Charts despesas={dashboardData.filteredTransactions} type="income" title={`Receitas: ${months[filterMonth]}`} />;
+        case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
+        case 'chart_income': return <Charts despesas={dashboardData.filteredTransactions} type="income" title={`Receitas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
         case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} />;
         default: return null;
       }
@@ -943,11 +943,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
               <CalendarIcon size={18} className="text-gray-500 ml-2" />
               <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))} className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer">
+                <option value={-1}>Todos</option>
                 {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
               </select>
             </div>
             <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
               <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))} className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer">
+                <option value={-1}>Todos</option>
                 {years.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>

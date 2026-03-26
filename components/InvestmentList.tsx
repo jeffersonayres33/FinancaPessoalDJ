@@ -34,6 +34,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'in' | 'out'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'title' | 'createdAt'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
@@ -58,6 +59,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setTypeFilter('all');
     setCategoryFilter('all');
     setRecurrenceFilter('all');
     setInstallmentFilter('all');
@@ -87,6 +89,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         }
 
         const statusMatch = statusFilter === 'all' || t.status === statusFilter;
+        const typeMatch = typeFilter === 'all' || (typeFilter === 'in' && t.amount >= 0) || (typeFilter === 'out' && t.amount < 0);
         const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             t.category.toLowerCase().includes(searchTerm.toLowerCase());
         const categoryMatch = categoryFilter === 'all' || t.category === categoryFilter;
@@ -102,7 +105,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         if (minAmount) amountMatch = amountMatch && t.amount >= Number(minAmount);
         if (maxAmount) amountMatch = amountMatch && t.amount <= Number(maxAmount);
 
-        return dateMatch && statusMatch && searchMatch && amountMatch && categoryMatch && recurrenceMatch && installmentMatch;
+        return dateMatch && statusMatch && typeMatch && searchMatch && amountMatch && categoryMatch && recurrenceMatch && installmentMatch;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -117,7 +120,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [investimentos, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, categoryFilter, recurrenceFilter, installmentFilter]);
+  }, [investimentos, month, year, statusFilter, typeFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, categoryFilter, recurrenceFilter, installmentFilter]);
 
   // Calculate totals for all time (not just filtered)
   const allTimeInvestments = useMemo(() => investimentos.filter(t => t.type === 'investment'), [investimentos]);
@@ -194,12 +197,12 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Resumo Geral (All Time) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Resumo Geral (Filtrado) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500 flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500 font-medium">Entradas Totais Pagas</p>
-            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalInPaid)}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(filteredTotalInPaid)}</h3>
           </div>
           <div className="p-3 bg-blue-50 rounded-full text-blue-600">
             <TrendingUp size={24} />
@@ -208,7 +211,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-300 flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500 font-medium">Entradas Totais Pendentes</p>
-            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalInPending)}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(filteredTotalInPending)}</h3>
           </div>
           <div className="p-3 bg-blue-50 rounded-full text-blue-400">
             <Clock size={24} />
@@ -217,7 +220,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-orange-500 flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500 font-medium">Saídas Totais Pagas</p>
-            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalOutPaid)}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(filteredTotalOutPaid)}</h3>
           </div>
           <div className="p-3 bg-orange-50 rounded-full text-orange-600">
             <TrendingDown size={24} />
@@ -226,10 +229,21 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-orange-300 flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500 font-medium">Saídas Totais Pendentes</p>
-            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(totalOutPending)}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(filteredTotalOutPending)}</h3>
           </div>
           <div className="p-3 bg-orange-50 rounded-full text-orange-400">
             <Clock size={24} />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-emerald-500 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Saldo (Entradas - Saídas)</p>
+            <h3 className={`text-xl font-bold mt-1 ${filteredTotalPaid >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {formatCurrency(filteredTotalPaid)}
+            </h3>
+          </div>
+          <div className={`p-3 rounded-full ${filteredTotalPaid >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+            <DollarSign size={24} />
           </div>
         </div>
       </div>
@@ -326,7 +340,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-gray-100 animate-fade-in-down">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-4 border-t border-gray-100 animate-fade-in-down">
              <select 
                 value={statusFilter} 
                 onChange={(e) => setStatusFilter(e.target.value as any)}
@@ -335,6 +349,16 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                 <option value="all">Status: Todos</option>
                 <option value="paid">Pagos</option>
                 <option value="pending">Pendentes</option>
+             </select>
+
+             <select 
+                value={typeFilter} 
+                onChange={(e) => setTypeFilter(e.target.value as any)}
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+             >
+                <option value="all">Tipo: Todos</option>
+                <option value="in">Entradas</option>
+                <option value="out">Saídas</option>
              </select>
 
              <select 

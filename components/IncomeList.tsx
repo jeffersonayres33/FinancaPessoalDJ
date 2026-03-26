@@ -422,11 +422,6 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
                    </div>
 
                    <div className="flex flex-col gap-2">
-                     <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
-                        <TrendingUp size={10} className="mr-1" />
-                        ENTRADA
-                     </div>
-
                      {t.status === 'paid' ? (
                        <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
                           <CheckCircle size={10} className="mr-1" />
