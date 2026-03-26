@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { StatCard } from './components/Summary'; 
 import { DespesaForm } from './components/DespesaForm';
 import { Charts, EvolutionChart, CategoryEvolutionChart } from './components/Charts';
+import { InvestmentEvolutionChart, CashFlowChart, BalanceProjectionChart, TopExpensesChart, MoneyDestinationChart } from './components/DashboardCharts';
 import { AIInsight } from './components/AIInsight';
 import { CategoryManager } from './components/CategoryManager';
 import { AccountsPayable } from './components/AccountsPayable';
@@ -49,12 +50,18 @@ const AVAILABLE_WIDGETS = [
   { id: 'total_expense', label: 'Despesas Totais', default: true },
   { id: 'balance', label: 'Saldo do Mês', default: true },
   { id: 'pending_expenses', label: 'Contas a Pagar', default: true },
+  { id: 'total_investment', label: 'Saldo Investido', default: true },
   { id: 'savings_rate', label: 'Taxa de Economia', default: true },
   { id: 'balance_by_category', label: 'Saldo por Categoria', default: true }, 
   { id: 'evolution_chart', label: 'Evolução de Gastos', default: true },
   { id: 'category_evolution', label: 'Evolução por Categoria', default: true },
   { id: 'chart_expense', label: 'Gráfico: Despesas por Categoria', default: true },
   { id: 'chart_income', label: 'Gráfico: Receitas por Categoria', default: true },
+  { id: 'investment_evolution', label: 'Evolução de Aportes', default: true },
+  { id: 'cash_flow', label: 'Fluxo de Caixa Completo', default: true },
+  { id: 'balance_projection', label: 'Projeção de Saldo', default: true },
+  { id: 'top_expenses', label: 'Top 10 Maiores Despesas', default: true },
+  { id: 'money_destination', label: 'Destino do Dinheiro', default: true },
   { id: 'ai_insight', label: 'Análise de Inteligência Artificial', default: true },
 ];
 
@@ -80,7 +87,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const [visibleWidgets, setVisibleWidgets] = useState<Record<string, boolean>>(() => {
     try {
         const saved = localStorage.getItem(STORAGE_KEY_WIDGETS);
-        return saved ? JSON.parse(saved) : AVAILABLE_WIDGETS.reduce((acc, w) => ({ ...acc, [w.id]: w.default }), {});
+        const defaults = AVAILABLE_WIDGETS.reduce((acc, w) => ({ ...acc, [w.id]: w.default }), {} as Record<string, boolean>);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            // Merge defaults and parsed so new widgets are true by default
+            return { ...defaults, ...parsed };
+        }
+        return defaults;
     } catch { return {}; }
   });
 
@@ -476,6 +489,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     let income = 0;
     let expense = 0;
     let pending = 0;
+    let investmentIn = 0;
+    let investmentOut = 0;
 
     for (const t of filtered) {
         if (t.type === 'income' && t.status === 'paid') {
@@ -486,16 +501,23 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             } else {
                 pending += t.amount;
             }
+        } else if (t.type === 'investment' && t.status === 'paid') {
+            if (t.amount >= 0) {
+                investmentIn += t.amount;
+            } else {
+                investmentOut += Math.abs(t.amount);
+            }
         }
     }
     
     const total = income - expense;
+    const investmentTotal = investmentIn - investmentOut;
     let savingsRate = 0;
     if (income > 0) {
       savingsRate = ((income - expense) / income) * 100;
     }
 
-    return { income, expense, total, pending, savingsRate, filteredTransactions: filtered };
+    return { income, expense, total, pending, investmentTotal, savingsRate, filteredTransactions: filtered };
   }, [despesas, filterMonth, filterYear]);
 
   // --- HANDLERS ---
@@ -912,6 +934,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'total_income': return <StatCard title="Receitas Totais" value={formatCurrency(dashboardData.income)} icon={ArrowUpCircle} colorClass="text-green-600" bgClass="bg-green-100" />;
         case 'total_expense': return <StatCard title="Despesas Totais" value={formatCurrency(dashboardData.expense)} icon={ArrowDownCircle} colorClass="text-red-600" bgClass="bg-red-100" />;
         case 'pending_expenses': return <StatCard title="Contas a Pagar" value={formatCurrency(dashboardData.pending)} icon={Clock} colorClass="text-yellow-600" bgClass="bg-yellow-100" borderClass="border-l-4 border-yellow-400" />;
+        case 'total_investment': return <StatCard title="Saldo Investido" value={formatCurrency(dashboardData.investmentTotal)} icon={ArrowUp} colorClass="text-purple-600" bgClass="bg-purple-100" borderClass="border-l-4 border-purple-500" />;
         case 'balance': return <StatCard title={filterMonth === -1 ? "Saldo Total" : "Saldo do Mês"} value={formatCurrency(dashboardData.total)} icon={DollarSign} colorClass={dashboardData.total >= 0 ? "text-blue-600" : "text-red-600"} bgClass={dashboardData.total >= 0 ? "bg-blue-100" : "bg-red-100"} borderClass={dashboardData.total >= 0 ? "border-l-4 border-blue-500" : "border-l-4 border-red-500"} />;
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
         case 'balance_by_category': return <BalanceByCategory categories={categories} expenses={dashboardData.filteredTransactions} />;
@@ -919,6 +942,11 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} />;
         case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
         case 'chart_income': return <Charts despesas={dashboardData.filteredTransactions} type="income" title={`Receitas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
+        case 'investment_evolution': return <InvestmentEvolutionChart despesas={despesas} year={filterYear} />;
+        case 'cash_flow': return <CashFlowChart despesas={despesas} year={filterYear} />;
+        case 'balance_projection': return <BalanceProjectionChart despesas={despesas} month={filterMonth} year={filterYear} />;
+        case 'top_expenses': return <TopExpensesChart despesas={despesas} month={filterMonth} year={filterYear} />;
+        case 'money_destination': return <MoneyDestinationChart despesas={despesas} month={filterMonth} year={filterYear} />;
         case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} />;
         default: return null;
       }
@@ -929,9 +957,14 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'balance_by_category':
         case 'evolution_chart':
         case 'category_evolution':
+        case 'investment_evolution':
+        case 'cash_flow':
         case 'ai_insight': return 'md:col-span-2 lg:col-span-4';
         case 'chart_expense':
-        case 'chart_income': return 'md:col-span-1 lg:col-span-2';
+        case 'chart_income':
+        case 'balance_projection':
+        case 'top_expenses':
+        case 'money_destination': return 'md:col-span-1 lg:col-span-2';
         default: return 'col-span-1';
       }
     };
