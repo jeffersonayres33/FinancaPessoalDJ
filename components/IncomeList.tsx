@@ -48,6 +48,8 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
   const [maxAmount, setMaxAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [createdStartDate, setCreatedStartDate] = useState('');
+  const [createdEndDate, setCreatedEndDate] = useState('');
 
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -65,6 +67,8 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
     setMaxAmount('');
     setStartDate('');
     setEndDate('');
+    setCreatedStartDate('');
+    setCreatedEndDate('');
   };
 
   const filteredIncome = useMemo(() => {
@@ -86,6 +90,14 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
             dateMatch = monthMatch && yearMatch;
         }
 
+        // Creation Date Logic
+        let createdDateMatch = true;
+        if (createdStartDate || createdEndDate) {
+          const createdAtDate = t.createdAt ? t.createdAt.split('T')[0] : t.date;
+          if (createdStartDate && createdAtDate < createdStartDate) createdDateMatch = false;
+          if (createdEndDate && createdAtDate > createdEndDate) createdDateMatch = false;
+        }
+
         const statusMatch = statusFilter === 'all' || t.status === statusFilter;
         const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             t.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -103,7 +115,7 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
         if (recurrenceFilter === 'fixed') recurrenceMatch = !!t.isFixed;
         if (recurrenceFilter === 'variable') recurrenceMatch = !t.isFixed;
 
-        return dateMatch && statusMatch && searchMatch && amountMatch && installmentMatch && recurrenceMatch && categoryMatch;
+        return dateMatch && createdDateMatch && statusMatch && searchMatch && amountMatch && installmentMatch && recurrenceMatch && categoryMatch;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -118,11 +130,18 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [receitas, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, installmentFilter, recurrenceFilter, categoryFilter]);
+  }, [receitas, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, createdStartDate, createdEndDate, installmentFilter, recurrenceFilter, categoryFilter]);
 
   const totalFiltered = filteredIncome.reduce((acc, t) => acc + t.amount, 0);
   const totalPaid = filteredIncome.filter(t => t.status === 'paid').reduce((acc, t) => acc + t.amount, 0);
   const totalPending = filteredIncome.filter(t => t.status === 'pending').reduce((acc, t) => acc + t.amount, 0);
+
+  // Calculate Selected Total
+  const selectedTotal = useMemo(() => {
+    return receitas
+      .filter(d => selectedIds.includes(d.id))
+      .reduce((acc, curr) => acc + curr.amount, 0);
+  }, [receitas, selectedIds]);
 
   const exportToPDF = () => {
     const doc = new jsPDF();
@@ -195,7 +214,15 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
           </p>
         </div>
         
-        <div className="flex flex-wrap gap-2 relative">
+        <div className="flex flex-wrap gap-2 relative items-center">
+           {/* Selected Total Display */}
+           {selectedIds.length > 0 && (
+              <div className="hidden sm:block mr-2 animate-fade-in text-right">
+                 <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Valor selecionado</div>
+                 <div className="text-sm font-bold text-green-700">{formatCurrency(selectedTotal)}</div>
+              </div>
+           )}
+
            <div className="flex gap-2">
               <button onClick={exportToPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
                 <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
@@ -213,6 +240,14 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
            </button>
         </div>
       </div>
+
+      {/* Mobile Selected Value (Shows below title on mobile only when selected) */}
+      {selectedIds.length > 0 && (
+        <div className="sm:hidden bg-green-50 p-2 rounded-md border border-green-100 flex justify-between items-center animate-fade-in mb-4">
+             <span className="text-xs font-bold text-gray-600 uppercase">Valor selecionado:</span>
+             <span className="text-sm font-bold text-green-700">{formatCurrency(selectedTotal)}</span>
+        </div>
+      )}
 
       {/* Filters Section */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
@@ -315,6 +350,15 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
              <input type="number" placeholder="Min R$" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              <input type="number" placeholder="Max R$" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              
+             <div className="md:col-span-2 flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Criação</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+                </div>
+             </div>
+
              <div className="md:col-span-3 lg:col-span-5 flex justify-end">
                 <button onClick={clearFilters} className="text-xs text-red-500 hover:underline">Limpar Filtros</button>
              </div>

@@ -40,6 +40,8 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   const [maxAmount, setMaxAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [createdStartDate, setCreatedStartDate] = useState('');
+  const [createdEndDate, setCreatedEndDate] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [fixedFilter, setFixedFilter] = useState<'all' | 'fixed' | 'variable'>('all');
 
@@ -66,6 +68,14 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
           if (month !== -1 && tMonth !== month) dateMatch = false;
         }
 
+        // Creation Date Logic
+        let createdDateMatch = true;
+        if (createdStartDate || createdEndDate) {
+          const createdAtDate = t.createdAt ? t.createdAt.split('T')[0] : t.date;
+          if (createdStartDate && createdAtDate < createdStartDate) createdDateMatch = false;
+          if (createdEndDate && createdAtDate > createdEndDate) createdDateMatch = false;
+        }
+
         // Search Filter
         const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             t.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -83,7 +93,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
         if (minAmount && t.amount < Number(minAmount)) amountMatch = false;
         if (maxAmount && t.amount > Number(maxAmount)) amountMatch = false;
 
-        return dateMatch && searchMatch && amountMatch && categoryMatch && fixedMatch;
+        return dateMatch && createdDateMatch && searchMatch && amountMatch && categoryMatch && fixedMatch;
       })
       .sort((a, b) => {
         switch (sortBy) {
@@ -107,7 +117,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
             return 0;
         }
       });
-  }, [despesas, month, year, sortBy, searchTerm, minAmount, maxAmount, startDate, endDate, categoryFilter, fixedFilter]);
+  }, [despesas, month, year, sortBy, searchTerm, minAmount, maxAmount, startDate, endDate, createdStartDate, createdEndDate, categoryFilter, fixedFilter]);
 
   const totalPending = filteredContas.reduce((acc, c) => acc + c.amount, 0);
 
@@ -127,6 +137,8 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     setMaxAmount('');
     setStartDate('');
     setEndDate('');
+    setCreatedStartDate('');
+    setCreatedEndDate('');
     setCategoryFilter('all');
     setFixedFilter('all');
   };
@@ -331,10 +343,23 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
         {showFilters && (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-gray-100 animate-fade-in-down">
              {/* Period Custom */}
-             <div className="md:col-span-2 flex gap-2 items-center">
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
-                <span className="text-gray-400">-</span>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+             <div className="md:col-span-2 flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+                </div>
+             </div>
+
+             {/* Creation Date Custom */}
+             <div className="md:col-span-2 flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Criação</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+                </div>
              </div>
 
              {/* Category */}
