@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Search, Filter, Trash2, Edit2, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate, getCurrentLocalDateString } from '../utils';
 import jsPDF from 'jspdf';
@@ -49,6 +49,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
   const [bulkPaymentDate, setBulkPaymentDate] = useState(getCurrentLocalDateString());
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Derived filtered data
   const filteredContas = useMemo(() => {
@@ -264,6 +265,22 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
           )}
 
           <div className="flex gap-2">
+             <div className="flex bg-gray-100 rounded-md p-1 mr-2">
+               <button 
+                 onClick={() => setViewMode('grid')} 
+                 className={`p-1.5 rounded-sm ${viewMode === 'grid' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500 hover:text-gray-700'}`} 
+                 title="Visualização em Blocos"
+               >
+                 <LayoutGrid size={16} />
+               </button>
+               <button 
+                 onClick={() => setViewMode('list')} 
+                 className={`p-1.5 rounded-sm ${viewMode === 'list' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500 hover:text-gray-700'}`} 
+                 title="Visualização em Lista"
+               >
+                 <ListIcon size={16} />
+               </button>
+             </div>
              <button onClick={handleExportPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
                <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
              </button>
@@ -476,108 +493,207 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
              </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredContas.map((t) => (
-            <div 
-              key={t.id} 
-              className={`bg-white rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md relative overflow-hidden group ${selectedIds.includes(t.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
-              onClick={() => toggleSelection(t.id)}
-            >
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-start gap-3">
-                    {/* Checkbox */}
-                    <div className="mt-1 cursor-pointer text-gray-400 hover:text-blue-500 transition-colors" onClick={(e) => { e.stopPropagation(); toggleSelection(t.id); }}>
-                        {selectedIds.includes(t.id) ? (
-                            <CheckSquare size={20} className="text-blue-600" />
-                        ) : (
-                            <Square size={20} />
-                        )}
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredContas.map((t) => (
+              <div 
+                key={t.id} 
+                className={`bg-white rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md relative overflow-hidden group ${selectedIds.includes(t.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+                onClick={() => toggleSelection(t.id)}
+              >
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start gap-3">
+                      {/* Checkbox */}
+                      <div className="mt-1 cursor-pointer text-gray-400 hover:text-blue-500 transition-colors" onClick={(e) => { e.stopPropagation(); toggleSelection(t.id); }}>
+                          {selectedIds.includes(t.id) ? (
+                              <CheckSquare size={20} className="text-blue-600" />
+                          ) : (
+                              <Square size={20} />
+                          )}
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                              {t.category}
+                          </span>
+                          {t.isFixed && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-1" title="Despesa Fixa">
+                                  <Repeat size={10} /> Fixa
+                              </span>
+                          )}
+                          {t.isAutoGenerated && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1" title="Lançado automaticamente pelo sistema">
+                                  <Repeat size={10} /> Lançado auto
+                              </span>
+                          )}
+                          {t.installments && t.installments.total > 1 && (
+                              <span className="inline-flex items-center text-xs font-normal text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">
+                                  <Layers size={10} className="mr-1" /> {t.installments.current}/{t.installments.total}
+                              </span>
+                          )}
+                          </div>
+                      </div>
                     </div>
-                    <div>
-                        <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
-                        <div className="flex gap-2 mt-1 flex-wrap">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                            {t.category}
+                    <div className="text-right mt-1 mr-6">
+                       <span className="block font-bold text-lg text-gray-800">
+                          {formatCurrency(t.amount)}
+                       </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-4 pl-8">
+                     <div className="flex items-center text-sm text-gray-600">
+                        <Calendar size={14} className="mr-2 opacity-70" />
+                        <span className="mr-1">Vencimento:</span>
+                        <span className={`font-medium ${new Date(t.date) < new Date() ? 'text-red-600' : ''}`}>
+                            {formatDate(t.date)}
                         </span>
-                        {t.isFixed && (
-                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-1" title="Despesa Fixa">
-                                <Repeat size={10} /> Fixa
-                            </span>
-                        )}
-                        {t.isAutoGenerated && (
-                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1" title="Lançado automaticamente pelo sistema">
-                                <Repeat size={10} /> Lançado auto
-                            </span>
-                        )}
-                        {t.installments && t.installments.total > 1 && (
-                            <span className="inline-flex items-center text-xs font-normal text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">
-                                <Layers size={10} className="mr-1" /> {t.installments.current}/{t.installments.total}
-                            </span>
-                        )}
-                        </div>
-                    </div>
-                  </div>
-                  <div className="text-right mt-1 mr-6">
-                     <span className="block font-bold text-lg text-gray-800">
-                        {formatCurrency(t.amount)}
-                     </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 mb-4 pl-8">
-                   <div className="flex items-center text-sm text-gray-600">
-                      <Calendar size={14} className="mr-2 opacity-70" />
-                      <span className="mr-1">Vencimento:</span>
-                      <span className={`font-medium ${new Date(t.date) < new Date() ? 'text-red-600' : ''}`}>
-                          {formatDate(t.date)}
-                      </span>
-                   </div>
-
-                   <div className="flex items-center text-sm text-red-700 bg-red-50 p-1.5 rounded w-fit">
-                      <Clock size={14} className="mr-2" />
-                      <span className="font-bold text-xs">PENDENTE</span>
-                   </div>
-
-                   {t.observation && (
-                     <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
-                        <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
-                        <p className="line-clamp-2">{t.observation}</p>
                      </div>
-                   )}
-                </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100 pl-8">
-                   <div className="text-xs text-gray-400 italic">
-                      {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
-                   </div>
-                   <div className="flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditConta(t);
-                        }}
-                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-                        title="Editar"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteConta(t.id);
-                        }}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        title="Excluir"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                   </div>
+                     <div className="flex items-center text-sm text-red-700 bg-red-50 p-1.5 rounded w-fit">
+                        <Clock size={14} className="mr-2" />
+                        <span className="font-bold text-xs">PENDENTE</span>
+                     </div>
+
+                     {t.observation && (
+                       <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
+                          <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                          <p className="line-clamp-2">{t.observation}</p>
+                       </div>
+                     )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100 pl-8">
+                     <div className="text-xs text-gray-400 italic">
+                        {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
+                     </div>
+                     <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditConta(t);
+                          }}
+                          className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                          title="Editar"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteConta(t.id);
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                     </div>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+                      <th className="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.length === filteredContas.length && filteredContas.length > 0}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </th>
+                      <th className="p-3 font-medium">Data</th>
+                      <th className="p-3 font-medium">Descrição</th>
+                      <th className="p-3 font-medium">Categoria</th>
+                      <th className="p-3 font-medium">Status</th>
+                      <th className="p-3 font-medium text-right">Valor</th>
+                      <th className="p-3 font-medium text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredContas.map((t) => (
+                      <tr key={t.id} className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.includes(t.id) ? 'bg-blue-50/50' : ''}`} onClick={() => toggleSelection(t.id)}>
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(t.id)}
+                            onChange={() => toggleSelection(t.id)}
+                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 text-sm text-gray-600 whitespace-nowrap">
+                          <span className={`font-medium ${new Date(t.date) < new Date() ? 'text-red-600' : ''}`}>
+                            {formatDate(t.date)}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="font-medium text-gray-800">{t.title}</div>
+                          {t.observation && <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{t.observation}</div>}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 whitespace-nowrap">
+                              {t.category}
+                            </span>
+                            {t.isFixed && (
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-1 whitespace-nowrap" title="Despesa Fixa">
+                                <Repeat size={10} /> Fixa
+                              </span>
+                            )}
+                            {t.installments && t.installments.total > 1 && (
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1 whitespace-nowrap">
+                                <Layers size={10} /> {t.installments.current}/{t.installments.total}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded text-red-700 bg-red-50 border border-red-100 whitespace-nowrap">
+                            <Clock size={10} className="mr-1" /> PENDENTE
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-gray-800 whitespace-nowrap">
+                          {formatCurrency(t.amount)}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditConta(t);
+                              }}
+                              className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteConta(t.id);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="Excluir"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
         </>
       ) : (
          <div className="p-12 text-center text-gray-400 flex flex-col items-center bg-white rounded-lg shadow-sm">

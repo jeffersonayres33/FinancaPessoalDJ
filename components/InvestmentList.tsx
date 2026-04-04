@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock, Layers, CheckCircle } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock, Layers, CheckCircle, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import jsPDF from 'jspdf';
@@ -39,6 +39,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [recurrenceFilter, setRecurrenceFilter] = useState<'all' | 'fixed' | 'variable'>('all');
@@ -294,6 +295,22 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
            )}
 
            <div className="flex gap-2">
+              <div className="flex bg-gray-100 rounded-md p-1 mr-2">
+                <button 
+                  onClick={() => setViewMode('grid')} 
+                  className={`p-1.5 rounded-sm ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} 
+                  title="Visualização em Blocos"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('list')} 
+                  className={`p-1.5 rounded-sm ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} 
+                  title="Visualização em Lista"
+                >
+                  <ListIcon size={16} />
+                </button>
+              </div>
               <button onClick={exportToPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
                 <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
               </button>
@@ -485,99 +502,100 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         </div>
       </div>
 
-      {/* Lista de Cards */}
+      {/* Lista de Cards ou Tabela */}
       {filteredInvestments.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredInvestments.map((t) => (
-            <div 
-              key={t.id} 
-              className={`bg-white rounded-xl shadow-sm border transition-all hover:shadow-md relative overflow-hidden group ${selectedIds.includes(t.id) ? 'border-purple-400 ring-1 ring-purple-400' : 'border-gray-100'}`}
-            >
-              <div className="absolute top-4 right-4 z-10">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(t.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedIds(prev => [...prev, t.id]);
-                    } else {
-                      setSelectedIds(prev => prev.filter(id => id !== t.id));
-                    }
-                  }}
-                  className="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                       <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                          {t.category}
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredInvestments.map((t) => (
+              <div 
+                key={t.id} 
+                className={`bg-white rounded-xl shadow-sm border transition-all hover:shadow-md relative overflow-hidden group ${selectedIds.includes(t.id) ? 'border-purple-400 ring-1 ring-purple-400' : 'border-gray-100'}`}
+              >
+                <div className="absolute top-4 right-4 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(t.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(prev => [...prev, t.id]);
+                      } else {
+                        setSelectedIds(prev => prev.filter(id => id !== t.id));
+                      }
+                    }}
+                    className="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                  />
+                </div>
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-lg leading-tight">{t.title}</h3>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                            {t.category}
+                         </span>
+                         {t.isFixed && (
+                           <span className="text-xs font-medium px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-1" title="Investimento Fixo (Recorrente)">
+                              <Repeat size={10} /> Fixo
+                           </span>
+                         )}
+                         {t.isAutoGenerated && (
+                           <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1" title="Lançado automaticamente pelo sistema">
+                              <Repeat size={10} /> Lançado auto
+                           </span>
+                         )}
+                         {t.installments && t.installments.total > 1 && (
+                           <span className="text-xs font-medium px-2 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1">
+                              <Layers size={10} /> Parcelado {t.installments.current}/{t.installments.total}
+                           </span>
+                         )}
+                      </div>
+                    </div>
+                    <div className="text-right mt-1 mr-6">
+                       <span className={`block font-bold text-lg ${t.amount >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                          {t.amount < 0 ? '-' : ''}{formatCurrency(Math.abs(t.amount))}
                        </span>
-                       {t.isFixed && (
-                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-1" title="Investimento Fixo (Recorrente)">
-                            <Repeat size={10} /> Fixo
-                         </span>
-                       )}
-                       {t.isAutoGenerated && (
-                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1" title="Lançado automaticamente pelo sistema">
-                            <Repeat size={10} /> Lançado auto
-                         </span>
-                       )}
-                       {t.installments && t.installments.total > 1 && (
-                         <span className="text-xs font-medium px-2 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1">
-                            <Layers size={10} /> Parcelado {t.installments.current}/{t.installments.total}
-                         </span>
-                       )}
                     </div>
                   </div>
-                  <div className="text-right mt-1 mr-6">
-                     <span className={`block font-bold text-lg ${t.amount >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                        {t.amount < 0 ? '-' : ''}{formatCurrency(Math.abs(t.amount))}
-                     </span>
-                  </div>
-                </div>
 
-                <div className="space-y-2 mb-4">
-                   <div className="flex items-center text-sm text-gray-600">
-                      <Calendar size={14} className="mr-2 opacity-70" />
-                      <span className="mr-1">Data:</span>
-                      <span className="font-medium">{formatDate(t.date)}</span>
-                   </div>
-
-                   <div className="flex flex-col gap-2">
-                     <div className={`flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit ${t.amount >= 0 ? 'text-blue-700 bg-blue-50 border border-blue-100' : 'text-orange-700 bg-orange-50 border border-orange-100'}`}>
-                        {t.amount >= 0 ? <TrendingUp size={10} className="mr-1" /> : <TrendingDown size={10} className="mr-1" />}
-                        {t.amount >= 0 ? 'ENTRADA' : 'SAÍDA'}
+                  <div className="space-y-2 mb-4">
+                     <div className="flex items-center text-sm text-gray-600">
+                        <Calendar size={14} className="mr-2 opacity-70" />
+                        <span className="mr-1">Data:</span>
+                        <span className="font-medium">{formatDate(t.date)}</span>
                      </div>
 
-                     {t.status === 'paid' ? (
-                       <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
-                          <CheckCircle size={10} className="mr-1" />
-                          <span>PAGO {t.paymentDate && <span className="font-normal opacity-80 ml-1">em {formatDate(t.paymentDate)}</span>}</span>
+                     <div className="flex flex-col gap-2">
+                       <div className={`flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit ${t.amount >= 0 ? 'text-blue-700 bg-blue-50 border border-blue-100' : 'text-orange-700 bg-orange-50 border border-orange-100'}`}>
+                          {t.amount >= 0 ? <TrendingUp size={10} className="mr-1" /> : <TrendingDown size={10} className="mr-1" />}
+                          {t.amount >= 0 ? 'ENTRADA' : 'SAÍDA'}
                        </div>
-                     ) : (
-                       <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-yellow-700 bg-yellow-50 border border-yellow-100">
-                          <Clock size={10} className="mr-1" />
-                          <span>PENDENTE</span>
+
+                       {t.status === 'paid' ? (
+                         <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
+                            <CheckCircle size={10} className="mr-1" />
+                            <span>PAGO {t.paymentDate && <span className="font-normal opacity-80 ml-1">em {formatDate(t.paymentDate)}</span>}</span>
+                         </div>
+                       ) : (
+                         <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-yellow-700 bg-yellow-50 border border-yellow-100">
+                            <Clock size={10} className="mr-1" />
+                            <span>PENDENTE</span>
+                         </div>
+                       )}
+                     </div>
+
+                     {t.observation && (
+                       <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
+                          <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                          <p className="line-clamp-2">{t.observation}</p>
                        </div>
                      )}
-                   </div>
+                  </div>
 
-                   {t.observation && (
-                     <div className="flex items-start text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100">
-                        <FileText size={12} className="mr-1 mt-0.5 flex-shrink-0" />
-                        <p className="line-clamp-2">{t.observation}</p>
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                     <div className="text-xs text-gray-400 italic">
+                        {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
                      </div>
-                   )}
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                   <div className="text-xs text-gray-400 italic">
-                      {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
-                   </div>
-                   <div className="flex gap-2">
+                     <div className="flex gap-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -614,6 +632,142 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
             </div>
           ))}
         </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+                    <th className="p-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.length === filteredInvestments.length && filteredInvestments.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds(filteredInvestments.map(t => t.id));
+                          } else {
+                            setSelectedIds([]);
+                          }
+                        }}
+                        className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                      />
+                    </th>
+                    <th className="p-3 font-medium">Data</th>
+                    <th className="p-3 font-medium">Descrição</th>
+                    <th className="p-3 font-medium">Categoria</th>
+                    <th className="p-3 font-medium">Status</th>
+                    <th className="p-3 font-medium text-right">Valor</th>
+                    <th className="p-3 font-medium text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredInvestments.map((t) => (
+                    <tr key={t.id} className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.includes(t.id) ? 'bg-purple-50/50' : ''}`} onClick={() => {
+                      if (selectedIds.includes(t.id)) {
+                        setSelectedIds(prev => prev.filter(id => id !== t.id));
+                      } else {
+                        setSelectedIds(prev => [...prev, t.id]);
+                      }
+                    }}>
+                      <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(t.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedIds(prev => [...prev, t.id]);
+                            } else {
+                              setSelectedIds(prev => prev.filter(id => id !== t.id));
+                            }
+                          }}
+                          className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3 text-sm text-gray-600 whitespace-nowrap">
+                        {formatDate(t.date)}
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium text-gray-800">{t.title}</div>
+                        {t.observation && <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{t.observation}</div>}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-wrap gap-1">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 whitespace-nowrap">
+                            {t.category}
+                          </span>
+                          {t.isFixed && (
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-1 whitespace-nowrap" title="Investimento Fixo (Recorrente)">
+                              <Repeat size={10} /> Fixo
+                            </span>
+                          )}
+                          {t.installments && t.installments.total > 1 && (
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 flex items-center gap-1 whitespace-nowrap">
+                              <Layers size={10} /> {t.installments.current}/{t.installments.total}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit whitespace-nowrap ${t.amount >= 0 ? 'text-blue-700 bg-blue-50 border border-blue-100' : 'text-orange-700 bg-orange-50 border border-orange-100'}`}>
+                            {t.amount >= 0 ? <TrendingUp size={10} className="mr-1" /> : <TrendingDown size={10} className="mr-1" />}
+                            {t.amount >= 0 ? 'ENTRADA' : 'SAÍDA'}
+                          </span>
+                          {t.status === 'paid' ? (
+                            <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100 whitespace-nowrap">
+                              <CheckCircle size={10} className="mr-1" /> PAGO
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-yellow-700 bg-yellow-50 border border-yellow-100 whitespace-nowrap">
+                              <Clock size={10} className="mr-1" /> PENDENTE
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`p-3 text-right font-bold whitespace-nowrap ${t.amount >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                        {t.amount < 0 ? '-' : ''}{formatCurrency(Math.abs(t.amount))}
+                      </td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onToggleStatus) onToggleStatus(t);
+                            }}
+                            className={`p-1.5 rounded-md transition-colors ${t.status === 'paid' ? 'text-yellow-500 hover:bg-yellow-50' : 'text-green-500 hover:bg-green-50'}`}
+                            title={t.status === 'paid' ? 'Marcar como Pendente' : 'Marcar como Pago'}
+                          >
+                             {t.status === 'paid' ? <Clock size={14} /> : <CheckCircle size={14} />}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditInvestimento(t);
+                            }}
+                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteInvestimento(t.id);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
       ) : (
          <div className="p-12 text-center text-gray-400 flex flex-col items-center bg-white rounded-lg shadow-sm">
            <CalendarCheck size={48} className="mb-4 opacity-20" />
