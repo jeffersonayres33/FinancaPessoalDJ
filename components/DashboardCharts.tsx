@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, AreaChart, Area, ComposedChart } from 'recharts';
-import { Despesa } from '../types';
+import { Despesa, User } from '../types';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -10,23 +10,35 @@ const formatCurrency = (value: number) => {
 };
 
 // 1. Evolução de Aportes (Investimentos)
-export const InvestmentEvolutionChart: React.FC<{ despesas: Despesa[], year: number }> = ({ despesas, year }) => {
+export const InvestmentEvolutionChart: React.FC<{ despesas: Despesa[], year: number, user?: User }> = ({ despesas, year, user }) => {
   const data = useMemo(() => {
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const monthlyTotals = new Array(12).fill(0);
+    const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      if (t.type === 'investment' && t.status === 'paid' && (year === -1 || y === year)) {
-        monthlyTotals[m - 1] += t.amount;
+      const [y, m, d] = t.date.split('-').map(Number);
+      
+      let finMonth = m - 1;
+      let finYear = y;
+      if (d < startDay) {
+        finMonth--;
+        if (finMonth < 0) {
+          finMonth = 11;
+          finYear--;
+        }
+      }
+
+      if (t.type === 'investment' && t.status === 'paid' && (year === -1 || finYear === year)) {
+        monthlyTotals[finMonth] += t.amount;
       }
     });
 
     return months.map((month, index) => ({
       name: month,
       total: monthlyTotals[index]
-    })).filter(d => year !== -1 || d.total !== 0); // If all years, maybe just show months that have data or aggregate by year-month. For simplicity, if year === -1, we aggregate all years into the 12 months.
-  }, [despesas, year]);
+    })).filter(d => year !== -1 || d.total !== 0);
+  }, [despesas, year, user]);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md h-96 flex flex-col border border-gray-100">
@@ -47,17 +59,29 @@ export const InvestmentEvolutionChart: React.FC<{ despesas: Despesa[], year: num
 };
 
 // 2. Fluxo de Caixa Completo
-export const CashFlowChart: React.FC<{ despesas: Despesa[], year: number }> = ({ despesas, year }) => {
+export const CashFlowChart: React.FC<{ despesas: Despesa[], year: number, user?: User }> = ({ despesas, year, user }) => {
   const data = useMemo(() => {
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const monthlyData = Array.from({ length: 12 }, () => ({ Receitas: 0, Despesas: 0, Investimentos: 0 }));
+    const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      if (t.status === 'paid' && (year === -1 || y === year)) {
-        if (t.type === 'income') monthlyData[m - 1].Receitas += t.amount;
-        if (t.type === 'expense') monthlyData[m - 1].Despesas += t.amount;
-        if (t.type === 'investment' && t.amount > 0) monthlyData[m - 1].Investimentos += t.amount;
+      const [y, m, d] = t.date.split('-').map(Number);
+      
+      let finMonth = m - 1;
+      let finYear = y;
+      if (d < startDay) {
+        finMonth--;
+        if (finMonth < 0) {
+          finMonth = 11;
+          finYear--;
+        }
+      }
+
+      if (t.status === 'paid' && (year === -1 || finYear === year)) {
+        if (t.type === 'income') monthlyData[finMonth].Receitas += t.amount;
+        if (t.type === 'expense') monthlyData[finMonth].Despesas += t.amount;
+        if (t.type === 'investment' && t.amount > 0) monthlyData[finMonth].Investimentos += t.amount;
       }
     });
 
@@ -89,7 +113,7 @@ export const CashFlowChart: React.FC<{ despesas: Despesa[], year: number }> = ({
 };
 
 // 3. Projeção de Saldo (Realizado vs Pendente)
-export const BalanceProjectionChart: React.FC<{ despesas: Despesa[], month: number, year: number }> = ({ despesas, month, year }) => {
+export const BalanceProjectionChart: React.FC<{ despesas: Despesa[] }> = ({ despesas }) => {
   const data = useMemo(() => {
     let realizedIncome = 0;
     let realizedExpense = 0;
@@ -97,18 +121,12 @@ export const BalanceProjectionChart: React.FC<{ despesas: Despesa[], month: numb
     let pendingExpense = 0;
 
     despesas.forEach(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      const monthMatch = month === -1 || (m - 1) === month;
-      const yearMatch = year === -1 || y === year;
-      
-      if (monthMatch && yearMatch) {
-        if (t.type === 'income') {
-          if (t.status === 'paid') realizedIncome += t.amount;
-          else pendingIncome += t.amount;
-        } else if (t.type === 'expense') {
-          if (t.status === 'paid') realizedExpense += t.amount;
-          else pendingExpense += t.amount;
-        }
+      if (t.type === 'income') {
+        if (t.status === 'paid') realizedIncome += t.amount;
+        else pendingIncome += t.amount;
+      } else if (t.type === 'expense') {
+        if (t.status === 'paid') realizedExpense += t.amount;
+        else pendingExpense += t.amount;
       }
     });
 
@@ -121,7 +139,7 @@ export const BalanceProjectionChart: React.FC<{ despesas: Despesa[], month: numb
       { name: 'A Pagar (Pendente)', valor: -pendingExpense, fill: '#F59E0B' },
       { name: 'Projeção Final', valor: projectedBalance, fill: projectedBalance >= 0 ? '#8B5CF6' : '#EF4444' }
     ];
-  }, [despesas, month, year]);
+  }, [despesas]);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md h-96 flex flex-col border border-gray-100">
@@ -146,14 +164,9 @@ export const BalanceProjectionChart: React.FC<{ despesas: Despesa[], month: numb
 };
 
 // 4. Top 10 Maiores Despesas
-export const TopExpensesChart: React.FC<{ despesas: Despesa[], month: number, year: number }> = ({ despesas, month, year }) => {
+export const TopExpensesChart: React.FC<{ despesas: Despesa[] }> = ({ despesas }) => {
   const data = useMemo(() => {
-    const filtered = despesas.filter(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      const monthMatch = month === -1 || (m - 1) === month;
-      const yearMatch = year === -1 || y === year;
-      return t.type === 'expense' && monthMatch && yearMatch;
-    });
+    const filtered = despesas.filter(t => t.type === 'expense');
 
     // Agrupa por título para evitar transações duplicadas com mesmo nome, ou apenas lista as top 10 transações
     // Vamos listar as top 10 transações individuais
@@ -164,7 +177,7 @@ export const TopExpensesChart: React.FC<{ despesas: Despesa[], month: number, ye
       valor: t.amount,
       categoria: t.category
     }));
-  }, [despesas, month, year]);
+  }, [despesas]);
 
   if (data.length === 0) {
     return (
@@ -194,21 +207,17 @@ export const TopExpensesChart: React.FC<{ despesas: Despesa[], month: number, ye
 };
 
 // 5. Destino do Dinheiro (Donut)
-export const MoneyDestinationChart: React.FC<{ despesas: Despesa[], month: number, year: number }> = ({ despesas, month, year }) => {
+export const MoneyDestinationChart: React.FC<{ despesas: Despesa[] }> = ({ despesas }) => {
   const data = useMemo(() => {
     let income = 0;
     let expense = 0;
     let investment = 0;
 
     despesas.forEach(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      const monthMatch = month === -1 || (m - 1) === month;
-      const yearMatch = year === -1 || y === year;
-      
-      if (t.status === 'paid' && monthMatch && yearMatch) {
+      if (t.status === 'paid') {
         if (t.type === 'income') income += t.amount;
-        if (t.type === 'expense') expense += t.amount;
-        if (t.type === 'investment' && t.amount > 0) investment += t.amount;
+        else if (t.type === 'expense') expense += t.amount;
+        else if (t.type === 'investment' && t.amount > 0) investment += t.amount;
       }
     });
 
@@ -222,7 +231,7 @@ export const MoneyDestinationChart: React.FC<{ despesas: Despesa[], month: numbe
       { name: 'Investimentos', value: investment, fill: '#8B5CF6' },
       { name: 'Saldo Livre', value: freeBalance, fill: '#10B981' }
     ].filter(d => d.value > 0);
-  }, [despesas, month, year]);
+  }, [despesas]);
 
   if (data.length === 0) {
     return (

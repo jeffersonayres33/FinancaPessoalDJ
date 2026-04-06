@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, Lock, User as UserIcon, Mail, Palette } from 'lucide-react';
+import { X, Save, Lock, User as UserIcon, Mail, Palette, Calendar } from 'lucide-react';
 import { User } from '../types';
 import { authService } from '../services/authService';
 
@@ -14,6 +14,7 @@ interface UserProfileModalProps {
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen, onClose, onUpdateUser, showToast }) => {
   const [name, setName] = useState(user.name);
   const [themeColor, setThemeColor] = useState(user.themeColor || 'orange');
+  const [financialMonthStartDay, setFinancialMonthStartDay] = useState(user.financialMonthStartDay?.toString() || '1');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -48,12 +49,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
         hasChanges = true;
       }
 
+      // 3. Atualizar Dia de Início do Mês Financeiro
+      const parsedStartDay = parseInt(financialMonthStartDay, 10);
+      if (!isNaN(parsedStartDay) && parsedStartDay >= 1 && parsedStartDay <= 31) {
+        if (parsedStartDay !== (user.financialMonthStartDay || 1)) {
+          await authService.updateUserFinancialMonthStartDay(user.id, parsedStartDay);
+          updatedUser.financialMonthStartDay = parsedStartDay;
+          hasChanges = true;
+        }
+      } else {
+        showToast('Dia de início inválido. Use um valor entre 1 e 31.', 'error');
+        setLoading(false);
+        return;
+      }
+
       if (hasChanges) {
         onUpdateUser(updatedUser);
         showToast('Perfil atualizado com sucesso!', 'success');
       }
 
-      // 3. Atualizar Senha (se preencheu os campos e for a conta principal)
+      // 4. Atualizar Senha (se preencheu os campos e for a conta principal)
       if (!user.parentId && (currentPassword || newPassword || confirmPassword)) {
         if (!currentPassword || !newPassword || !confirmPassword) {
           showToast('Preencha todos os campos de senha para alterá-la.', 'error');
@@ -81,7 +96,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
         setConfirmPassword('');
       }
 
-      if (name === user.name && !currentPassword && !newPassword) {
+      if (name === user.name && !currentPassword && !newPassword && parsedStartDay === (user.financialMonthStartDay || 1) && themeColor === (user.themeColor || 'orange')) {
          showToast('Nenhuma alteração foi feita.', 'success');
       }
 
@@ -138,6 +153,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
                 placeholder="Seu nome completo"
               />
             </div>
+          </div>
+
+          {/* Dia de Início do Mês Financeiro */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Início do Mês Financeiro</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Calendar size={16} className="text-gray-400" />
+              </div>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={financialMonthStartDay}
+                onChange={(e) => setFinancialMonthStartDay(e.target.value)}
+                className="w-full pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                placeholder="Ex: 1, 5, 25"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Define em qual dia o seu mês financeiro começa. Ex: Se for dia 25, o mês de Março será de 25/03 a 24/04.
+            </p>
           </div>
 
           {/* Cor do Tema - Só mostra se for um membro (tem parentId) */}

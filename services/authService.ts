@@ -86,7 +86,8 @@ export const authService = {
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
       role: m.role || 'user',
-      themeColor: m.theme_color
+      themeColor: m.theme_color,
+      financialMonthStartDay: m.financial_month_start_day
     }));
 
     const user: User = {
@@ -95,7 +96,8 @@ export const authService = {
       parentId: profile.parent_id,
       members: mappedMembers,
       role: profile.role || 'user',
-      themeColor: profile.theme_color
+      themeColor: profile.theme_color,
+      financialMonthStartDay: profile.financial_month_start_day
     };
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
@@ -275,7 +277,8 @@ export const authService = {
           ...u,
           dataContextId: u.data_context_id,
           parentId: u.parent_id,
-          role: u.role || 'user'
+          role: u.role || 'user',
+          financialMonthStartDay: u.financial_month_start_day
       }));
   },
 
@@ -317,7 +320,8 @@ export const authService = {
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
       role: m.role || 'user',
-      themeColor: m.theme_color
+      themeColor: m.theme_color,
+      financialMonthStartDay: m.financial_month_start_day
     }));
 
     const updatedAdmin = { 
@@ -348,7 +352,8 @@ export const authService = {
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
       role: m.role || 'user',
-      themeColor: m.theme_color
+      themeColor: m.theme_color,
+      financialMonthStartDay: m.financial_month_start_day
     }));
 
     const user: User = {
@@ -356,7 +361,8 @@ export const authService = {
       dataContextId: data.data_context_id,
       parentId: data.parent_id,
       members: mappedMembers,
-      themeColor: data.theme_color
+      themeColor: data.theme_color,
+      financialMonthStartDay: data.financial_month_start_day
     };
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
@@ -461,6 +467,30 @@ export const authService = {
         const memberIndex = currentUser.members.findIndex(m => m.id === userId);
         if (memberIndex !== -1) {
           currentUser.members[memberIndex].themeColor = themeColor as any;
+          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+        }
+      }
+    }
+  },
+
+  updateUserFinancialMonthStartDay: async (userId: string, startDay: number): Promise<void> => {
+    const { error: dbError } = await supabase
+      .from('app_users')
+      .update({ financial_month_start_day: startDay })
+      .eq('id', userId);
+
+    if (dbError) throw new Error('Erro ao atualizar dia de início do mês financeiro: ' + dbError.message);
+
+    // Atualiza no localStorage
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      if (currentUser.id === userId) {
+        currentUser.financialMonthStartDay = startDay;
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+      } else if (currentUser.members) {
+        const memberIndex = currentUser.members.findIndex(m => m.id === userId);
+        if (memberIndex !== -1) {
+          currentUser.members[memberIndex].financialMonthStartDay = startDay;
           localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
         }
       }

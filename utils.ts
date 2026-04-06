@@ -40,6 +40,74 @@ export const getCurrentLocalDateString = (): string => {
   return `${year}-${month}-${day}`;
 };
 
+export const getCurrentFinancialPeriod = (startDay: number): { month: number, year: number } => {
+  if (!startDay || startDay < 1 || startDay > 31) {
+    startDay = 1;
+  }
+
+  const now = new Date();
+  const currentDay = now.getDate();
+  let currentMonth = now.getMonth();
+  let currentYear = now.getFullYear();
+
+  if (currentDay < startDay) {
+    // We are still in the previous financial month
+    currentMonth -= 1;
+    if (currentMonth < 0) {
+      currentMonth = 11;
+      currentYear -= 1;
+    }
+  }
+
+  return { month: currentMonth, year: currentYear };
+};
+
+export const getFinancialMonthRange = (year: number, month: number, startDay: number) => {
+  if (!startDay || startDay < 1 || startDay > 31) {
+    startDay = 1;
+  }
+
+  // Opção B: O mês selecionado dita o mês em que o ciclo COMEÇA.
+  // Ex: Se startDay = 25 e month = 2 (Março), o período é 25/03 a 24/04.
+  const startDate = new Date(year, month, startDay);
+  
+  let endDate: Date;
+  if (startDay === 1) {
+    // Se for dia 1, o fim é o último dia do mês atual
+    endDate = new Date(year, month + 1, 0);
+  } else {
+    // Se for > 1, o fim é o dia anterior ao startDay no próximo mês
+    endDate = new Date(year, month + 1, startDay - 1);
+  }
+
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  return { startDate, endDate };
+};
+
+export const getFinancialYearRange = (year: number, startDay: number) => {
+  if (!startDay || startDay < 1 || startDay > 31) {
+    startDay = 1;
+  }
+
+  // Ano financeiro começa no startDay de Janeiro do ano selecionado
+  const startDate = new Date(year, 0, startDay);
+  
+  let endDate: Date;
+  if (startDay === 1) {
+    endDate = new Date(year, 11, 31);
+  } else {
+    // Termina no dia anterior ao startDay de Janeiro do ano seguinte
+    endDate = new Date(year + 1, 0, startDay - 1);
+  }
+
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  return { startDate, endDate };
+};
+
 export const printData = (title: string, headers: string[], rows: (string | number)[][]) => {
   const printWindow = window.open('', '', 'height=600,width=800');
   

@@ -72,4 +72,5 @@ export interface User {
   members?: User[]; // Membros adicionados por este usuário
   role?: 'admin' | 'user'; // Nível de acesso
   themeColor?: 'orange' | 'blue' | 'pink' | 'green';
+  financialMonthStartDay?: number; // Dia de início do mês financeiro (1-31)
 }

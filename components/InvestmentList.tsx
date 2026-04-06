@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock, Layers, CheckCircle, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
-import { formatCurrency, formatDate } from '../utils';
+import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -28,9 +28,10 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   user
 }) => {
   const currentDate = new Date();
+  const currentFinancialPeriod = getCurrentFinancialPeriod(user?.financialMonthStartDay || 1);
   
-  const [month, setMonth] = useState<number>(currentDate.getMonth());
-  const [year, setYear] = useState<number>(currentDate.getFullYear());
+  const [month, setMonth] = useState<number>(currentFinancialPeriod.month);
+  const [year, setYear] = useState<number>(currentFinancialPeriod.year);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
@@ -60,6 +61,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
 
   const clearFilters = () => {
+    setMonth(currentFinancialPeriod.month);
+    setYear(currentFinancialPeriod.year);
     setSearchTerm('');
     setStatusFilter('all');
     setTypeFilter('all');
@@ -78,19 +81,32 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     return investimentos
       .filter(t => t.type === 'investment')
       .filter(t => {
-        const [y, m] = t.date.split('-').map(Number);
+        const [y, m, d] = t.date.split('-').map(Number);
+        const tDate = new Date(y, m - 1, d);
+        tDate.setHours(12, 0, 0, 0); // Avoid timezone issues
         
         // Se tiver filtro de data específico, ignora o filtro de mês/ano principal
         let dateMatch = true;
         if (startDate || endDate) {
-            const tDate = new Date(t.date);
-            if (startDate) dateMatch = dateMatch && tDate >= new Date(startDate);
-            if (endDate) dateMatch = dateMatch && tDate <= new Date(endDate);
+            const tDateStr = t.date;
+            if (startDate && tDateStr < startDate) dateMatch = false;
+            if (endDate && tDateStr > endDate) dateMatch = false;
         } else {
-            // Se month ou year for -1, considera "Todos"
-            const monthMatch = month === -1 || (m - 1) === month;
-            const yearMatch = year === -1 || y === year;
-            dateMatch = monthMatch && yearMatch;
+            const startDay = user?.financialMonthStartDay || 1;
+
+            if (year !== -1 && month !== -1) {
+                // Filter by specific financial month
+                const { startDate: finStart, endDate: finEnd } = getFinancialMonthRange(year, month, startDay);
+                if (tDate < finStart || tDate > finEnd) dateMatch = false;
+            } else if (year !== -1 && month === -1) {
+                // Filter by specific financial year
+                const { startDate: finStart, endDate: finEnd } = getFinancialYearRange(year, startDay);
+                if (tDate < finStart || tDate > finEnd) dateMatch = false;
+            } else if (year === -1 && month !== -1) {
+                // Filter by month across all years (fallback to calendar month)
+                if ((m - 1) !== month) dateMatch = false;
+            }
+            // If both are -1, dateMatch remains true
         }
 
         // Creation Date Logic
@@ -340,28 +356,35 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
         <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-4">
            {/* Month/Year Selectors */}
-           <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md flex-1 md:flex-none">
-                <Calendar size={18} className="text-gray-500 ml-2" />
-                <select 
-                  value={month} 
-                  onChange={(e) => setMonth(Number(e.target.value))} 
-                  className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer w-full md:w-auto"
-                >
-                  <option value={-1}>Todos</option>
-                  {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
-                <select 
-                  value={year} 
-                  onChange={(e) => setYear(Number(e.target.value))} 
-                  className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer"
-                >
-                  <option value={-1}>Todos</option>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
+           <div className="flex flex-col gap-1 w-full md:w-auto">
+             <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md flex-1 md:flex-none">
+                  <Calendar size={18} className="text-gray-500 ml-2" />
+                  <select 
+                    value={month} 
+                    onChange={(e) => setMonth(Number(e.target.value))} 
+                    className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer w-full md:w-auto"
+                  >
+                    <option value={-1}>Todos</option>
+                    {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
+                  <select 
+                    value={year} 
+                    onChange={(e) => setYear(Number(e.target.value))} 
+                    className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer"
+                  >
+                    <option value={-1}>Todos</option>
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+             </div>
+             {month !== -1 && year !== -1 && (
+               <span className="text-xs text-gray-500 px-1">
+                 Período: {getFinancialMonthRange(year, month, user?.financialMonthStartDay || 1).startDate.toLocaleDateString('pt-BR')} a {getFinancialMonthRange(year, month, user?.financialMonthStartDay || 1).endDate.toLocaleDateString('pt-BR')}
+               </span>
+             )}
            </div>
 
            <div className="relative w-full md:w-auto flex-1">

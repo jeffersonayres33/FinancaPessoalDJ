@@ -25,7 +25,7 @@ import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
 import { validateConfig, supabase } from './services/supabaseClient';
 import { Despesa, TransactionType, TransactionStatus, Category, User } from './types';
-import { formatCurrency, getCurrentLocalDateString } from './utils';
+import { formatCurrency, getCurrentLocalDateString, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from './utils';
 import { 
   ArrowUpCircle, 
   ArrowDownCircle, 
@@ -79,8 +79,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
   
   // Dashboard Filters
-  const [filterMonth, setFilterMonth] = useState(currentDate.getMonth());
-  const [filterYear, setFilterYear] = useState(currentDate.getFullYear());
+  const currentFinancialPeriod = getCurrentFinancialPeriod(user?.financialMonthStartDay || 1);
+  const [filterMonth, setFilterMonth] = useState(currentFinancialPeriod.month);
+  const [filterYear, setFilterYear] = useState(currentFinancialPeriod.year);
   const [isCustomizing, setIsCustomizing] = useState(false);
 
   // Widget Configuration State (Local Persisted)
@@ -480,10 +481,22 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   // --- DERIVED STATE ---
   const dashboardData = useMemo(() => {
     const filtered = despesas.filter(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      const monthMatch = filterMonth === -1 || (m - 1) === filterMonth;
-      const yearMatch = filterYear === -1 || y === filterYear;
-      return monthMatch && yearMatch;
+      const [y, m, d] = t.date.split('-').map(Number);
+      const tDate = new Date(y, m - 1, d);
+      tDate.setHours(12, 0, 0, 0);
+
+      const startDay = user?.financialMonthStartDay || 1;
+
+      if (filterYear !== -1 && filterMonth !== -1) {
+          const { startDate: finStart, endDate: finEnd } = getFinancialMonthRange(filterYear, filterMonth, startDay);
+          return tDate >= finStart && tDate <= finEnd;
+      } else if (filterYear !== -1 && filterMonth === -1) {
+          const { startDate: finStart, endDate: finEnd } = getFinancialYearRange(filterYear, startDay);
+          return tDate >= finStart && tDate <= finEnd;
+      } else if (filterYear === -1 && filterMonth !== -1) {
+          return (m - 1) === filterMonth;
+      }
+      return true;
     });
 
     let income = 0;
@@ -938,15 +951,15 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'balance': return <StatCard title={filterMonth === -1 ? "Saldo Total" : "Saldo do Mês"} value={formatCurrency(dashboardData.total)} icon={DollarSign} colorClass={dashboardData.total >= 0 ? "text-blue-600" : "text-red-600"} bgClass={dashboardData.total >= 0 ? "bg-blue-100" : "bg-red-100"} borderClass={dashboardData.total >= 0 ? "border-l-4 border-blue-500" : "border-l-4 border-red-500"} />;
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
         case 'balance_by_category': return <BalanceByCategory categories={categories} expenses={dashboardData.filteredTransactions} />;
-        case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} />;
-        case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} />;
+        case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} user={user!} />;
+        case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} user={user!} />;
         case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
         case 'chart_income': return <Charts despesas={dashboardData.filteredTransactions} type="income" title={`Receitas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
-        case 'investment_evolution': return <InvestmentEvolutionChart despesas={despesas} year={filterYear} />;
-        case 'cash_flow': return <CashFlowChart despesas={despesas} year={filterYear} />;
-        case 'balance_projection': return <BalanceProjectionChart despesas={despesas} month={filterMonth} year={filterYear} />;
-        case 'top_expenses': return <TopExpensesChart despesas={despesas} month={filterMonth} year={filterYear} />;
-        case 'money_destination': return <MoneyDestinationChart despesas={despesas} month={filterMonth} year={filterYear} />;
+        case 'investment_evolution': return <InvestmentEvolutionChart despesas={despesas} year={filterYear} user={user!} />;
+        case 'cash_flow': return <CashFlowChart despesas={despesas} year={filterYear} user={user!} />;
+        case 'balance_projection': return <BalanceProjectionChart despesas={dashboardData.filteredTransactions} />;
+        case 'top_expenses': return <TopExpensesChart despesas={dashboardData.filteredTransactions} />;
+        case 'money_destination': return <MoneyDestinationChart despesas={dashboardData.filteredTransactions} />;
         case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} />;
         default: return null;
       }
@@ -972,20 +985,27 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     return (
       <div className="space-y-6">
         <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 -mt-10 mb-2 relative z-10">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
-              <CalendarIcon size={18} className="text-gray-500 ml-2" />
-              <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))} className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer">
-                <option value={-1}>Todos</option>
-                {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-              </select>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
+                <CalendarIcon size={18} className="text-gray-500 ml-2" />
+                <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))} className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer">
+                  <option value={-1}>Todos</option>
+                  {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
+                <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))} className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer">
+                  <option value={-1}>Todos</option>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
             </div>
-            <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-md">
-              <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))} className="bg-transparent p-1 text-sm font-medium outline-none text-gray-700 cursor-pointer">
-                <option value={-1}>Todos</option>
-                {years.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
+            {filterMonth !== -1 && filterYear !== -1 && (
+              <span className="text-xs text-gray-500 px-1">
+                Período: {getFinancialMonthRange(filterYear, filterMonth, user?.financialMonthStartDay || 1).startDate.toLocaleDateString('pt-BR')} a {getFinancialMonthRange(filterYear, filterMonth, user?.financialMonthStartDay || 1).endDate.toLocaleDateString('pt-BR')}
+              </span>
+            )}
           </div>
           <button onClick={() => setIsCustomizing(!isCustomizing)} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isCustomizing ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             <Settings size={16} /> Personalizar Dashboard

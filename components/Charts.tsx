@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Despesa } from '../types';
+import { Despesa, User } from '../types';
 
 interface ChartsProps {
   despesas: Despesa[];
@@ -74,9 +74,10 @@ export const Charts: React.FC<ChartsProps> = ({ despesas, type, title }) => {
 interface EvolutionChartProps {
   despesas: Despesa[];
   year: number;
+  user?: User;
 }
 
-export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year }) => {
+export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year, user }) => {
   const data = useMemo(() => {
     const months = [
       'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -85,11 +86,23 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year }
 
     // Inicializa array com 0
     const monthlyTotals = new Array(12).fill(0);
+    const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      if (t.type === 'expense' && y === year) {
-        monthlyTotals[m - 1] += t.amount;
+      const [y, m, d] = t.date.split('-').map(Number);
+      
+      let finMonth = m - 1;
+      let finYear = y;
+      if (d < startDay) {
+        finMonth--;
+        if (finMonth < 0) {
+          finMonth = 11;
+          finYear--;
+        }
+      }
+
+      if (t.type === 'expense' && finYear === year) {
+        monthlyTotals[finMonth] += t.amount;
       }
     });
 
@@ -97,7 +110,7 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year }
       name: month,
       total: monthlyTotals[index]
     }));
-  }, [despesas, year]);
+  }, [despesas, year, user]);
 
   const hasData = data.some(d => d.total > 0);
 
@@ -148,7 +161,7 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year }
   );
 };
 
-export const CategoryEvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year }) => {
+export const CategoryEvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year, user }) => {
   const { data, categories } = useMemo(() => {
     const months = [
       'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -157,15 +170,26 @@ export const CategoryEvolutionChart: React.FC<EvolutionChartProps> = ({ despesas
 
     const uniqueCategories = new Set<string>();
     const monthData = months.map(m => ({ name: m } as any));
+    const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m] = t.date.split('-').map(Number);
-      if (t.type === 'expense' && y === year) {
-        const monthIndex = m - 1;
+      const [y, m, d] = t.date.split('-').map(Number);
+      
+      let finMonth = m - 1;
+      let finYear = y;
+      if (d < startDay) {
+        finMonth--;
+        if (finMonth < 0) {
+          finMonth = 11;
+          finYear--;
+        }
+      }
+
+      if (t.type === 'expense' && finYear === year) {
         const cat = t.category;
         uniqueCategories.add(cat);
         
-        monthData[monthIndex][cat] = (monthData[monthIndex][cat] || 0) + t.amount;
+        monthData[finMonth][cat] = (monthData[finMonth][cat] || 0) + t.amount;
       }
     });
 
@@ -173,7 +197,7 @@ export const CategoryEvolutionChart: React.FC<EvolutionChartProps> = ({ despesas
       data: monthData, 
       categories: Array.from(uniqueCategories) 
     };
-  }, [despesas, year]);
+  }, [despesas, year, user]);
 
   const hasData = categories.length > 0;
 
