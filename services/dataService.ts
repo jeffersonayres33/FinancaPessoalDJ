@@ -362,6 +362,28 @@ export const dataService = {
     if (error) throw error;
   },
 
+  updateTransactionsBulk: async (ids: string[], data: Partial<Despesa>): Promise<void> => {
+    const payload: any = {};
+    if (data.title !== undefined) payload.title = data.title;
+    if (data.category !== undefined) payload.category = data.category;
+    if (data.status !== undefined) payload.status = data.status;
+    if (data.date !== undefined) payload.date = data.date;
+    if (data.paymentDate !== undefined) payload.payment_date = data.paymentDate || null;
+    if (data.amount !== undefined) payload.amount = data.amount;
+    if (data.observation !== undefined) payload.observation = data.observation || null;
+    if (data.isFixed !== undefined) payload.is_fixed = data.isFixed;
+    
+    const { error } = await supabase
+      .from('transactions')
+      .update(payload)
+      .in('id', ids);
+      
+    if (error) {
+        console.error('Erro ao atualizar transações em massa:', error);
+        throw error;
+    }
+  },
+
   stopRecurringAndDeleteTransaction: async (id: string, dataContextId: string, despesa?: Despesa): Promise<void> => {
     let title = despesa?.title;
     let amount = despesa?.amount;

@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
+import { BulkEditModal } from './BulkEditModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -11,6 +12,7 @@ interface IncomeListProps {
   receitas: Despesa[];
   onDeleteReceita: (id: string) => void;
   onBulkDeleteReceitas?: (ids: string[]) => void;
+  onBulkEditReceitas?: (ids: string[], data: Partial<Despesa>) => void;
   onEditReceita: (receita: Despesa) => void;
   onOpenNew: () => void;
   categories: Category[];
@@ -22,6 +24,7 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
   receitas, 
   onDeleteReceita, 
   onBulkDeleteReceitas,
+  onBulkEditReceitas,
   onEditReceita,
   onOpenNew,
   categories,
@@ -42,6 +45,7 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
 
   const [categoryFilter, setCategoryFilter] = useState('all');
 
@@ -434,7 +438,15 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
                   }}
                   className="text-red-600 hover:text-red-800 font-medium flex items-center gap-1 bg-red-50 px-2 py-1 rounded-md transition-colors"
                 >
-                  <Trash2 size={14} /> Excluir Selecionados ({selectedIds.length})
+                  <Trash2 size={14} /> Excluir ({selectedIds.length})
+                </button>
+              )}
+              {selectedIds.length > 1 && onBulkEditReceitas && (
+                <button
+                  onClick={() => setIsBulkEditModalOpen(true)}
+                  className="text-green-600 hover:text-green-800 font-medium flex items-center gap-1 bg-green-50 px-2 py-1 rounded-md transition-colors"
+                >
+                  <Edit2 size={14} /> Editar em Massa ({selectedIds.length})
                 </button>
               )}
             </div>
@@ -705,6 +717,20 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
            <p>Nenhuma receita encontrada para os filtros selecionados.</p>
          </div>
       )}
+
+      <BulkEditModal 
+        isOpen={isBulkEditModalOpen}
+        onClose={() => setIsBulkEditModalOpen(false)}
+        onConfirm={(data) => {
+          if (onBulkEditReceitas) {
+            onBulkEditReceitas(selectedIds, data);
+            setSelectedIds([]);
+          }
+        }}
+        categories={categories}
+        type="income"
+        selectedCount={selectedIds.length}
+      />
     </div>
   );
 });

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Despesa, TransactionStatus, Category, User } from '../types';
 import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
+import { BulkEditModal } from './BulkEditModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -11,6 +12,7 @@ interface ExpenseListProps {
   despesas: Despesa[];
   onDeleteDespesa: (id: string) => void;
   onBulkDeleteDespesas?: (ids: string[]) => void;
+  onBulkEditDespesas?: (ids: string[], data: Partial<Despesa>) => void;
   onEditDespesa: (despesa: Despesa) => void;
   onOpenNew: () => void;
   categories: Category[];
@@ -22,6 +24,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   despesas, 
   onDeleteDespesa, 
   onBulkDeleteDespesas,
+  onBulkEditDespesas,
   onEditDespesa, 
   onOpenNew,
   categories,
@@ -43,6 +46,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   const [isMarkPaidEnabled, setIsMarkPaidEnabled] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchSetting = async () => {
@@ -438,7 +442,15 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                   }}
                   className="text-red-600 hover:text-red-800 font-medium flex items-center gap-1 bg-red-50 px-2 py-1 rounded-md transition-colors"
                 >
-                  <Trash2 size={14} /> Excluir Selecionados ({selectedIds.length})
+                  <Trash2 size={14} /> Excluir ({selectedIds.length})
+                </button>
+              )}
+              {selectedIds.length > 1 && onBulkEditDespesas && (
+                <button
+                  onClick={() => setIsBulkEditModalOpen(true)}
+                  className="text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-md transition-colors"
+                >
+                  <Edit2 size={14} /> Editar em Massa ({selectedIds.length})
                 </button>
               )}
             </div>
@@ -713,6 +725,20 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
            <p>Nenhuma despesa encontrada para os filtros selecionados.</p>
          </div>
       )}
+
+      <BulkEditModal 
+        isOpen={isBulkEditModalOpen}
+        onClose={() => setIsBulkEditModalOpen(false)}
+        onConfirm={(data) => {
+          if (onBulkEditDespesas) {
+            onBulkEditDespesas(selectedIds, data);
+            setSelectedIds([]);
+          }
+        }}
+        categories={categories}
+        type="expense"
+        selectedCount={selectedIds.length}
+      />
     </div>
   );
 });

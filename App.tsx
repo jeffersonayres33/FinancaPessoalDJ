@@ -335,6 +335,31 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     });
   }, []);
 
+  const handleBulkEditTransactions = useCallback(async (ids: string[], data: Partial<Despesa>) => {
+    try {
+      if (!navigator.onLine) {
+        // Local update
+        setDespesas((prev) => {
+          const updated = prev.map(t => ids.includes(t.id) ? { ...t, ...data } : t);
+          localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+          return updated;
+        });
+        showToast(`${ids.length} transações atualizadas localmente.`, 'success');
+      } else {
+        await dataService.updateTransactionsBulk(ids, data);
+        setDespesas((prev) => {
+          const updated = prev.map(t => ids.includes(t.id) ? { ...t, ...data } : t);
+          localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+          return updated;
+        });
+        showToast(`${ids.length} transações atualizadas com sucesso.`, 'success');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Erro ao atualizar transações em massa.', 'error');
+    }
+  }, [user.dataContextId, showToast]);
+
   const handleBulkDeleteCategories = useCallback((ids: string[]) => {
     const categoriesToDelete = categories.filter(c => ids.includes(c.id));
     const isCategoryInUse = categoriesToDelete.some(c => despesas.some(t => t.category === c.name));
@@ -1109,6 +1134,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             despesas={despesas}
             onDeleteDespesa={handleDeleteDespesa}
             onBulkDeleteDespesas={handleBulkDeleteTransactions}
+            onBulkEditDespesas={handleBulkEditTransactions}
             onEditDespesa={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
@@ -1122,6 +1148,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             receitas={despesas}
             onDeleteReceita={handleDeleteDespesa}
             onBulkDeleteReceitas={handleBulkDeleteTransactions}
+            onBulkEditReceitas={handleBulkEditTransactions}
             onEditReceita={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
@@ -1135,6 +1162,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             investimentos={despesas}
             onDeleteInvestimento={handleDeleteDespesa}
             onBulkDeleteInvestimentos={handleBulkDeleteTransactions}
+            onBulkEditInvestimentos={handleBulkEditTransactions}
             onEditInvestimento={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
             categories={categories}
