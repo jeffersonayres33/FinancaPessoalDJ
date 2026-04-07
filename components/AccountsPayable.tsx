@@ -14,6 +14,7 @@ interface AccountsPayableProps {
   categories: Category[];
   onMarkAsPaid: (ids: string[], date: string) => void;
   user?: User;
+  onOpenPaywall?: () => void;
 }
 
 type SortOption = 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'amount-asc' | 'amount-desc' | 'createdAt-asc' | 'createdAt-desc';
@@ -24,7 +25,8 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   onEditConta,
   categories,
   onMarkAsPaid,
-  user
+  user,
+  onOpenPaywall
 }) => {
   const currentDate = new Date();
   const currentFinancialPeriod = getCurrentFinancialPeriod(user?.financialMonthStartDay || 1);
@@ -57,7 +59,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     return despesas
       .filter(t => t.type === 'expense' && t.status === 'pending') // Only pending expenses
       .filter(t => {
-        const [y, m, d] = t.date.split('-').map(Number);
+        const [y, m, d] = (t.date || '').split('-').map(Number);
         const tDate = new Date(y, m - 1, d);
         tDate.setHours(12, 0, 0, 0); // Avoid timezone issues
 
@@ -94,8 +96,8 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
         }
 
         // Search Filter
-        const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            t.category.toLowerCase().includes(searchTerm.toLowerCase());
+        const searchMatch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                            (t.category?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
         // Category Filter
         const categoryMatch = categoryFilter === 'all' || t.category === categoryFilter;
@@ -119,9 +121,9 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
           case 'date-desc':
             return b.date.localeCompare(a.date);
           case 'alpha-asc':
-            return a.title.localeCompare(b.title);
+            return (a.title || '').localeCompare(b.title || '');
           case 'alpha-desc':
-            return b.title.localeCompare(a.title);
+            return (b.title || '').localeCompare(a.title || '');
           case 'amount-asc':
             return a.amount - b.amount;
           case 'amount-desc':
@@ -187,6 +189,10 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   };
 
   const handleExportExcel = () => {
+    if (user?.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(filteredContas.map(t => ({
       Data: formatDate(t.date),
       Título: t.title,
@@ -201,6 +207,10 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   };
 
   const handleExportPDF = () => {
+    if (user?.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     const doc = new jsPDF();
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR');

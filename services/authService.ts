@@ -33,7 +33,7 @@ export const authService = {
     if (!profile) {
         console.warn("Perfil de usuário não encontrado. Tentando criar agora...");
         
-        const userName = authData.user.user_metadata?.name || email.split('@')[0];
+        const userName = authData.user.user_metadata?.name || (email || '').split('@')[0];
         const userId = authData.user.id;
         
         // Verifica se o cadastro público está habilitado
@@ -81,13 +81,19 @@ export const authService = {
       .select('*')
       .eq('parent_id', profile.id);
 
+    // Se o usuário principal for premium, os membros herdam o status
+    const effectivePlan = profile.plan || 'free';
+    const effectiveExpiry = profile.subscription_end_date;
+
     const mappedMembers = (members || []).map(m => ({
       ...m,
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
       role: m.role || 'user',
       themeColor: m.theme_color,
-      financialMonthStartDay: m.financial_month_start_day
+      financialMonthStartDay: m.financial_month_start_day,
+      plan: effectivePlan === 'premium' ? 'premium' : (m.plan || 'free'),
+      subscriptionEndDate: effectivePlan === 'premium' ? effectiveExpiry : m.subscription_end_date
     }));
 
     const user: User = {
@@ -97,8 +103,24 @@ export const authService = {
       members: mappedMembers,
       role: profile.role || 'user',
       themeColor: profile.theme_color,
-      financialMonthStartDay: profile.financial_month_start_day
+      financialMonthStartDay: profile.financial_month_start_day,
+      plan: effectivePlan,
+      subscriptionEndDate: effectiveExpiry
     };
+
+    // Se for um membro logando, ele herda do pai se o pai for premium
+    if (user.parentId) {
+        const { data: parentData } = await supabase
+            .from('app_users')
+            .select('plan, subscription_end_date')
+            .eq('id', user.parentId)
+            .single();
+        
+        if (parentData && parentData.plan === 'premium') {
+            user.plan = 'premium';
+            user.subscriptionEndDate = parentData.subscription_end_date;
+        }
+    }
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;
@@ -278,7 +300,9 @@ export const authService = {
           dataContextId: u.data_context_id,
           parentId: u.parent_id,
           role: u.role || 'user',
-          financialMonthStartDay: u.financial_month_start_day
+          financialMonthStartDay: u.financial_month_start_day,
+          plan: u.plan || 'free',
+          subscriptionEndDate: u.subscription_end_date
       }));
   },
 
@@ -315,13 +339,19 @@ export const authService = {
         .select('*')
         .eq('parent_id', adminUser.id);
     
+    // Se o admin for premium, os membros herdam o status
+    const effectivePlan = adminUser.plan || 'free';
+    const effectiveExpiry = adminUser.subscriptionEndDate;
+
     const mappedMembers = (members || []).map(m => ({
       ...m,
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
       role: m.role || 'user',
       themeColor: m.theme_color,
-      financialMonthStartDay: m.financial_month_start_day
+      financialMonthStartDay: m.financial_month_start_day,
+      plan: effectivePlan === 'premium' ? 'premium' : (m.plan || 'free'),
+      subscriptionEndDate: effectivePlan === 'premium' ? effectiveExpiry : m.subscription_end_date
     }));
 
     const updatedAdmin = { 
@@ -347,13 +377,19 @@ export const authService = {
     // Busca membros do alvo (se houver)
     const { data: members } = await supabase.from('app_users').select('*').eq('parent_id', data.id);
 
+    // Se o usuário alvo for premium, os membros herdam o status
+    const effectivePlan = data.plan || 'free';
+    const effectiveExpiry = data.subscription_end_date;
+
     const mappedMembers = (members || []).map(m => ({
       ...m,
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
       role: m.role || 'user',
       themeColor: m.theme_color,
-      financialMonthStartDay: m.financial_month_start_day
+      financialMonthStartDay: m.financial_month_start_day,
+      plan: effectivePlan === 'premium' ? 'premium' : (m.plan || 'free'),
+      subscriptionEndDate: effectivePlan === 'premium' ? effectiveExpiry : m.subscription_end_date
     }));
 
     const user: User = {
@@ -362,8 +398,24 @@ export const authService = {
       parentId: data.parent_id,
       members: mappedMembers,
       themeColor: data.theme_color,
-      financialMonthStartDay: data.financial_month_start_day
+      financialMonthStartDay: data.financial_month_start_day,
+      plan: effectivePlan,
+      subscriptionEndDate: effectiveExpiry
     };
+
+    // Se for um membro, herda do pai se o pai for premium
+    if (user.parentId) {
+        const { data: parentData } = await supabase
+            .from('app_users')
+            .select('plan, subscription_end_date')
+            .eq('id', user.parentId)
+            .single();
+        
+        if (parentData && parentData.plan === 'premium') {
+            user.plan = 'premium';
+            user.subscriptionEndDate = parentData.subscription_end_date;
+        }
+    }
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;

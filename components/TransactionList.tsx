@@ -17,7 +17,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter ? t.category === categoryFilter : true;
       const matchesDate = dateFilter ? t.date.startsWith(dateFilter) : true;
       

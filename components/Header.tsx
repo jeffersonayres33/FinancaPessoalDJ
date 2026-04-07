@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare, Upload } from 'lucide-react';
+import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare, Upload, Star } from 'lucide-react';
 import { User } from '../types';
 
 interface HeaderProps {
@@ -12,9 +12,10 @@ interface HeaderProps {
   onBackup?: () => void;
   onRestoreBackup?: (file: File) => void;
   onInstall?: () => void;
+  onOpenPaywall?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onRestoreBackup, onInstall }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNavigate, user, onLogout, onReturnToMain, onBackup, onRestoreBackup, onInstall, onOpenPaywall }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -176,20 +177,38 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
       <header className={`text-white pt-4 pb-16 px-4 print:hidden shadow-lg transition-colors ${isMemberAccess ? 'bg-gray-800 border-t border-gray-700' : 'bg-purple-700'}`}>
         <div className="max-w-6xl mx-auto">
           <div className={`flex items-center justify-between gap-4 mb-2`}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full">
               {onNavigate && user && (
                 <button 
                   onClick={() => setIsMenuOpen(true)}
-                  className="p-2 -ml-2 rounded-md text-purple-100 hover:bg-purple-600 hover:text-white transition-colors focus:outline-none"
+                  className="p-2 -ml-2 rounded-md text-purple-100 hover:bg-purple-600 hover:text-white transition-colors focus:outline-none shrink-0"
                 >
                   <Menu size={24} />
                 </button>
               )}
-              <div className={`p-2 rounded-full ${isMemberAccess ? 'bg-gray-700 text-orange-400' : 'bg-white text-purple-700'}`}>
+              <div className={`p-2 rounded-full shrink-0 ${isMemberAccess ? 'bg-gray-700 text-orange-400' : 'bg-white text-purple-700'}`}>
                 <Wallet className="w-6 h-6" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold leading-tight">Finanças Pessoais</h1>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col items-start gap-1">
+                  <h1 className="text-xl font-bold leading-tight flex items-center gap-2 flex-wrap">
+                    <span className="truncate">Finanças Pessoais</span>
+                    {user?.plan === 'premium' && (
+                      <span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shrink-0">
+                        <Star size={10} className="fill-yellow-900" /> Premium
+                      </span>
+                    )}
+                  </h1>
+                  {user?.plan !== 'premium' && onOpenPaywall && (
+                    <button 
+                      onClick={onOpenPaywall}
+                      className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold shadow-sm hover:shadow transition-all transform hover:-translate-y-0.5 shrink-0"
+                    >
+                      <Star size={10} className="fill-yellow-900" />
+                      <span>Seja Premium</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

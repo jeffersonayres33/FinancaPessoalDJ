@@ -18,7 +18,7 @@ export const DespesaList: React.FC<DespesaListProps> = ({ despesas, onDeleteDesp
 
   const filteredDespesas = useMemo(() => {
     return despesas.filter(t => {
-      const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter ? t.category === categoryFilter : true;
       const matchesDate = dateFilter ? t.date.startsWith(dateFilter) : true;
       

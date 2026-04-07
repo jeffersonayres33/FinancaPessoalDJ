@@ -17,7 +17,7 @@ export const InvestmentEvolutionChart: React.FC<{ despesas: Despesa[], year: num
     const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m, d] = t.date.split('-').map(Number);
+      const [y, m, d] = (t.date || '').split('-').map(Number);
       
       let finMonth = m - 1;
       let finYear = y;
@@ -66,7 +66,7 @@ export const CashFlowChart: React.FC<{ despesas: Despesa[], year: number, user?:
     const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m, d] = t.date.split('-').map(Number);
+      const [y, m, d] = (t.date || '').split('-').map(Number);
       
       let finMonth = m - 1;
       let finYear = y;

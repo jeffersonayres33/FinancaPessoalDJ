@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon, Lock } from 'lucide-react';
 import { Despesa, TransactionStatus, Category, User } from '../types';
 import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
 import { BulkEditModal } from './BulkEditModal';
@@ -18,6 +18,7 @@ interface ExpenseListProps {
   categories: Category[];
   onToggleStatus?: (despesa: Despesa) => void;
   user?: User;
+  onOpenPaywall?: () => void;
 }
 
 export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({ 
@@ -29,7 +30,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   onOpenNew,
   categories,
   onToggleStatus,
-  user
+  user,
+  onOpenPaywall
 }) => {
   const currentDate = new Date();
   const currentFinancialPeriod = getCurrentFinancialPeriod(user?.financialMonthStartDay || 1);
@@ -96,7 +98,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
     return despesas
       .filter(t => t.type === 'expense') // Only expenses
       .filter(t => {
-        const [y, m, d] = t.date.split('-').map(Number);
+        const [y, m, d] = (t.date || '').split('-').map(Number);
         const tDate = new Date(y, m - 1, d);
         tDate.setHours(12, 0, 0, 0); // Avoid timezone issues
         
@@ -133,8 +135,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
         }
 
         const statusMatch = statusFilter === 'all' || t.status === statusFilter;
-        const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            t.category.toLowerCase().includes(searchTerm.toLowerCase());
+        const searchMatch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                            (t.category?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const categoryMatch = categoryFilter === 'all' || t.category === categoryFilter;
         
         let amountMatch = true;
@@ -160,7 +162,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
         } else if (sortBy === 'createdAt') {
           comparison = new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime();
         } else {
-          comparison = a.title.localeCompare(b.title);
+          comparison = (a.title || '').localeCompare(b.title || '');
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
@@ -178,6 +180,10 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   }, [despesas, selectedIds]);
 
   const exportToPDF = () => {
+    if (user?.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     const doc = new jsPDF();
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR');
@@ -217,6 +223,10 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   };
 
   const exportToExcel = () => {
+    if (user?.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(filteredExpenses.map(t => ({
       Data: formatDate(t.date),
       Título: t.title,
@@ -256,7 +266,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
               </div>
            )}
 
-           <div className="flex gap-2">
+           <div className="flex gap-2 w-full sm:w-auto">
               <div className="flex bg-gray-100 rounded-md p-1 mr-2">
                 <button 
                   onClick={() => setViewMode('grid')} 
@@ -273,17 +283,37 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                   <ListIcon size={16} />
                 </button>
               </div>
-              <button onClick={exportToPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
-                <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
+              <button 
+                onClick={exportToPDF} 
+                className={`relative flex-1 sm:flex-none px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2 ${user?.plan !== 'premium' ? 'bg-gray-50 text-gray-400 border border-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`} 
+                title="Exportar PDF"
+              >
+                <Printer size={18} /> 
+                <span className="hidden sm:inline">PDF</span>
+                {user?.plan !== 'premium' && (
+                  <div className="absolute bottom-1 right-1 text-gray-400">
+                    <Lock size={10} />
+                  </div>
+                )}
               </button>
-              <button onClick={exportToExcel} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar Excel">
-                <FileSpreadsheet size={18} /> <span className="hidden sm:inline">Excel</span>
+              <button 
+                onClick={exportToExcel} 
+                className={`relative flex-1 sm:flex-none px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2 ${user?.plan !== 'premium' ? 'bg-gray-50 text-gray-400 border border-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`} 
+                title="Exportar Excel"
+              >
+                <FileSpreadsheet size={18} /> 
+                <span className="hidden sm:inline">Excel</span>
+                {user?.plan !== 'premium' && (
+                  <div className="absolute bottom-1 right-1 text-gray-400">
+                    <Lock size={10} />
+                  </div>
+                )}
               </button>
            </div>
 
            <button 
              onClick={onOpenNew}
-             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
+             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto mt-2 sm:mt-0"
            >
              <Plus size={18} /> Nova Despesa
            </button>
@@ -415,7 +445,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
 
         {/* Resumo Rápido */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 pt-4 border-t border-gray-100 text-sm gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div className="text-gray-500">Exibindo {filteredExpenses.length} despesas</div>
               {filteredExpenses.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -450,7 +480,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                   onClick={() => setIsBulkEditModalOpen(true)}
                   className="text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-md transition-colors"
                 >
-                  <Edit2 size={14} /> Editar em Massa ({selectedIds.length})
+                  <Edit2 size={14} /> <span className="hidden sm:inline">Editar em Massa</span><span className="sm:hidden">Editar</span> ({selectedIds.length})
                 </button>
               )}
             </div>

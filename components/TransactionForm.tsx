@@ -47,9 +47,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setType(initialData.type);
       setCategory(initialData.category);
       setStatus(initialData.status);
-      setDate(initialData.date.split('T')[0]);
+      setDate((initialData.date || '').split('T')[0]);
       if (initialData.paymentDate) {
-        setPaymentDate(initialData.paymentDate.split('T')[0]);
+        setPaymentDate((initialData.paymentDate || '').split('T')[0]);
       } else {
         setPaymentDate(getCurrentLocalDateString());
       }

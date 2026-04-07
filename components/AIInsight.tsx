@@ -8,9 +8,10 @@ import { dataService } from '../services/dataService';
 interface AIInsightProps {
   despesas: Despesa[];
   user: User;
+  onOpenPaywall?: () => void;
 }
 
-export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user }) => {
+export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPaywall }) => {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [history, setHistory] = useState<AIAnalysis[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -144,8 +145,47 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user }) => {
     );
   }
 
+  if (user.plan !== 'premium') {
+    return (
+      <div className="bg-white rounded-xl shadow-md p-6 relative overflow-hidden border border-gray-100">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/5 to-indigo-900/5 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-center p-6">
+          <div className="bg-white p-4 rounded-full shadow-lg mb-4">
+            <Sparkles className="text-purple-600 w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Análise com Inteligência Artificial</h3>
+          <p className="text-gray-600 mb-6 max-w-sm">
+            Receba insights personalizados, dicas de economia e detecção de anomalias nos seus gastos.
+          </p>
+          <button 
+            onClick={onOpenPaywall}
+            className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-6 py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+          >
+            Assinar Premium
+          </button>
+        </div>
+        
+        {/* Fundo borrado simulando o conteúdo */}
+        <div className="opacity-30 pointer-events-none filter blur-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Sparkles className="text-purple-600" size={24} />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800">Insights da IA</h2>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-full"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-lg shadow-md border border-indigo-100 relative">
+    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 sm:p-6 rounded-lg shadow-md border border-indigo-100 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h3 className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
@@ -160,10 +200,10 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user }) => {
           )}
         </div>
         
-        <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
           <button
             onClick={loadHistory}
-            className="w-full md:w-auto text-indigo-600 hover:text-indigo-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border border-indigo-200 bg-white"
+            className="w-full sm:w-auto text-indigo-600 hover:text-indigo-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border border-indigo-200 bg-white"
           >
             <History size={18} />
             Histórico
@@ -171,10 +211,10 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user }) => {
           <button
             onClick={handleAnalyze}
             disabled={loading || despesas.length === 0}
-            className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-            {analysis ? 'Atualizar Análise' : 'Gerar Primeira Análise'}
+            {analysis ? 'Atualizar Análise' : 'Gerar Análise'}
           </button>
         </div>
       </div>
@@ -209,36 +249,36 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user }) => {
       
       {analysis && (
         <div className="space-y-4 animate-fade-in">
-          <div className="bg-white p-5 rounded-xl border border-indigo-100 shadow-sm">
+          <div className="bg-white p-4 sm:p-5 rounded-xl border border-indigo-100 shadow-sm">
             <h4 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wider">Resumo da Saúde Financeira</h4>
-            <p className="text-gray-600 leading-relaxed">{analysis.summary}</p>
+            <p className="text-gray-600 leading-relaxed text-sm sm:text-base">{analysis.summary}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-5 rounded-xl border border-green-100 shadow-sm">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-green-100 shadow-sm">
               <h4 className="font-bold text-green-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wider">
                 <Lightbulb size={18} className="text-green-600" /> Dicas Práticas
               </h4>
               <ul className="space-y-3">
                 {analysis.tips.map((tip, idx) => (
                   <li key={idx} className="flex gap-2 text-gray-600 text-sm">
-                    <span className="text-green-500 font-bold">•</span>
-                    {tip}
+                    <span className="text-green-500 font-bold shrink-0">•</span>
+                    <span>{tip}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
             {analysis.anomalies.length > 0 && (
-              <div className="bg-white p-5 rounded-xl border border-yellow-100 shadow-sm">
+              <div className="bg-white p-4 sm:p-5 rounded-xl border border-yellow-100 shadow-sm">
                 <h4 className="font-bold text-yellow-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wider">
                   <AlertTriangle size={18} className="text-yellow-600" /> Alertas e Atenção
                 </h4>
                 <ul className="space-y-3">
                   {analysis.anomalies.map((anomaly, idx) => (
                     <li key={idx} className="flex gap-2 text-gray-600 text-sm">
-                      <span className="text-yellow-500 font-bold">!</span>
-                      {anomaly}
+                      <span className="text-yellow-500 font-bold shrink-0">!</span>
+                      <span>{anomaly}</span>
                     </li>
                   ))}
                 </ul>
@@ -250,8 +290,8 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user }) => {
 
       {/* Modal de Histórico */}
       {showHistory && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-[60] p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col my-4 sm:my-auto">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <History className="text-indigo-600" />

@@ -20,6 +20,8 @@ import { MemberManager } from './components/MemberManager';
 import { UserProfileModal } from './components/UserProfileModal';
 import { AdminPanel } from './components/AdminPanel';
 import { BackupModal } from './components/BackupModal';
+import { SubscriptionPaywall } from './components/SubscriptionPaywall';
+import { AdBanner } from './components/AdBanner';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
@@ -113,6 +115,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   const [isDespesaModalOpen, setIsDespesaModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -506,7 +509,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   // --- DERIVED STATE ---
   const dashboardData = useMemo(() => {
     const filtered = despesas.filter(t => {
-      const [y, m, d] = t.date.split('-').map(Number);
+      const [y, m, d] = (t.date || '').split('-').map(Number);
       const tDate = new Date(y, m - 1, d);
       tDate.setHours(12, 0, 0, 0);
 
@@ -710,7 +713,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
         if ((type === 'expense' || type === 'investment') && installmentsCount > 1 && !isFixed) {
             const installmentValue = amount / installmentsCount;
-            const [startYear, startMonth, startDay] = date.split('-').map(Number);
+            const [startYear, startMonth, startDay] = (date || '').split('-').map(Number);
             
             for (let i = 0; i < installmentsCount; i++) {
                 const targetDate = new Date(startYear, (startMonth - 1) + i, startDay);
@@ -891,7 +894,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   }, [despesas, showToast, user.dataContextId]);
 
   const handleAddCategory = useCallback(async (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
-    if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    if (categories.some(c => (c.name?.toLowerCase() || '') === name.toLowerCase())) {
         showToast('Já existe uma categoria com este nome.', 'error');
         return;
     }
@@ -985,7 +988,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'balance_projection': return <BalanceProjectionChart despesas={dashboardData.filteredTransactions} />;
         case 'top_expenses': return <TopExpensesChart despesas={dashboardData.filteredTransactions} />;
         case 'money_destination': return <MoneyDestinationChart despesas={dashboardData.filteredTransactions} />;
-        case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} />;
+        case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} onOpenPaywall={() => setIsPaywallOpen(true)} />;
         default: return null;
       }
     };
@@ -1124,6 +1127,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         onBackup={handleBackup}
         onRestoreBackup={handleRestoreBackup}
         onInstall={onInstall}
+        onOpenPaywall={() => setIsPaywallOpen(true)}
       />
       
       <main className="max-w-6xl mx-auto px-4 w-full flex-1 -mt-4 pb-12">
@@ -1140,6 +1144,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             categories={categories}
             onToggleStatus={handleToggleStatus}
             user={user}
+            onOpenPaywall={() => setIsPaywallOpen(true)}
           />
         )}
 
@@ -1154,6 +1159,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             categories={categories}
             onToggleStatus={handleToggleStatus}
             user={user}
+            onOpenPaywall={() => setIsPaywallOpen(true)}
           />
         )}
 
@@ -1168,6 +1174,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             categories={categories}
             onToggleStatus={handleToggleStatus}
             user={user}
+            onOpenPaywall={() => setIsPaywallOpen(true)}
           />
         )}
 
@@ -1179,6 +1186,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
             onDeleteConta={handleDeleteDespesa}
             onEditConta={openEditDespesaModal}
             user={user}
+            onOpenPaywall={() => setIsPaywallOpen(true)}
           />
         )}
 
@@ -1197,6 +1205,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
              currentUser={user}
              onUpdateUser={onUpdateUser}
              onSwitchUser={onUpdateUser}
+             onOpenPaywall={() => setIsPaywallOpen(true)}
           />
         )}
 
@@ -1204,6 +1213,12 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           <AdminPanel currentUser={user} />
         )}
       </main>
+
+      {user.plan !== 'premium' && (
+        <div className="max-w-6xl mx-auto px-4 w-full pb-4">
+          <AdBanner format="banner" />
+        </div>
+      )}
 
       <DespesaForm
         isOpen={isDespesaModalOpen}
@@ -1213,6 +1228,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         initialData={editingDespesa}
         categories={categories}
         forceType={currentView === 'income' ? 'income' : currentView === 'investments' ? 'investment' : (currentView === 'expenses' ? 'expense' : undefined)}
+        user={user}
+        onOpenPaywall={() => setIsPaywallOpen(true)}
       />
 
       <UserProfileModal
@@ -1229,6 +1246,19 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         user={user}
         onConfirm={executeBackup}
       />
+
+      {isPaywallOpen && (
+        <SubscriptionPaywall 
+          user={user} 
+          onClose={() => setIsPaywallOpen(false)} 
+          onSubscribe={(plan) => {
+            console.log('Assinando plano:', plan);
+            // Aqui seria a integração com o RevenueCat ou Stripe
+            setIsPaywallOpen(false);
+            showToast('Redirecionando para pagamento...', 'success');
+          }} 
+        />
+      )}
 
       <Toast 
         message={toast.message} 

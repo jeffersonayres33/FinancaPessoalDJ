@@ -89,7 +89,7 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ despesas, year, 
     const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m, d] = t.date.split('-').map(Number);
+      const [y, m, d] = (t.date || '').split('-').map(Number);
       
       let finMonth = m - 1;
       let finYear = y;
@@ -173,7 +173,7 @@ export const CategoryEvolutionChart: React.FC<EvolutionChartProps> = ({ despesas
     const startDay = user?.financialMonthStartDay || 1;
 
     despesas.forEach(t => {
-      const [y, m, d] = t.date.split('-').map(Number);
+      const [y, m, d] = (t.date || '').split('-').map(Number);
       
       let finMonth = m - 1;
       let finYear = y;

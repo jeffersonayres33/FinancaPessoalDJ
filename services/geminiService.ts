@@ -113,7 +113,7 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
   });
 
   const aggregatedData = Object.entries(aggregation).map(([key, data]) => ({
-    category: key.split('_')[1],
+    category: (key || '').split('_')[1],
     type: data.type,
     totalAmount: data.total.toFixed(2),
     transactionCount: data.count

@@ -8,9 +8,10 @@ interface MemberManagerProps {
   currentUser: User;
   onUpdateUser: (updatedUser: User) => void;
   onSwitchUser: (newUser: User) => void;
+  onOpenPaywall?: () => void;
 }
 
-export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpdateUser, onSwitchUser }) => {
+export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpdateUser, onSwitchUser, onOpenPaywall }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +22,10 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentUser.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     setError('');
     setSuccess('');
     setLoading(true);
@@ -70,7 +75,24 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Formulário de Adição */}
-        <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+        <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 relative overflow-hidden">
+          {currentUser.plan !== 'premium' && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-6 text-center">
+              <div className="bg-yellow-100 p-4 rounded-full mb-4">
+                <Users className="text-yellow-600 w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Recurso Premium</h3>
+              <p className="text-gray-600 mb-4 text-sm">
+                Assine o Premium para adicionar membros e gerenciar as finanças da sua família em conjunto.
+              </p>
+              <button 
+                onClick={onOpenPaywall}
+                className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-4 py-2 rounded-full font-bold shadow-md hover:shadow-lg transition-all text-sm"
+              >
+                Assinar Premium
+              </button>
+            </div>
+          )}
            <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
              <UserPlus size={18} /> Novo Membro
            </h3>

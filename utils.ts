@@ -17,7 +17,7 @@ export const formatDate = (dateString: string): string => {
     }
 
     // Correção de Fuso Horário para datas no formato YYYY-MM-DD
-    const [year, month, day] = dateString.split('-').map(Number);
+    const [year, month, day] = (dateString || '').split('-').map(Number);
     
     // Verifica se os componentes são válidos
     if (!year || !month || !day) return dateString;

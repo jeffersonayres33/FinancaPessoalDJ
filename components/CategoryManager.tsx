@@ -33,7 +33,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
 
   const filteredCategories = useMemo(() => {
     return categories.filter(cat => {
-      const matchesSearch = cat.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (cat.name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       const matchesFilter = typeFilter === 'all' 
         ? true 
         : (typeFilter === 'income' ? (cat.type === 'income' || cat.type === 'both') : 

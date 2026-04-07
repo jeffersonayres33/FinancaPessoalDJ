@@ -28,7 +28,7 @@ if (typeof window !== 'undefined') {
       // Limpeza agressiva
       localStorage.removeItem('finances_current_user');
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sb-')) {
+        if (key.startsWith('sb-') || key.includes('supabase.auth.token')) {
           localStorage.removeItem(key);
         }
       });
@@ -37,7 +37,9 @@ if (typeof window !== 'undefined') {
       supabase.auth.signOut().catch(() => {});
       
       // Recarrega para limpar estado da memória e forçar AuthScreen
-      window.location.reload();
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
     }
   });
 }

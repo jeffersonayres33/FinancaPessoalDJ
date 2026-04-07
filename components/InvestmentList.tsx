@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock, Layers, CheckCircle, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, ArrowDownUp, FileText, Printer, FileSpreadsheet, TrendingUp, TrendingDown, DollarSign, CalendarCheck, Repeat, Clock, Layers, CheckCircle, LayoutGrid, List as ListIcon, Lock } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
 import { BulkEditModal } from './BulkEditModal';
@@ -17,6 +17,7 @@ interface InvestmentListProps {
   categories: Category[];
   onToggleStatus: (investimento: Despesa) => void;
   user?: User;
+  onOpenPaywall?: () => void;
 }
 
 export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({ 
@@ -28,7 +29,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   onOpenNew,
   categories,
   onToggleStatus,
-  user
+  user,
+  onOpenPaywall
 }) => {
   const currentDate = new Date();
   const currentFinancialPeriod = getCurrentFinancialPeriod(user?.financialMonthStartDay || 1);
@@ -85,7 +87,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     return investimentos
       .filter(t => t.type === 'investment')
       .filter(t => {
-        const [y, m, d] = t.date.split('-').map(Number);
+        const [y, m, d] = (t.date || '').split('-').map(Number);
         const tDate = new Date(y, m - 1, d);
         tDate.setHours(12, 0, 0, 0); // Avoid timezone issues
         
@@ -123,8 +125,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
         const statusMatch = statusFilter === 'all' || t.status === statusFilter;
         const typeMatch = typeFilter === 'all' || (typeFilter === 'in' && t.amount >= 0) || (typeFilter === 'out' && t.amount < 0);
-        const searchMatch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            t.category.toLowerCase().includes(searchTerm.toLowerCase());
+        const searchMatch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                            (t.category?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const categoryMatch = categoryFilter === 'all' || t.category === categoryFilter;
         const recurrenceMatch = recurrenceFilter === 'all' || 
                                 (recurrenceFilter === 'fixed' && t.isFixed) || 
@@ -149,7 +151,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         } else if (sortBy === 'createdAt') {
           comparison = new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime();
         } else {
-          comparison = a.title.localeCompare(b.title);
+          comparison = (a.title || '').localeCompare(b.title || '');
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
@@ -178,6 +180,10 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   }, [investimentos, selectedIds]);
 
   const exportToPDF = () => {
+    if (user?.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     const doc = new jsPDF();
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR');
@@ -221,6 +227,10 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   };
 
   const exportToExcel = () => {
+    if (user?.plan !== 'premium' && onOpenPaywall) {
+      onOpenPaywall();
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(filteredInvestments.map(t => ({
       Data: formatDate(t.date),
       Título: t.title,
@@ -314,7 +324,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
               </div>
            )}
 
-           <div className="flex gap-2">
+           <div className="flex gap-2 w-full sm:w-auto">
               <div className="flex bg-gray-100 rounded-md p-1 mr-2">
                 <button 
                   onClick={() => setViewMode('grid')} 
@@ -331,17 +341,37 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                   <ListIcon size={16} />
                 </button>
               </div>
-              <button onClick={exportToPDF} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar PDF">
-                <Printer size={18} /> <span className="hidden sm:inline">PDF</span>
+              <button 
+                onClick={exportToPDF} 
+                className={`relative flex-1 sm:flex-none px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2 ${user?.plan !== 'premium' ? 'bg-gray-50 text-gray-400 border border-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`} 
+                title="Exportar PDF"
+              >
+                <Printer size={18} /> 
+                <span className="hidden sm:inline">PDF</span>
+                {user?.plan !== 'premium' && (
+                  <div className="absolute bottom-1 right-1 text-gray-400">
+                    <Lock size={10} />
+                  </div>
+                )}
               </button>
-              <button onClick={exportToExcel} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2" title="Exportar Excel">
-                <FileSpreadsheet size={18} /> <span className="hidden sm:inline">Excel</span>
+              <button 
+                onClick={exportToExcel} 
+                className={`relative flex-1 sm:flex-none px-3 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2 ${user?.plan !== 'premium' ? 'bg-gray-50 text-gray-400 border border-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`} 
+                title="Exportar Excel"
+              >
+                <FileSpreadsheet size={18} /> 
+                <span className="hidden sm:inline">Excel</span>
+                {user?.plan !== 'premium' && (
+                  <div className="absolute bottom-1 right-1 text-gray-400">
+                    <Lock size={10} />
+                  </div>
+                )}
               </button>
            </div>
 
            <button 
              onClick={onOpenNew}
-             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
+             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto mt-2 sm:mt-0"
            >
              <Plus size={18} /> Novo Investimento
            </button>
@@ -491,7 +521,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
         {/* Resumo Rápido */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 pt-4 border-t border-gray-100 text-sm gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div className="text-gray-500">Exibindo {filteredInvestments.length} investimentos</div>
               {filteredInvestments.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -526,7 +556,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                   onClick={() => setIsBulkEditModalOpen(true)}
                   className="text-green-600 hover:text-green-800 font-medium flex items-center gap-1 bg-green-50 px-2 py-1 rounded-md transition-colors"
                 >
-                  <Edit2 size={14} /> Editar em Massa ({selectedIds.length})
+                  <Edit2 size={14} /> <span className="hidden sm:inline">Editar em Massa</span><span className="sm:hidden">Editar</span> ({selectedIds.length})
                 </button>
               )}
             </div>

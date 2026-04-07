@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar, Settings } from 'lucide-react';
-import { TransactionType, TransactionStatus, Despesa, Category } from '../types';
+import { PlusCircle, X, CheckCircle, Clock, Layers, Camera, Loader2, FileText, AlertCircle, Repeat, Calendar, Settings, Lock } from 'lucide-react';
+import { TransactionType, TransactionStatus, Despesa, Category, User } from '../types';
 import { getCurrentLocalDateString, formatCurrency } from '../utils';
 import { extractReceiptData } from '../services/geminiService';
 
@@ -12,6 +12,8 @@ interface DespesaFormProps {
   isOpen: boolean;
   initialData?: Despesa | null;
   forceType?: TransactionType; // Se fornecido, força o tipo e esconde o seletor
+  user?: User | null;
+  onOpenPaywall?: () => void;
 }
 
 export const DespesaForm: React.FC<DespesaFormProps> = ({ 
@@ -21,7 +23,9 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   onClose, 
   isOpen,
   initialData,
-  forceType
+  forceType,
+  user,
+  onOpenPaywall
 }) => {
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
@@ -274,21 +278,43 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
                   />
                   <button 
                       type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex-1 py-3 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 font-medium hover:bg-purple-50 transition-colors flex flex-col items-center justify-center gap-1"
+                      onClick={() => {
+                        if (user?.plan !== 'premium') {
+                          onOpenPaywall?.();
+                          return;
+                        }
+                        cameraInputRef.current?.click();
+                      }}
+                      className={`relative flex-1 py-3 border-2 border-dashed rounded-xl font-medium transition-colors flex flex-col items-center justify-center gap-1 ${user?.plan !== 'premium' ? 'border-gray-300 text-gray-400 bg-gray-50' : 'border-purple-300 text-purple-600 hover:bg-purple-50'}`}
                       disabled={isAnalyzing}
                   >
                       {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
                       <span className="text-sm">Tirar Foto</span>
+                      {user?.plan !== 'premium' && (
+                        <div className="absolute bottom-1 right-1 text-gray-400">
+                          <Lock size={12} />
+                        </div>
+                      )}
                   </button>
                   <button 
                       type="button"
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="flex-1 py-3 border-2 border-dashed border-indigo-300 rounded-xl text-indigo-600 font-medium hover:bg-indigo-50 transition-colors flex flex-col items-center justify-center gap-1"
+                      onClick={() => {
+                        if (user?.plan !== 'premium') {
+                          onOpenPaywall?.();
+                          return;
+                        }
+                        galleryInputRef.current?.click();
+                      }}
+                      className={`relative flex-1 py-3 border-2 border-dashed rounded-xl font-medium transition-colors flex flex-col items-center justify-center gap-1 ${user?.plan !== 'premium' ? 'border-gray-300 text-gray-400 bg-gray-50' : 'border-indigo-300 text-indigo-600 hover:bg-indigo-50'}`}
                       disabled={isAnalyzing}
                   >
                       {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <Layers size={20} />}
                       <span className="text-sm">Galeria</span>
+                      {user?.plan !== 'premium' && (
+                        <div className="absolute bottom-1 right-1 text-gray-400">
+                          <Lock size={12} />
+                        </div>
+                      )}
                   </button>
                 </div>
                 {analysisError && (

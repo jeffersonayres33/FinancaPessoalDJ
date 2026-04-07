@@ -477,9 +477,9 @@ export const dataService = {
                     nextMonthDate.setDate(0);
                 }
 
-                const nextDateStr = nextMonthDate.toISOString().split('T')[0];
+                const nextDateStr = (nextMonthDate.toISOString() || '').split('T')[0];
                 const targetMonthStart = nextDateStr.substring(0, 7) + '-01'; // YYYY-MM-01
-                const targetMonthEnd = new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 0).toISOString().split('T')[0]; // YYYY-MM-LastDay
+                const targetMonthEnd = (new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 0).toISOString() || '').split('T')[0]; // YYYY-MM-LastDay
 
                 // Verificação ROBUSTA no banco de dados para evitar duplicidade
                 // Verifica se existe QUALQUER transação com mesmo título e categoria neste mês
