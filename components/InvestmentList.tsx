@@ -194,19 +194,29 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                        (year === -1) ? `${months[month]} (Todos os Anos)` :
                        `${months[month]}/${year}`;
     
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredInvestments.filter(t => selectedIds.includes(t.id))
+      : filteredInvestments;
+
+    const exportTotalInPaid = itemsToExport.filter(t => t.amount >= 0 && t.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
+    const exportTotalInPending = itemsToExport.filter(t => t.amount >= 0 && t.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0);
+    const exportTotalOutPaid = itemsToExport.filter(t => t.amount < 0 && t.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
+    const exportTotalOutPending = itemsToExport.filter(t => t.amount < 0 && t.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0);
+
     doc.setFontSize(18);
     doc.text(`Relatório de Investimentos - ${periodText}`, 14, 15);
     
     doc.setFontSize(10);
     doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
     doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
-    doc.text(`Entradas Totais Pagas (Filtrado): ${formatCurrency(filteredTotalInPaid)}`, 14, 32);
-    doc.text(`Entradas Totais Pendentes (Filtrado): ${formatCurrency(filteredTotalInPending)}`, 14, 37);
-    doc.text(`Saídas Totais Pagas (Filtrado): ${formatCurrency(filteredTotalOutPaid)}`, 14, 42);
-    doc.text(`Saídas Totais Pendentes (Filtrado): ${formatCurrency(filteredTotalOutPending)}`, 14, 47);
-    doc.text(`Quantidade de itens: ${filteredInvestments.length}`, 14, 52);
+    const label = selectedIds.length > 0 ? 'Selecionado' : 'Filtrado';
+    doc.text(`Entradas Totais Pagas (${label}): ${formatCurrency(exportTotalInPaid)}`, 14, 32);
+    doc.text(`Entradas Totais Pendentes (${label}): ${formatCurrency(exportTotalInPending)}`, 14, 37);
+    doc.text(`Saídas Totais Pagas (${label}): ${formatCurrency(exportTotalOutPaid)}`, 14, 42);
+    doc.text(`Saídas Totais Pendentes (${label}): ${formatCurrency(exportTotalOutPending)}`, 14, 47);
+    doc.text(`Quantidade de itens: ${itemsToExport.length}`, 14, 52);
 
-    const tableData = filteredInvestments.map(t => [
+    const tableData = itemsToExport.map(t => [
       formatDate(t.date),
       t.title,
       t.category,
@@ -231,7 +241,11 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
       onOpenPaywall();
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(filteredInvestments.map(t => ({
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredInvestments.filter(t => selectedIds.includes(t.id))
+      : filteredInvestments;
+
+    const ws = XLSX.utils.json_to_sheet(itemsToExport.map(t => ({
       Data: formatDate(t.date),
       Título: t.title,
       Categoria: t.category,
@@ -657,8 +671,15 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                     <div className="text-xs text-gray-400 italic">
-                        {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
+                     <div className="flex flex-col">
+                       <div className="text-xs text-gray-400 italic">
+                          {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
+                       </div>
+                       {t.updatedAt && (
+                         <div className="text-xs text-gray-400 italic">
+                            Data da edição: {formatDate(t.updatedAt)}
+                         </div>
+                       )}
                      </div>
                      <div className="flex gap-2">
                       <button

@@ -35,7 +35,8 @@ create table public.transactions (
   observation text,
   installments jsonb,
   data_context_id uuid not null,
-  created_at timestamp with time zone default now()
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone
 );
 
 -- 4. Table: ai_analyses

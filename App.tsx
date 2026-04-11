@@ -340,18 +340,19 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   const handleBulkEditTransactions = useCallback(async (ids: string[], data: Partial<Despesa>) => {
     try {
+      const updatedAt = new Date().toISOString();
       if (!navigator.onLine) {
         // Local update
         setDespesas((prev) => {
-          const updated = prev.map(t => ids.includes(t.id) ? { ...t, ...data } : t);
+          const updated = prev.map(t => ids.includes(t.id) ? { ...t, ...data, updatedAt } : t);
           localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
           return updated;
         });
         showToast(`${ids.length} transações atualizadas localmente.`, 'success');
       } else {
-        await dataService.updateTransactionsBulk(ids, data);
+        await dataService.updateTransactionsBulk(ids, { ...data, updatedAt });
         setDespesas((prev) => {
-          const updated = prev.map(t => ids.includes(t.id) ? { ...t, ...data } : t);
+          const updated = prev.map(t => ids.includes(t.id) ? { ...t, ...data, updatedAt } : t);
           localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
           return updated;
         });
@@ -790,6 +791,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const handleUpdateDespesa = useCallback(async (updatedDespesa: Despesa) => {
     const finalDespesa = {
       ...updatedDespesa,
+      updatedAt: new Date().toISOString(),
       paymentDate: updatedDespesa.status === 'paid' && updatedDespesa.type === 'expense' 
         ? updatedDespesa.paymentDate 
         : undefined
@@ -827,6 +829,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     const updated: Despesa = {
         ...t,
         status: newStatus,
+        updatedAt: new Date().toISOString(),
         paymentDate: newStatus === 'paid' ? (t.paymentDate || getCurrentLocalDateString()) : undefined
     };
     try {
@@ -856,17 +859,18 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   const handleMarkAsPaid = useCallback(async (ids: string[], paymentDate: string) => {
     try {
+        const updatedAt = new Date().toISOString();
         if (!navigator.onLine) {
           ids.forEach(id => {
             const transaction = despesas.find(t => t.id === id);
             if (transaction) {
-              syncService.addToQueue('UPDATE_TRANSACTION', { ...transaction, status: 'paid', paymentDate });
+              syncService.addToQueue('UPDATE_TRANSACTION', { ...transaction, status: 'paid', paymentDate, updatedAt });
             }
           });
           setDespesas((prev) => {
             const updated = prev.map((t) => {
               if (ids.includes(t.id)) {
-                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
+                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate, updatedAt };
               }
               return t;
             });
@@ -879,7 +883,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           setDespesas((prev) => {
             const updated = prev.map((t) => {
               if (ids.includes(t.id)) {
-                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
+                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate, updatedAt };
               }
               return t;
             });

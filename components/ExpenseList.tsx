@@ -194,16 +194,22 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                        (year === -1) ? `${months[month]} (Todos os Anos)` :
                        `${months[month]}/${year}`;
 
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredExpenses.filter(t => selectedIds.includes(t.id))
+      : filteredExpenses;
+    
+    const totalExport = itemsToExport.reduce((acc, curr) => acc + curr.amount, 0);
+
     doc.setFontSize(18);
     doc.text(`Relatório de Despesas - ${periodText}`, 14, 15);
     
     doc.setFontSize(10);
     doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
     doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
-    doc.text(`Total Despesas (Filtrado): ${formatCurrency(totalFiltered)}`, 14, 32);
-    doc.text(`Quantidade de itens: ${filteredExpenses.length}`, 14, 37);
+    doc.text(`Total Despesas (${selectedIds.length > 0 ? 'Selecionado' : 'Filtrado'}): ${formatCurrency(totalExport)}`, 14, 32);
+    doc.text(`Quantidade de itens: ${itemsToExport.length}`, 14, 37);
 
-    const tableData = filteredExpenses.map(t => [
+    const tableData = itemsToExport.map(t => [
       formatDate(t.date),
       t.title,
       t.category,
@@ -227,7 +233,11 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
       onOpenPaywall();
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(filteredExpenses.map(t => ({
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredExpenses.filter(t => selectedIds.includes(t.id))
+      : filteredExpenses;
+
+    const ws = XLSX.utils.json_to_sheet(itemsToExport.map(t => ({
       Data: formatDate(t.date),
       Título: t.title,
       Categoria: t.category,
@@ -575,8 +585,15 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                     <div className="text-xs text-gray-400 italic">
-                        {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
+                     <div className="flex flex-col">
+                       <div className="text-xs text-gray-400 italic">
+                          {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
+                       </div>
+                       {t.updatedAt && (
+                         <div className="text-xs text-gray-400 italic">
+                            Data da edição: {formatDate(t.updatedAt)}
+                         </div>
+                       )}
                      </div>
                      <div className="flex gap-2">
                         {isMarkPaidEnabled && (

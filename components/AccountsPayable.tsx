@@ -193,7 +193,11 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
       onOpenPaywall();
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(filteredContas.map(t => ({
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredContas.filter(t => selectedIds.includes(t.id))
+      : filteredContas;
+
+    const ws = XLSX.utils.json_to_sheet(itemsToExport.map(t => ({
       Data: formatDate(t.date),
       Título: t.title,
       Categoria: t.category,
@@ -216,16 +220,22 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     const dateStr = now.toLocaleDateString('pt-BR');
     const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredContas.filter(t => selectedIds.includes(t.id))
+      : filteredContas;
+    
+    const totalExport = itemsToExport.reduce((acc, curr) => acc + curr.amount, 0);
+
     doc.setFontSize(18);
     doc.text("Relatório de Contas a Pagar", 14, 15);
     
     doc.setFontSize(10);
     doc.text(`Gerado em: ${dateStr}; às ${timeStr};`, 14, 22);
     doc.text(`Usuário: ${user?.name || 'Não identificado'}`, 14, 27);
-    doc.text(`Total Pendente (Filtrado): ${formatCurrency(totalPending)}`, 14, 32);
-    doc.text(`Quantidade de itens: ${filteredContas.length}`, 14, 37);
+    doc.text(`Total Pendente (${selectedIds.length > 0 ? 'Selecionado' : 'Filtrado'}): ${formatCurrency(totalExport)}`, 14, 32);
+    doc.text(`Quantidade de itens: ${itemsToExport.length}`, 14, 37);
 
-    const tableData = filteredContas.map(t => [
+    const tableData = itemsToExport.map(t => [
       formatDate(t.date),
       t.title,
       t.category,
