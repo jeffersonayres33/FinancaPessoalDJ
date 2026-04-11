@@ -321,12 +321,6 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
               {filteredInvestments.length} itens
             </span>
           </h2>
-          <p className="text-gray-500 text-sm mt-1">
-             Entradas Totais Pagas: <span className="font-bold text-blue-600">{formatCurrency(filteredTotalInPaid)}</span> | 
-             Entradas Totais Pendentes: <span className="font-bold text-blue-400">{formatCurrency(filteredTotalInPending)}</span> | 
-             Saídas Totais Pagas: <span className="font-bold text-orange-600">{formatCurrency(filteredTotalOutPaid)}</span> | 
-             Saídas Totais Pendentes: <span className="font-bold text-orange-400">{formatCurrency(filteredTotalOutPending)}</span>
-          </p>
         </div>
         
         <div className="flex flex-wrap gap-2 relative items-center">
