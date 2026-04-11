@@ -4,8 +4,8 @@ import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut,
 import { User } from '../types';
 
 interface HeaderProps {
-  currentView?: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members';
-  onNavigate?: (view: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members') => void;
+  currentView?: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'help';
+  onNavigate?: (view: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'help') => void;
   user?: User;
   onLogout?: () => void;
   onReturnToMain?: () => void;
@@ -266,6 +266,10 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                   <button onClick={() => handleNavigate('categories')} className={getLinkClass('categories')}>
                     <Tags size={20} />
                     <span>Categorias</span>
+                  </button>
+                  <button onClick={() => handleNavigate('help')} className={getLinkClass('help')}>
+                    <ShieldAlert size={20} />
+                    <span>Ajuda</span>
                   </button>
                   {user.role === 'admin' && (
                     <button onClick={() => handleNavigate('admin')} className={getLinkClass('admin')}>

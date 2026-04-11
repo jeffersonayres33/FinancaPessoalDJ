@@ -19,6 +19,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { MemberManager } from './components/MemberManager';
 import { UserProfileModal } from './components/UserProfileModal';
 import { AdminPanel } from './components/AdminPanel';
+import { HelpSection } from './components/HelpSection';
 import { BackupModal } from './components/BackupModal';
 import { SubscriptionPaywall } from './components/SubscriptionPaywall';
 import { AdBanner } from './components/AdBanner';
@@ -44,7 +45,7 @@ import {
   WifiOff
 } from 'lucide-react';
 
-type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'admin';
+type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'admin' | 'help';
 
 // Definição dos Widgets Disponíveis
 const AVAILABLE_WIDGETS = [
@@ -1215,6 +1216,10 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
         {currentView === 'admin' && (
           <AdminPanel currentUser={user} />
+        )}
+
+        {currentView === 'help' && (
+          <HelpSection />
         )}
       </main>
 
