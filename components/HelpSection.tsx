@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Receipt, TrendingUp, LineChart, ListChecks, Tags, Users, FileSpreadsheet, Printer, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Receipt, TrendingUp, LineChart, ListChecks, Tags, Users, FileSpreadsheet, Printer, ShieldAlert, Download, Upload, Settings, Calendar, Palette, Sparkles } from 'lucide-react';
 
 export const HelpSection: React.FC = () => {
   return (
@@ -127,6 +127,64 @@ export const HelpSection: React.FC = () => {
             <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
               <li><strong>Onde encontrar:</strong> Disponível nas telas de Despesas, Receitas, Investimentos e A Pagar.</li>
               <li><strong>Como funciona:</strong> Se você selecionar itens específicos na lista, o relatório conterá apenas esses itens. Se não selecionar nenhum, o relatório trará todos os itens visíveis de acordo com os filtros atuais (Mês/Ano).</li>
+            </ul>
+          </section>
+
+          {/* Backup e Restauração */}
+          <section>
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <Download size={20} className="text-teal-600" /> Backup e Restaurar Backup
+            </h3>
+            <p className="text-gray-600 mb-2">
+              Mantenha seus dados seguros fazendo cópias de segurança.
+            </p>
+            <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
+              <li><strong>Fazer Backup:</strong> Acesse o menu principal e clique em "Backup". Um arquivo contendo todos os seus dados será baixado para o seu dispositivo.</li>
+              <li><strong>Restaurar Backup:</strong> No mesmo menu, clique em "Restaurar Backup" e selecione o arquivo gerado anteriormente para recuperar suas informações.</li>
+            </ul>
+          </section>
+
+          {/* Configurações do Usuário */}
+          <section>
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <Settings size={20} className="text-gray-600" /> Configurações do Usuário
+            </h3>
+            <p className="text-gray-600 mb-2">
+              Personalize sua experiência clicando no ícone de engrenagem no topo da tela.
+            </p>
+            <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
+              <li><strong>Data de Início do Mês:</strong> Defina o dia em que seu mês financeiro começa (ex: dia 5, quando você recebe o salário). O sistema ajustará os relatórios e o dashboard para considerar o período do dia escolhido até o dia anterior do mês seguinte.</li>
+              <li><strong>Cor do Perfil:</strong> Escolha uma cor para o seu perfil. Isso ajuda a identificar rapidamente qual conta está sendo acessada, especialmente útil se você gerencia contas de membros da família.</li>
+            </ul>
+          </section>
+
+          {/* Acessar Perfil de Membros */}
+          <section>
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <Users size={20} className="text-pink-600" /> Acessar Perfil de Membros
+            </h3>
+            <p className="text-gray-600 mb-2">
+              Como administrador, você pode gerenciar as finanças dos membros da sua família.
+            </p>
+            <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
+              <li><strong>Como acessar:</strong> Vá até a seção "Membros", encontre o membro desejado e clique no botão "Acessar Perfil" (ícone de seta).</li>
+              <li><strong>O que acontece:</strong> Você entrará no sistema como se fosse aquele membro, podendo ver e editar as transações dele. Um aviso colorido no topo da tela indicará que você está no perfil de outra pessoa.</li>
+              <li><strong>Como voltar:</strong> Clique no botão "Voltar para Conta Principal" no aviso do topo da tela.</li>
+            </ul>
+          </section>
+
+          {/* Consultor Financeiro AI */}
+          <section>
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <Sparkles size={20} className="text-purple-500" /> Consultor Financeiro AI
+            </h3>
+            <p className="text-gray-600 mb-2">
+              Uma inteligência artificial integrada para ajudar nas suas decisões financeiras.
+            </p>
+            <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
+              <li><strong>O que é:</strong> Um assistente virtual que analisa seus dados financeiros e oferece conselhos personalizados.</li>
+              <li><strong>Como funciona:</strong> O assistente pode sugerir onde economizar, alertar sobre gastos excessivos em categorias específicas e dar dicas de investimento com base no seu perfil de uso.</li>
+              <li><strong>Onde encontrar:</strong> Procure pelo ícone de brilho ou botão do Consultor AI na interface para iniciar uma análise.</li>
             </ul>
           </section>
 
