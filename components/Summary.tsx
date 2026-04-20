@@ -53,7 +53,6 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
   return (
     <div className={`bg-white p-5 rounded-lg shadow-md flex flex-col justify-between h-full transition-transform hover:scale-[1.02] ${mainBorderClass}`}>
       
-      {/* Top Row: Current Month and Previous Month side by side if applicable */}
       <div className="flex justify-between items-start mb-3">
         {previousBalance != null ? (
           <div className="flex w-full justify-between gap-2">
@@ -85,7 +84,6 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
         )}
       </div>
 
-      {/* Bottom Row: Total Available (only if previous balance exists) */}
       {previousBalance != null && (
         <div className="pt-2 border-t border-gray-100 flex justify-between items-end">
           <div>
@@ -96,6 +94,86 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
           </div>
           <div className={`p-2 sm:p-3 rounded-full ${mainBgClass}`}>
             <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${mainColorClass}`} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface SplitStatCardProps {
+  title: string;
+  currentTitle: string;
+  currentValue: number;
+  previousBalanceTitle: string;
+  previousBalanceValue?: number | null;
+  totalTitle: string;
+  totalValue: number;
+  icon: LucideIcon;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
+  formatCurrency: (value: number) => string;
+}
+
+export const SplitStatCard: React.FC<SplitStatCardProps> = ({ 
+  title, 
+  currentTitle,
+  currentValue, 
+  previousBalanceTitle,
+  previousBalanceValue, 
+  totalTitle,
+  totalValue, 
+  icon: Icon,
+  colorClass,
+  bgClass,
+  borderClass,
+  formatCurrency
+}) => {
+  return (
+    <div className={`bg-white p-5 rounded-lg shadow-md flex flex-col justify-between h-full transition-transform hover:scale-[1.02] ${borderClass}`}>
+      
+      <div className="flex justify-between items-start mb-3">
+        {previousBalanceValue != null ? (
+          <div className="flex w-full justify-between gap-2">
+            <div>
+              <p className="text-gray-500 text-[10px] sm:text-xs uppercase font-bold mb-1 tracking-wider leading-tight">{currentTitle}</p>
+              <strong className={`text-lg sm:text-xl font-bold block ${colorClass}`}>
+                {formatCurrency(currentValue)}
+              </strong>
+            </div>
+            <div className="text-right">
+              <p className="text-gray-500 text-[10px] sm:text-xs uppercase font-bold mb-1 tracking-wider leading-tight">{previousBalanceTitle}</p>
+              <strong className={`text-sm sm:text-base font-bold block ${colorClass}`}>
+                +{formatCurrency(previousBalanceValue)}
+              </strong>
+            </div>
+          </div>
+        ) : (
+          <div className="flex w-full justify-between items-center">
+             <div>
+                <p className="text-gray-500 text-xs uppercase font-bold mb-1 tracking-wider">{title}</p>
+                <strong className={`text-xl sm:text-2xl font-bold block ${colorClass}`}>
+                  {formatCurrency(currentValue)}
+                </strong>
+             </div>
+             <div className={`p-3 rounded-full ${bgClass}`}>
+                <Icon className={`w-6 h-6 ${colorClass}`} />
+             </div>
+          </div>
+        )}
+      </div>
+
+      {previousBalanceValue != null && (
+        <div className="pt-2 border-t border-gray-100 flex justify-between items-end">
+          <div>
+            <p className="text-gray-800 text-xs sm:text-sm uppercase font-bold mb-0.5 tracking-wider">{totalTitle}</p>
+            <strong className={`text-xl sm:text-2xl font-bold block ${colorClass}`}>
+              {formatCurrency(totalValue)}
+            </strong>
+          </div>
+          <div className={`p-2 sm:p-3 rounded-full ${bgClass}`}>
+            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${colorClass}`} />
           </div>
         </div>
       )}

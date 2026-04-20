@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Header } from './components/Header';
-import { StatCard, BalanceCard } from './components/Summary'; 
+import { StatCard, BalanceCard, SplitStatCard } from './components/Summary'; 
 import { DespesaForm } from './components/DespesaForm';
 import { Charts, EvolutionChart, CategoryEvolutionChart } from './components/Charts';
 import { InvestmentEvolutionChart, CashFlowChart, BalanceProjectionChart, TopExpensesChart, MoneyDestinationChart } from './components/DashboardCharts';
@@ -1046,8 +1046,42 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
     const getWidgetComponent = (id: string) => {
       switch (id) {
-        case 'total_income': return <StatCard title="Receitas Totais" value={formatCurrency(dashboardData.income)} icon={ArrowUpCircle} colorClass="text-green-600" bgClass="bg-green-100" />;
-        case 'total_expense': return <StatCard title="Despesas Totais" value={formatCurrency(dashboardData.expense)} icon={ArrowDownCircle} colorClass="text-red-600" bgClass="bg-red-100" />;
+        case 'total_income': 
+          const isPositivePrev = dashboardData.isPeriodFilterActive && dashboardData.previousMonthBalance > 0;
+          return (
+            <SplitStatCard 
+              title="Receitas Totais" 
+              currentTitle="Entradas do Mês"
+              currentValue={dashboardData.income}
+              previousBalanceTitle="Saldo Anterior"
+              previousBalanceValue={isPositivePrev ? dashboardData.previousMonthBalance : null}
+              totalTitle="Total em Caixa"
+              totalValue={dashboardData.income + (isPositivePrev ? dashboardData.previousMonthBalance : 0)}
+              icon={ArrowUpCircle} 
+              colorClass="text-green-600" 
+              bgClass="bg-green-100" 
+              borderClass=""
+              formatCurrency={formatCurrency}
+            />
+          );
+        case 'total_expense': 
+          const isNegativePrev = dashboardData.isPeriodFilterActive && dashboardData.previousMonthBalance < 0;
+          return (
+            <SplitStatCard 
+              title="Despesas Totais" 
+              currentTitle="Saídas do Mês"
+              currentValue={dashboardData.expense}
+              previousBalanceTitle="Débito Anterior"
+              previousBalanceValue={isNegativePrev ? Math.abs(dashboardData.previousMonthBalance) : null}
+              totalTitle="SAÍDAS TOTAIS"
+              totalValue={dashboardData.expense + (isNegativePrev ? Math.abs(dashboardData.previousMonthBalance) : 0)}
+              icon={ArrowDownCircle} 
+              colorClass="text-red-600" 
+              bgClass="bg-red-100" 
+              borderClass=""
+              formatCurrency={formatCurrency}
+            />
+          );
         case 'pending_expenses': return <StatCard title="Contas a Pagar" value={formatCurrency(dashboardData.pending)} icon={Clock} colorClass="text-yellow-600" bgClass="bg-yellow-100" borderClass="border-l-4 border-yellow-400" />;
         case 'total_investment': return <StatCard title="Saldo Investido" value={formatCurrency(dashboardData.investmentTotal)} icon={ArrowUp} colorClass="text-purple-600" bgClass="bg-purple-100" borderClass="border-l-4 border-purple-500" />;
         case 'balance': 
