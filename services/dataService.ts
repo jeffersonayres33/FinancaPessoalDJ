@@ -423,16 +423,15 @@ export const dataService = {
     }
 
     // 2. Encontra e atualiza transações anteriores (pais) para não serem mais fixas
-    // Critério: Mesmo título, valor, categoria, is_fixed=true e data anterior
+    // Critério: Mesmo título, categoria, is_fixed=true e data anterior ou igual
     const { error: updateError } = await supabase
         .from('transactions')
         .update({ is_fixed: false, updated_at: new Date().toISOString() })
         .eq('data_context_id', dataContextId)
         .eq('title', title)
-        .eq('amount', amount)
         .eq('category', category)
         .eq('is_fixed', true)
-        .lt('date', date);
+        .lte('date', date);
 
     if (updateError) console.error('Erro ao parar recorrência:', updateError);
 
@@ -467,13 +466,30 @@ export const dataService = {
     (dataService as any)._isGeneratingRecurring = true;
 
     try {
-        // Filtra transações fixas (despesas, receitas e investimentos)
-        const fixedTransactions = currentTransactions.filter(t => t.isFixed && (t.type === 'expense' || t.type === 'income' || t.type === 'investment'));
+        // Filtra transações fixas ATIVAS (despesas, receitas e investimentos)
+        // Ignoramos as que têm installments.current === 0 (Inativas)
+        const activeFixedTransactions = currentTransactions.filter(t => 
+             t.isFixed && t.installments?.current !== 0 && 
+             (t.type === 'expense' || t.type === 'income' || t.type === 'investment')
+        );
+
+        // Agrupa por título (lowercased) + categoria e pega SOMENTE a mais recente para evitar duplicação em cascata
+        const latestFixedMap = new Map<string, Despesa>();
+        for (const trans of activeFixedTransactions) {
+            const key = `${trans.title.toLowerCase().trim()}|${trans.category}`;
+            const existing = latestFixedMap.get(key);
+            if (!existing || new Date(trans.date) > new Date(existing.date)) {
+                latestFixedMap.set(key, trans);
+            }
+        }
+        
+        const uniqueFixedTransactionsToProcess = Array.from(latestFixedMap.values());
+
         const newTransactions: Despesa[] = [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        for (const trans of fixedTransactions) {
+        for (const trans of uniqueFixedTransactionsToProcess) {
             const dueDate = new Date(trans.date + 'T12:00:00');
             const triggerDate = new Date(dueDate);
             triggerDate.setDate(dueDate.getDate() + 20);
@@ -508,8 +524,14 @@ export const dataService = {
                     continue; // Pula se der erro para não arriscar duplicar
                 }
 
-                // Se count for 0, significa que NÃO existe registro similar neste mês
-                if (count === 0) {
+                // Se count for 0 no DB E não tivermos adicionado na lista temporária ainda
+                const alreadyInAddedQueue = newTransactions.some(
+                    t => t.title.toLowerCase().trim() === trans.title.toLowerCase().trim() && 
+                         t.category === trans.category &&
+                         t.date.startsWith(targetMonthStart.substring(0, 7))
+                );
+
+                if (count === 0 && !alreadyInAddedQueue) {
                     const newTrans: Despesa = {
                         id: uuidv4(),
                         title: trans.title,

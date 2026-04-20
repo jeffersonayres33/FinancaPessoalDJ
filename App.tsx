@@ -187,8 +187,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
                       
                       if (deleted) {
                           updated = updated.map(t => {
-                              // Critério para encontrar "pais": mesmo título, valor, categoria, fixa e data anterior
-                              if (t.isFixed && t.title === deleted.title && t.amount === deleted.amount && t.category === deleted.category && t.date < deleted.date) {
+                              // Critério para encontrar "pais": mesmo título, categoria, fixa e data anterior ou igual
+                              if (t.isFixed && t.title === deleted.title && t.category === deleted.category && t.date <= deleted.date) {
                                   return { ...t, isFixed: false };
                               }
                               return t;
