@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Header } from './components/Header';
-import { StatCard } from './components/Summary'; 
+import { StatCard, BalanceCard } from './components/Summary'; 
 import { DespesaForm } from './components/DespesaForm';
 import { Charts, EvolutionChart, CategoryEvolutionChart } from './components/Charts';
 import { InvestmentEvolutionChart, CashFlowChart, BalanceProjectionChart, TopExpensesChart, MoneyDestinationChart } from './components/DashboardCharts';
@@ -519,6 +519,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
   // --- DERIVED STATE ---
   const dashboardData = useMemo(() => {
+    let finStartForPrevious: Date | null = null;
+    let finEndForPrevious: Date | null = null;
+
     const filtered = despesas.filter(t => {
       const [y, m, d] = (t.date || '').split('-').map(Number);
       const tDate = new Date(y, m - 1, d);
@@ -528,9 +531,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
       if (filterYear !== -1 && filterMonth !== -1) {
           const { startDate: finStart, endDate: finEnd } = getFinancialMonthRange(filterYear, filterMonth, startDay);
+          finStartForPrevious = finStart;
+          finEndForPrevious = finEnd;
           return tDate >= finStart && tDate <= finEnd;
       } else if (filterYear !== -1 && filterMonth === -1) {
           const { startDate: finStart, endDate: finEnd } = getFinancialYearRange(filterYear, startDay);
+          finStartForPrevious = finStart;
+          finEndForPrevious = finEnd;
           return tDate >= finStart && tDate <= finEnd;
       } else if (filterYear === -1 && filterMonth !== -1) {
           return (m - 1) === filterMonth;
@@ -562,15 +569,52 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
     }
     
-    const total = income - expense;
+    // Calcula o Saldo do Mês Anterior
+    let previousMonthBalance = 0;
+    
+    // Só calculamos se for uma visão de mês/ano específica onde finStartForPrevious foi setado
+    if (finStartForPrevious != null) {
+      for (const t of despesas) {
+        const [y, m, d] = (t.date || '').split('-').map(Number);
+        const tDate = new Date(y, m - 1, d);
+        tDate.setHours(12, 0, 0, 0);
+        
+        // Pega tudo antes do início do período selecionado
+        if (tDate < finStartForPrevious) {
+           if (t.type === 'income' && t.status === 'paid') {
+               previousMonthBalance += t.amount;
+           } else if (t.type === 'expense' && t.status === 'paid') {
+               previousMonthBalance -= t.amount;
+           }
+        }
+      }
+    } else {
+      // Se estiver na visão geral, considera nulo para não exibir painel
+      previousMonthBalance = 0;
+    }
+
+    const currentBalance = income - expense;
+    // O Saldo Disponível é a soma de todos os ganhos e despesas anteriores + atuais
+    const totalAvailable = currentBalance + previousMonthBalance;
     const investmentTotal = investmentIn - investmentOut;
     let savingsRate = 0;
     if (income > 0) {
       savingsRate = ((income - expense) / income) * 100;
     }
 
-    return { income, expense, total, pending, investmentTotal, savingsRate, filteredTransactions: filtered };
-  }, [despesas, filterMonth, filterYear]);
+    return { 
+      income, 
+      expense, 
+      currentBalance, 
+      previousMonthBalance, 
+      totalAvailable, 
+      pending, 
+      investmentTotal, 
+      savingsRate, 
+      filteredTransactions: filtered,
+      isPeriodFilterActive: finStartForPrevious != null
+    };
+  }, [despesas, filterMonth, filterYear, user]);
 
   // --- HANDLERS ---
   const toggleWidget = useCallback((id: string) => {
@@ -1006,7 +1050,17 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'total_expense': return <StatCard title="Despesas Totais" value={formatCurrency(dashboardData.expense)} icon={ArrowDownCircle} colorClass="text-red-600" bgClass="bg-red-100" />;
         case 'pending_expenses': return <StatCard title="Contas a Pagar" value={formatCurrency(dashboardData.pending)} icon={Clock} colorClass="text-yellow-600" bgClass="bg-yellow-100" borderClass="border-l-4 border-yellow-400" />;
         case 'total_investment': return <StatCard title="Saldo Investido" value={formatCurrency(dashboardData.investmentTotal)} icon={ArrowUp} colorClass="text-purple-600" bgClass="bg-purple-100" borderClass="border-l-4 border-purple-500" />;
-        case 'balance': return <StatCard title={filterMonth === -1 ? "Saldo Total" : "Saldo do Mês"} value={formatCurrency(dashboardData.total)} icon={DollarSign} colorClass={dashboardData.total >= 0 ? "text-blue-600" : "text-red-600"} bgClass={dashboardData.total >= 0 ? "bg-blue-100" : "bg-red-100"} borderClass={dashboardData.total >= 0 ? "border-l-4 border-blue-500" : "border-l-4 border-red-500"} />;
+        case 'balance': 
+          return (
+            <BalanceCard 
+              title={filterMonth === -1 ? "Saldo Total" : "Saldo do Mês"} 
+              currentBalance={dashboardData.currentBalance} 
+              previousBalance={dashboardData.isPeriodFilterActive ? dashboardData.previousMonthBalance : null} 
+              totalAvailable={dashboardData.totalAvailable} 
+              icon={DollarSign} 
+              formatCurrency={formatCurrency}
+            />
+          );
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
         case 'balance_by_category': return <BalanceByCategory categories={categories} expenses={dashboardData.filteredTransactions} />;
         case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} user={user!} />;
