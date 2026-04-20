@@ -18,6 +18,9 @@ export const authService = {
       if (authError?.message.includes('rate limit')) {
         throw new Error('Muitas tentativas de login. Aguarde alguns minutos e tente novamente.');
       }
+      if (authError?.message === 'Failed to fetch') {
+        throw new Error('Erro de conexão (Failed to fetch). O banco de dados pode estar inativo/pausado ou há problemas na sua rede/bloqueador de anúncios.');
+      }
       throw new Error(authError?.message || 'Erro ao fazer login');
     }
 
@@ -186,6 +189,9 @@ export const authService = {
     if (authError) {
         if (authError.message.includes('rate limit')) {
             throw new Error('Muitas tentativas de registro. Aguarde alguns minutos.');
+        }
+        if (authError.message === 'Failed to fetch') {
+            throw new Error('Erro de conexão (Failed to fetch). O banco de dados pode estar inativo/pausado ou há problemas na sua rede/bloqueador de anúncios.');
         }
         throw new Error(authError.message || 'Erro ao registrar usuário');
     }
@@ -453,11 +459,16 @@ export const authService = {
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
+        const lowerMsg = error.message.toLowerCase();
+        if (lowerMsg.includes("failed to fetch") || lowerMsg.includes("lock broken")) {
+           console.warn("Sessão Supabase: Operação silenciosa (offline ou lock)", error.message);
+           return authService.getCurrentUser();
+        }
+        
         console.warn("Erro na sessão Supabase:", error.message);
         // Se o token for inválido, forçamos o logout para limpar o estado
-        const lowerMsg = error.message.toLowerCase();
-        if (lowerMsg.includes("refresh token") || lowerMsg.includes("invalid claim") || lowerMsg.includes("not found")) {
-           await authService.logout();
+        if (lowerMsg.includes("refresh token") || lowerMsg.includes("invalid claim") || lowerMsg.includes("not found") || lowerMsg.includes("jwt")) {
+           await authService.logout().catch(() => {});
         }
         return null;
       }
@@ -468,10 +479,15 @@ export const authService = {
       }
       return null;
     } catch (err: any) {
-      console.error("Erro inesperado ao verificar sessão:", err);
       const errMsg = err?.message?.toLowerCase() || "";
-      if (errMsg.includes("refresh token") || errMsg.includes("invalid claim") || errMsg.includes("not found")) {
-         await authService.logout();
+      if (errMsg.includes("failed to fetch") || errMsg.includes("lock broken")) {
+         console.warn("Sessão Supabase: Operação silenciosa (offline ou lock)", err.message);
+         return authService.getCurrentUser();
+      }
+
+      console.error("Erro inesperado ao verificar sessão:", err);
+      if (errMsg.includes("refresh token") || errMsg.includes("invalid claim") || errMsg.includes("not found") || errMsg.includes("jwt")) {
+         await authService.logout().catch(() => {});
       }
       return null;
     }

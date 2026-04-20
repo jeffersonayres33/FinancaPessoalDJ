@@ -348,8 +348,7 @@ export const dataService = {
 
   updateTransaction: async (despesa: Despesa): Promise<void> => {
      const payload = {
-       ...sanitizeTransactionPayload(despesa),
-       updated_at: despesa.updatedAt || new Date().toISOString()
+       ...sanitizeTransactionPayload(despesa)
      };
      console.log('dataService.updateTransaction payload:', payload);
 
@@ -380,7 +379,9 @@ export const dataService = {
     if (data.observation !== undefined) payload.observation = data.observation || null;
     if (data.isFixed !== undefined) payload.is_fixed = data.isFixed;
     
-    payload.updated_at = data.updatedAt || new Date().toISOString();
+    if (data.updatedAt !== undefined) {
+      payload.updated_at = data.updatedAt;
+    }
     
     const { error } = await supabase
       .from('transactions')
@@ -447,7 +448,7 @@ export const dataService = {
   markAsPaid: async (ids: string[], paymentDate: string): Promise<void> => {
     const { error } = await supabase
         .from('transactions')
-        .update({ status: 'paid', payment_date: paymentDate, updated_at: new Date().toISOString() })
+        .update({ status: 'paid', payment_date: paymentDate })
         .in('id', ids);
     if (error) throw error;
   },

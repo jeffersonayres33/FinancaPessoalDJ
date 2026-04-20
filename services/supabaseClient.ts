@@ -40,6 +40,10 @@ if (typeof window !== 'undefined') {
       setTimeout(() => {
         window.location.href = '/';
       }, 100);
+    } else if (errorMessage.includes('Lock broken') || errorMessage.includes('Failed to fetch')) {
+      // Ignora erros de lock e conexões falhas silenciosamente no global
+      console.warn('Supabase Concurrency/Network Error ignorado:', errorMessage);
+      event.preventDefault();
     }
   });
 }

@@ -120,6 +120,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isGlobalLoading, setIsGlobalLoading] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; isVisible: boolean }>({
     message: '',
@@ -157,9 +158,11 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   // ...
 
   const handleConfirmModalAction = async () => {
-    if (!confirmModal.targetId && (!confirmModal.targetIds || confirmModal.targetIds.length === 0)) return;
+    setIsGlobalLoading(true);
+    try {
+        if (!confirmModal.targetId && (!confirmModal.targetIds || confirmModal.targetIds.length === 0)) return;
 
-    if (confirmModal.action === 'delete_transaction' && confirmModal.targetId) {
+        if (confirmModal.action === 'delete_transaction' && confirmModal.targetId) {
         const id = confirmModal.targetId;
         const stopFuture = confirmModal.isCheckboxChecked;
 
@@ -292,6 +295,9 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     }
     
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    } finally {
+        setIsGlobalLoading(false);
+    }
   };
 
   const handleDeleteDespesa = useCallback((id: string) => {
@@ -340,6 +346,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   }, []);
 
   const handleBulkEditTransactions = useCallback(async (ids: string[], data: Partial<Despesa>) => {
+    setIsGlobalLoading(true);
     try {
       const updatedAt = new Date().toISOString();
       if (!navigator.onLine) {
@@ -362,6 +369,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     } catch (e) {
       console.error(e);
       showToast('Erro ao atualizar transações em massa.', 'error');
+    } finally {
+      setIsGlobalLoading(false);
     }
   }, [user.dataContextId, showToast]);
 
@@ -709,6 +718,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     observation?: string,
     isFixed?: boolean
   ) => {
+    setIsGlobalLoading(true);
     try {
         const createdAt = new Date().toISOString();
         const newTransactions: Despesa[] = [];
@@ -786,10 +796,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         console.error(e);
         showToast('Erro ao salvar transação.', 'error');
         throw e; // Re-throw para o formulário
+    } finally {
+        setIsGlobalLoading(false);
     }
   }, [user.dataContextId, showToast]);
 
   const handleUpdateDespesa = useCallback(async (updatedDespesa: Despesa) => {
+    setIsGlobalLoading(true);
     const finalDespesa = {
       ...updatedDespesa,
       updatedAt: new Date().toISOString(),
@@ -822,15 +835,17 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         console.error('Erro em handleUpdateDespesa:', e);
         showToast('Erro ao atualizar.', 'error');
         throw e; // Re-throw para que o formulário saiba que falhou
+    } finally {
+        setIsGlobalLoading(false);
     }
   }, [showToast, user.dataContextId]);
 
   const handleToggleStatus = useCallback(async (t: Despesa) => {
+    setIsGlobalLoading(true);
     const newStatus: TransactionStatus = t.status === 'paid' ? 'pending' : 'paid';
     const updated: Despesa = {
         ...t,
         status: newStatus,
-        updatedAt: new Date().toISOString(),
         paymentDate: newStatus === 'paid' ? (t.paymentDate || getCurrentLocalDateString()) : undefined
     };
     try {
@@ -853,25 +868,27 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
     } catch (e) {
         showToast('Erro ao alterar status.', 'error');
+    } finally {
+        setIsGlobalLoading(false);
     }
   }, [showToast, user.dataContextId]);
 
 
 
   const handleMarkAsPaid = useCallback(async (ids: string[], paymentDate: string) => {
+    setIsGlobalLoading(true);
     try {
-        const updatedAt = new Date().toISOString();
         if (!navigator.onLine) {
           ids.forEach(id => {
             const transaction = despesas.find(t => t.id === id);
             if (transaction) {
-              syncService.addToQueue('UPDATE_TRANSACTION', { ...transaction, status: 'paid', paymentDate, updatedAt });
+              syncService.addToQueue('UPDATE_TRANSACTION', { ...transaction, status: 'paid', paymentDate });
             }
           });
           setDespesas((prev) => {
             const updated = prev.map((t) => {
               if (ids.includes(t.id)) {
-                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate, updatedAt };
+                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
               }
               return t;
             });
@@ -884,7 +901,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
           setDespesas((prev) => {
             const updated = prev.map((t) => {
               if (ids.includes(t.id)) {
-                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate, updatedAt };
+                return { ...t, status: 'paid' as TransactionStatus, paymentDate: paymentDate };
               }
               return t;
             });
@@ -895,6 +912,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
     } catch (e) {
         showToast('Erro ao atualizar contas.', 'error');
+    } finally {
+        setIsGlobalLoading(false);
     }
   }, [despesas, showToast, user.dataContextId]);
 
@@ -903,6 +922,7 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         showToast('Já existe uma categoria com este nome.', 'error');
         return;
     }
+    setIsGlobalLoading(true);
     const newCat = { id: uuidv4(), name, type, budget: budget || 0 };
     try {
         if (!navigator.onLine) {
@@ -926,10 +946,13 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
     } catch (e) {
         showToast('Erro ao criar categoria.', 'error');
+    } finally {
+        setIsGlobalLoading(false);
     }
   }, [categories, user.dataContextId, showToast]);
 
   const handleEditCategory = useCallback(async (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
+    setIsGlobalLoading(true);
     const updated = { id, name, type, budget: budget || 0 };
     try {
         if (!navigator.onLine) {
@@ -951,6 +974,8 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         }
     } catch (e) {
         showToast('Erro ao atualizar categoria.', 'error');
+    } finally {
+        setIsGlobalLoading(false);
     }
   }, [showToast, user.dataContextId]);
 
@@ -1286,6 +1311,15 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         isCheckboxChecked={confirmModal.isCheckboxChecked}
         onCheckboxChange={(checked) => setConfirmModal(prev => ({ ...prev, isCheckboxChecked: checked }))}
       />
+
+      {isGlobalLoading && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center pointer-events-auto">
+          <div className="bg-white/10 p-6 rounded-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
+            <Settings className="w-12 h-12 text-white animate-spin" />
+            <p className="text-white font-medium text-lg tracking-wide">Aguarde!</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
