@@ -5,7 +5,7 @@ import { Header } from './components/Header';
 import { StatCard, BalanceCard, SplitStatCard } from './components/Summary'; 
 import { DespesaForm } from './components/DespesaForm';
 import { Charts, EvolutionChart, CategoryEvolutionChart } from './components/Charts';
-import { InvestmentEvolutionChart, CashFlowChart, BalanceProjectionChart, TopExpensesChart, MoneyDestinationChart } from './components/DashboardCharts';
+import { InvestmentEvolutionChart, CashFlowChart, TopExpensesChart, MoneyDestinationChart } from './components/DashboardCharts';
 import { AIInsight } from './components/AIInsight';
 import { CategoryManager } from './components/CategoryManager';
 import { AccountsPayable } from './components/AccountsPayable';
@@ -42,7 +42,8 @@ import {
   ArrowUp,
   ArrowDown,
   Loader2,
-  WifiOff
+  WifiOff,
+  RotateCcw
 } from 'lucide-react';
 
 type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'admin' | 'help';
@@ -53,8 +54,8 @@ const AVAILABLE_WIDGETS = [
   { id: 'total_expense', label: 'Despesas Totais', default: true },
   { id: 'balance', label: 'Saldo do Mês', default: true },
   { id: 'pending_expenses', label: 'Contas a Pagar', default: true },
-  { id: 'total_investment', label: 'Saldo Investido', default: true },
   { id: 'savings_rate', label: 'Taxa de Economia', default: true },
+  { id: 'total_investment', label: 'Saldo Investido', default: true },
   { id: 'balance_by_category', label: 'Saldo por Categoria', default: true }, 
   { id: 'evolution_chart', label: 'Evolução de Gastos', default: true },
   { id: 'category_evolution', label: 'Evolução por Categoria', default: true },
@@ -62,7 +63,6 @@ const AVAILABLE_WIDGETS = [
   { id: 'chart_income', label: 'Gráfico: Receitas por Categoria', default: true },
   { id: 'investment_evolution', label: 'Evolução de Aportes', default: true },
   { id: 'cash_flow', label: 'Fluxo de Caixa Completo', default: true },
-  { id: 'balance_projection', label: 'Projeção de Saldo', default: true },
   { id: 'top_expenses', label: 'Top 10 Maiores Despesas', default: true },
   { id: 'money_destination', label: 'Destino do Dinheiro', default: true },
   { id: 'ai_insight', label: 'Análise de Inteligência Artificial', default: true },
@@ -631,6 +631,14 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
     });
   }, []);
 
+  const resetWidgets = useCallback(() => {
+    const defaultVisibility = AVAILABLE_WIDGETS.reduce((acc, w) => ({ ...acc, [w.id]: w.default }), {} as Record<string, boolean>);
+    const defaultOrder = AVAILABLE_WIDGETS.map(w => w.id);
+    setVisibleWidgets(defaultVisibility);
+    setWidgetOrder(defaultOrder);
+    showToast('A visualização do painel foi restaurada.', 'success');
+  }, [showToast]);
+
   const closeConfirmModal = useCallback(() => {
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
   }, []);
@@ -1103,7 +1111,6 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'chart_income': return <Charts despesas={dashboardData.filteredTransactions} type="income" title={`Receitas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
         case 'investment_evolution': return <InvestmentEvolutionChart despesas={despesas} year={filterYear} user={user!} />;
         case 'cash_flow': return <CashFlowChart despesas={despesas} year={filterYear} user={user!} />;
-        case 'balance_projection': return <BalanceProjectionChart despesas={dashboardData.filteredTransactions} />;
         case 'top_expenses': return <TopExpensesChart despesas={dashboardData.filteredTransactions} />;
         case 'money_destination': return <MoneyDestinationChart despesas={dashboardData.filteredTransactions} />;
         case 'ai_insight': return <AIInsight despesas={dashboardData.filteredTransactions} user={user!} onOpenPaywall={() => setIsPaywallOpen(true)} />;
@@ -1121,7 +1128,6 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
         case 'ai_insight': return 'md:col-span-2 lg:col-span-4';
         case 'chart_expense':
         case 'chart_income':
-        case 'balance_projection':
         case 'top_expenses':
         case 'money_destination': return 'md:col-span-1 lg:col-span-2';
         default: return 'col-span-1';
@@ -1160,7 +1166,12 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
 
         {isCustomizing && (
           <div className="bg-white p-6 rounded-lg shadow-md border border-purple-100 animate-fade-in mb-6">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2"><Settings size={16} /> Visibilidade e Ordem dos Widgets</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+               <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2"><Settings size={16} /> Visibilidade e Ordem dos Widgets</h3>
+               <button onClick={resetWidgets} className="text-xs text-purple-600 hover:text-purple-800 font-medium px-3 py-1.5 bg-purple-50 hover:bg-purple-100 rounded transition-colors flex items-center gap-1 justify-center sm:justify-start">
+                 <RotateCcw size={14} /> Restaurar Padrão
+               </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {widgetOrder.map((widgetId, index) => {
                 const widgetDef = AVAILABLE_WIDGETS.find(w => w.id === widgetId);
