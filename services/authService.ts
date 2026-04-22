@@ -734,7 +734,7 @@ export const authService = {
     if (error) throw new Error('Erro ao enviar email de redefinição: ' + error.message);
   },
 
-  adminResetUserPassword: async (userId: string, newPassword: string): Promise<void> => {
+  adminUpdateUserPassword: async (userId: string, newPassword?: string): Promise<void> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Sessão expirada. Faça login novamente.');
 
@@ -748,7 +748,7 @@ export const authService = {
     });
 
     if (!response.ok) {
-      let errorMessage = 'Erro ao redefinir senha do usuário.';
+      let errorMessage = 'Erro ao atualizar dados do usuário.';
       try {
         const errorData = await response.json();
         errorMessage = errorData.error || errorMessage;

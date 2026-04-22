@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff } from 'lucide-react';
+import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff, Edit } from 'lucide-react';
 import { authService } from '../services/authService';
 import { User } from '../types';
 
@@ -16,10 +16,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // New states for individual password reset
+  // New states for individual password/email reset
   const [resettingUser, setResettingUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -115,11 +116,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   };
 
   const handleAdminResetPassword = async () => {
-    if (!resettingUser || !newPassword || newPassword.length < 6) {
+    if (!resettingUser) return;
+    
+    // Valida se digitou uma nova senha
+    if (!newPassword || newPassword.length === 0) {
+      setModalError('Por favor, informe a nova senha.');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
       setModalError('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
-
+    
     if (newPassword !== confirmPassword) {
       setModalError('As senhas não coincidem. Verifique se digitou corretamente.');
       return;
@@ -128,7 +137,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     setIsResetting(true);
     setModalError(null);
     try {
-      await authService.adminResetUserPassword(resettingUser.id, newPassword);
+      await authService.adminUpdateUserPassword(resettingUser.id, newPassword);
       setResetSuccess(true);
       
       // Feedback no painel principal também
@@ -145,8 +154,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         setShowConfirmPassword(false);
         setResetSuccess(false);
 
-        if (isSelfReset) {
-            // Se o admin resetou a própria senha, ele precisa refazer o login imediatamente para atualizar o token
+        if (isSelfReset && newPassword) {
             authService.logout();
             window.location.reload();
         }
@@ -158,7 +166,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
       } else if (errMsg.includes('Database error') || errMsg.includes('loading user') || errMsg.includes('corrompido')) {
           setModalError('Este usuário (membro) possui um problema no provedor de autenticação (não encontrado ou corrompido). Exclua-o e crie outro membro.');
       } else {
-          setModalError(errMsg || 'Erro ao alterar senha do usuário.');
+          setModalError(errMsg || 'Erro ao alterar dados do usuário.');
       }
     } finally {
       setIsResetting(false);
@@ -377,7 +385,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                       <td className="px-6 py-4 text-center">
                                           <button 
                                             onClick={() => setResettingUser(u)}
-                                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors title='Alterar Senha'"
+                                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                            title="Alterar Senha"
                                           >
                                             <Key size={18} />
                                           </button>
@@ -449,7 +458,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                     placeholder="Mínimo 6 caracteres"
                     disabled={isResetting || resetSuccess}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400 pr-10"
-                    autoFocus
                   />
                   <button
                     type="button"
@@ -487,7 +495,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
               </div>
 
               <p className="mt-2 text-xs text-gray-500 italic">
-                Atenção: A alteração é imediata e o usuário passará a usar esta nova senha.
+                Atenção: A alteração de senha é imediata e irreversível.
               </p>
             </div>
 
@@ -501,7 +509,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
               </button>
               <button
                 onClick={handleAdminResetPassword}
-                disabled={isResetting || resetSuccess || !newPassword || newPassword.length < 6 || !confirmPassword}
+                disabled={isResetting || resetSuccess || !newPassword}
                 className={`flex-1 py-2 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${resetSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}
               >
                 {isResetting ? (
@@ -511,7 +519,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                 ) : (
                   <Key size={18} />
                 )}
-                {resetSuccess ? 'Concluído!' : 'Salvar Senha'}
+                {resetSuccess ? 'Concluído!' : 'Alterar Senha'}
               </button>
             </div>
           </div>

@@ -118,10 +118,10 @@ async function startServer() {
     }
   };
 
-  // API Route: Reset User Password
+  // API Route: Update User Credentials
   app.post("/api/admin/reset-password", verifyAdmin, async (req, res) => {
     const { userId, newPassword } = req.body;
-    console.log(`[API] Attempting to reset password for user: ${userId}`);
+    console.log(`[API] Attempting to update credentials for user: ${userId}`);
 
     if (!userId || !newPassword) {
       return res.status(400).json({ error: "userId and newPassword are required" });
@@ -129,22 +129,28 @@ async function startServer() {
 
     try {
       const supabaseAdmin = getSupabaseAdmin();
-      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        password: newPassword
-      });
+      const updates: any = {};
+      
+      if (newPassword && newPassword.trim() !== '') {
+          updates.password = newPassword;
+      }
+
+      console.log(`[API] Admin updating user password`);
+      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, updates);
 
       if (error) {
+        console.error("[API] Supabase Admin Update Error:", error);
         if (error.message.includes('Database error') || error.message.includes('User not found')) {
             throw new Error(`USUARIO_CORROMPIDO: O provedor de autenticação não encontrou este usuário logável (ID: ${userId}). Isso geralmente ocorre com membros antigos ou se a conta foi excluída do painel Auth.`);
         }
         throw error;
       }
 
-      console.log(`[API] Success resetting password for: ${userId}`);
+      console.log(`[API] Success updating credentials for: ${userId}`);
       res.json({ message: "Password updated successfully" });
     } catch (err: any) {
-      console.error("Admin Reset Password Error:", err);
-      res.status(500).json({ error: err.message || "Failed to update password" });
+      console.error("Admin Update Credentials Error:", err);
+      res.status(500).json({ error: err.message || "Failed to update credentials" });
     }
   });
 
