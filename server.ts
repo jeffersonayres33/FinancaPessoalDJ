@@ -50,6 +50,31 @@ async function startServer() {
     });
   };
 
+  // Verify Auth Middleware (General)
+  const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "No token provided" });
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+        return res.status(500).json({ error: "Server configuration error" });
+    }
+    
+    const token = authHeader.split(" ")[1];
+    const client = createClient(supabaseUrl, supabaseAnonKey);
+    try {
+      const { data: { user }, error } = await client.auth.getUser(token);
+      if (error || !user) {
+        console.error("[verifyAuth] Error validating token:", error);
+        return res.status(401).json({ error: "Invalid token" });
+      }
+      (req as any).user = user;
+      next();
+    } catch (err) {
+      console.error("[verifyAuth] Server error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  };
+
   // Verify Admin Middleware
   const verifyAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -123,6 +148,61 @@ async function startServer() {
     }
   });
 
+  // API Route: Delete Member
+  app.delete("/api/members/:id", verifyAuth, async (req, res) => {
+    const targetUserId = req.params.id;
+    const callerId = (req as any).user.id;
+    
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      
+      // Check if user has permission to delete this member.
+      // Must be the 'parent_id' of the member or an 'admin'.
+      const { data: profile } = await supabaseAdmin.from('app_users').select('role').eq('id', callerId).single();
+      const isAdmin = profile?.role === 'admin';
+
+      const { data: targetProfile, error: targetError } = await supabaseAdmin
+        .from('app_users')
+        .select('parent_id')
+        .eq('id', targetUserId)
+        .single();
+        
+      if (targetError || !targetProfile) {
+         return res.status(404).json({ error: "Membro não encontrado." });
+      }
+
+      const isParent = targetProfile.parent_id === callerId;
+
+      if (!isAdmin && !isParent) {
+          return res.status(403).json({ error: "Acesso negado. Você não gerencia este usuário." });
+      }
+
+      // Deleting a user must wipe ALL their records globally
+      console.log(`[API] Initiating full permanent deletion of user and data contexts: ${targetUserId}`);
+
+      // 1. Delete all transactions where they are context
+      await supabaseAdmin.from('transactions').delete().eq('data_context_id', targetUserId);
+      // 2. Delete all categories
+      await supabaseAdmin.from('categories').delete().eq('data_context_id', targetUserId);
+      // 3. Delete AI analyses
+      await supabaseAdmin.from('ai_analyses').delete().eq('data_context_id', targetUserId);
+      // 4. Delete the app_users profile
+      await supabaseAdmin.from('app_users').delete().eq('id', targetUserId);
+      
+      // 5. Hard delete the Auth identity if it exists
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+      if (authError && !authError.message.includes('User not found')) {
+         console.warn(`[API] Auth deletion warning (may be corrupted/already gone): ${authError.message}`);
+      }
+
+      console.log(`[API] Successfully deleted member: ${targetUserId}`);
+      res.json({ message: "Membro excluído definitivamente." });
+    } catch (err: any) {
+      console.error("Delete Member Error:", err);
+      res.status(500).json({ error: err.message || "Failed to delete member" });
+    }
+  });
+
   // API Route: Migrate Data
   app.post("/api/admin/migrate-data", verifyAdmin, async (req, res) => {
     const { sourceId, targetId } = req.body;
@@ -173,6 +253,34 @@ async function startServer() {
     } catch (err: any) {
       console.error("Admin Migrate Data Error:", err);
       res.status(500).json({ error: err.message || "Failed to migrate data" });
+    }
+  });
+
+  // API Route: Get Parent Plan (Bypasses RLS so members can inherit plan even when parent updates manually)
+  app.get("/api/users/parent-plan", verifyAuth, async (req, res) => {
+    const callerId = (req as any).user.id;
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      
+      const { data: profile } = await supabaseAdmin.from("app_users").select("parent_id").eq("id", callerId).single();
+      
+      if (!profile || !profile.parent_id) {
+          return res.json({ plan: null }); 
+      }
+
+      const { data: parentData } = await supabaseAdmin.from("app_users").select("plan, subscription_end_date").eq("id", profile.parent_id).single();
+      
+      if (!parentData) {
+          return res.json({ plan: null });
+      }
+
+      res.json({ 
+          plan: parentData.plan || "free", 
+          subscriptionEndDate: parentData.subscription_end_date 
+      });
+    } catch (err: any) {
+      console.error("Parent Plan API Error:", err);
+      res.status(500).json({ error: "Failed to fetch parent plan" });
     }
   });
 

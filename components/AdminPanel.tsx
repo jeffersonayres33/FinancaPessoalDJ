@@ -467,16 +467,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
 
       {/* Modal Profile Transfer */}
       {showMigrateModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up">
-            <div className="bg-orange-50 p-6 flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="bg-white p-3 rounded-full shadow-sm text-orange-600">
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-start justify-center p-4 pt-[10vh] sm:pt-[15vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg mb-[10vh] flex flex-col shadow-2xl animate-fade-in-up">
+            <div className="bg-orange-50 p-4 sm:p-6 flex items-start justify-between flex-shrink-0">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-white p-2 sm:p-3 rounded-full shadow-sm text-orange-600 hidden sm:block">
                   <AlertCircle size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Transferir Dados ("Migração")</h3>
-                  <p className="text-orange-700 text-sm mt-1">Transfira informações de um perfil para outro com segurança.</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">Transferir Dados ("Migração")</h3>
+                  <p className="text-orange-700 text-xs sm:text-sm mt-1">Transfira informações com segurança.</p>
                 </div>
               </div>
               <button 
@@ -486,27 +486,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   setMigrateSourceId('');
                   setMigrateTargetId('');
                 }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
                 disabled={isMigrating}
               >
                 <X size={24} />
               </button>
             </div>
 
-            <div className="p-6">
-              <p className="text-sm text-gray-600 mb-6 bg-gray-50 border border-gray-100 p-3 rounded-lg">
+            <div className="p-4 sm:p-6 overflow-y-auto">
+              <p className="text-xs sm:text-sm text-gray-600 mb-5 sm:mb-6 bg-gray-50 border border-gray-100 p-3 rounded-lg">
                 Utilize esta ferramenta para mover <strong>todas as despesas, categorias e análises</strong> de um membro antigo ou corrompido para uma nova conta recém-criada. O processo é irreversível.
               </p>
 
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                     1. Perfil de Origem (Aquele que tem os dados)
                   </label>
                   <select
                     value={migrateSourceId}
                     onChange={(e) => setMigrateSourceId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-3 py-2 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                     disabled={isMigrating || migrateSuccess}
                   >
                     <option value="">-- Selecione o perfil de origem --</option>
@@ -518,18 +518,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   </select>
                 </div>
 
-                <div className="flex justify-center p-2 text-gray-400">
+                <div className="flex justify-center p-1 sm:p-2 text-gray-400">
                   <AlertCircle size={20} className="rotate-180 transform" />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                     2. Perfil de Destino (Para onde enviar os dados)
                   </label>
                   <select
                     value={migrateTargetId}
                     onChange={(e) => setMigrateTargetId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-3 py-2 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                     disabled={isMigrating || migrateSuccess}
                   >
                     <option value="">-- Selecione o perfil NOVO --</option>
@@ -548,18 +548,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                 </div>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-auto">
                 <button
                   onClick={() => setShowMigrateModal(false)}
                   disabled={isMigrating}
-                  className="flex-1 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  className="w-full sm:flex-1 py-2.5 text-gray-600 font-medium hover:bg-gray-100 border sm:border-0 border-gray-200 sm:bg-transparent rounded-lg transition-colors disabled:opacity-50 text-sm"
                 >
                   {migrateSuccess ? 'Fechar' : 'Cancelar'}
                 </button>
                 <button
                   onClick={handleAdminMigrateData}
                   disabled={isMigrating || migrateSuccess || !migrateSourceId || !migrateTargetId}
-                  className={`flex-1 py-2 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${migrateSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'}`}
+                  className={`w-full sm:flex-1 py-2.5 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm ${migrateSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'}`}
                 >
                   {isMigrating ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -568,7 +568,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   ) : (
                     <AlertCircle size={18} />
                   )}
-                  {migrateSuccess ? 'Concluído!' : 'Iniciar Transferência'}
+                  {migrateSuccess ? 'Transferência Concluída!' : 'Iniciar Transferência'}
                 </button>
               </div>
             </div>

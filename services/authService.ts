@@ -7,6 +7,62 @@ import { createClient } from '@supabase/supabase-js';
 const CURRENT_USER_KEY = 'finances_current_user';
 
 export const authService = {
+  // Helpers
+  ensureMemberInheritsPlan: async (user: User, profileData: any): Promise<void> => {
+    if (!user.parentId) return;
+    
+    let inheritedPlan = 'free';
+    let inheritedEndDate: string | null = null;
+    let success = false;
+
+    // 1. Tenta buscar direto (se for admin masquerading, RLS permite)
+    const { data: parentData, error: rlsError } = await supabase
+        .from('app_users')
+        .select('plan, subscription_end_date')
+        .eq('id', user.parentId)
+        .single();
+    
+    if (parentData) {
+        inheritedPlan = parentData.plan || 'free';
+        inheritedEndDate = parentData.subscription_end_date;
+        success = true;
+    } else {
+        // 2. Se falhar (RLS bloqueou acesso do filho ao pai), busca via API (Bypass RLS)
+        try {
+            const tokenResponse = await supabase.auth.getSession();
+            const token = tokenResponse.data.session?.access_token;
+            if (token) {
+                const res = await fetch('/api/users/parent-plan', {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                   const serverData = await res.json();
+                   if (serverData && serverData.plan !== undefined && serverData.plan !== null) {
+                       inheritedPlan = serverData.plan || 'free';
+                       inheritedEndDate = serverData.subscriptionEndDate || null;
+                       success = true;
+                   }
+                }
+            }
+        } catch (e) {
+            console.warn("Falha ao buscar plano do pai via API", e);
+        }
+    }
+
+    if (success) {
+        user.plan = inheritedPlan;
+        user.subscriptionEndDate = inheritedEndDate;
+
+        if (profileData.plan !== inheritedPlan || profileData.subscription_end_date !== inheritedEndDate) {
+            // Sincroniza o perfil do membro com o status do pai no banco
+            await supabase.from('app_users').update({
+                plan: inheritedPlan,
+                subscription_end_date: inheritedEndDate
+            }).eq('id', user.id);
+        }
+    }
+  },
+
   // Login usando Supabase Auth
   login: async (email: string, pass: string): Promise<User | null> => {
     // 1. Autentica no Supabase Auth
@@ -96,9 +152,20 @@ export const authService = {
       role: m.role || 'user',
       themeColor: m.theme_color,
       financialMonthStartDay: m.financial_month_start_day,
-      plan: effectivePlan === 'premium' ? 'premium' : (m.plan || 'free'),
-      subscriptionEndDate: effectivePlan === 'premium' ? effectiveExpiry : m.subscription_end_date
+      plan: effectivePlan,
+      subscriptionEndDate: effectiveExpiry
     }));
+
+    // Sincroniza plano do pai para os filhos no banco de dados se necessário (RLS permite que o pai atualize filhos)
+    if (!profile.parent_id && members && members.length > 0) {
+        const needsSync = members.some(m => m.plan !== effectivePlan || m.subscription_end_date !== effectiveExpiry);
+        if (needsSync) {
+            await supabase.from('app_users').update({
+                plan: effectivePlan,
+                subscription_end_date: effectiveExpiry
+            }).eq('parent_id', profile.id);
+        }
+    }
 
     const user: User = {
       ...profile,
@@ -112,20 +179,10 @@ export const authService = {
       subscriptionEndDate: effectiveExpiry
     };
 
-    // Se for um membro logando, ele herda do pai se o pai for premium
-    if (user.parentId) {
-        const { data: parentData } = await supabase
-            .from('app_users')
-            .select('plan, subscription_end_date')
-            .eq('id', user.parentId)
-            .single();
-        
-        if (parentData && parentData.plan === 'premium') {
-            user.plan = 'premium';
-            user.subscriptionEndDate = parentData.subscription_end_date;
-        }
-    }
+    // Se for um membro logando, garante que o plano seja identico ao do pai (seja Premium ou Free)
+    await authService.ensureMemberInheritsPlan(user, profile);
 
+    localStorage.setItem('budget_planner_session_uid', authData.user.id);
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;
   },
@@ -236,6 +293,7 @@ export const authService = {
         
       if (existingProfile) {
           const user = { ...existingProfile, dataContextId: existingProfile.data_context_id, members: [], role: existingProfile.role || 'user' };
+          localStorage.setItem('budget_planner_session_uid', userId);
           localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
           return user;
       }
@@ -245,6 +303,7 @@ export const authService = {
     }
 
     const user = { ...profile, dataContextId: profile.data_context_id, members: [], role: profile.role || 'user' };
+    localStorage.setItem('budget_planner_session_uid', userId);
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;
   },
@@ -386,8 +445,8 @@ export const authService = {
       role: m.role || 'user',
       themeColor: m.theme_color,
       financialMonthStartDay: m.financial_month_start_day,
-      plan: effectivePlan === 'premium' ? 'premium' : (m.plan || 'free'),
-      subscriptionEndDate: effectivePlan === 'premium' ? effectiveExpiry : m.subscription_end_date
+      plan: effectivePlan,
+      subscriptionEndDate: effectiveExpiry
     }));
 
     const updatedAdmin = { 
@@ -424,8 +483,8 @@ export const authService = {
       role: m.role || 'user',
       themeColor: m.theme_color,
       financialMonthStartDay: m.financial_month_start_day,
-      plan: effectivePlan === 'premium' ? 'premium' : (m.plan || 'free'),
-      subscriptionEndDate: effectivePlan === 'premium' ? effectiveExpiry : m.subscription_end_date
+      plan: effectivePlan,
+      subscriptionEndDate: effectiveExpiry
     }));
 
     const user: User = {
@@ -439,19 +498,8 @@ export const authService = {
       subscriptionEndDate: effectiveExpiry
     };
 
-    // Se for um membro, herda do pai se o pai for premium
-    if (user.parentId) {
-        const { data: parentData } = await supabase
-            .from('app_users')
-            .select('plan, subscription_end_date')
-            .eq('id', user.parentId)
-            .single();
-        
-        if (parentData && parentData.plan === 'premium') {
-            user.plan = 'premium';
-            user.subscriptionEndDate = parentData.subscription_end_date;
-        }
-    }
+    // Se for um membro, garante que o plano seja identico ao do pai (seja Premium ou Free)
+    await authService.ensureMemberInheritsPlan(user, data);
 
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;
@@ -482,6 +530,19 @@ export const authService = {
       return null;
     }
   },
+
+  isMasquerading: (): boolean => {
+    try {
+      const storedUser = authService.getCurrentUser();
+      const sessionUid = localStorage.getItem('budget_planner_session_uid');
+      if (storedUser && sessionUid) {
+          return sessionUid !== storedUser.id;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
   
   // Função para verificar sessão ativa no startup
   checkSession: async (): Promise<User | null> => {
@@ -503,8 +564,68 @@ export const authService = {
         return null;
       }
 
-      if (data.session?.user) {
-          // Se tem sessão válida no Supabase, tenta recuperar do local ou refetch
+      const sessionUser = data.session?.user;
+      if (sessionUser) {
+          // If online and we have a session, let's seamlessly sync the latest profile to capture plan updates/inheritance
+          const storedUser = authService.getCurrentUser();
+          if (storedUser && navigator.onLine) {
+             const { data: profile } = await supabase.from('app_users').select('*').eq('id', sessionUser.id).single();
+             if (profile) {
+                 const { data: members } = await supabase.from('app_users').select('*').eq('parent_id', profile.id);
+                 
+                 let effectivePlan = profile.plan || 'free';
+                 let effectiveExpiry = profile.subscription_end_date;
+
+                 const mappedMembers = (members || []).map(m => ({
+                   ...m,
+                   dataContextId: m.data_context_id,
+                   parentId: m.parent_id,
+                   role: m.role || 'user',
+                   themeColor: m.theme_color,
+                   financialMonthStartDay: m.financial_month_start_day,
+                   plan: effectivePlan,
+                   subscriptionEndDate: effectiveExpiry
+                 }));
+
+                 // Sincroniza plano do pai para os filhos no banco de dados se necessário (RLS permite que o pai atualize filhos)
+                 if (!profile.parent_id && members && members.length > 0) {
+                     const needsSync = members.some(m => m.plan !== effectivePlan || m.subscription_end_date !== effectiveExpiry);
+                     if (needsSync) {
+                         // Roda em background
+                         supabase.from('app_users').update({
+                             plan: effectivePlan,
+                             subscription_end_date: effectiveExpiry
+                         }).eq('parent_id', profile.id).then();
+                     }
+                 }
+
+                 const refreshedUser: User = {
+                   ...profile,
+                   dataContextId: profile.data_context_id,
+                   parentId: profile.parent_id,
+                   members: mappedMembers,
+                   role: profile.role || 'user',
+                   themeColor: profile.theme_color,
+                   financialMonthStartDay: profile.financial_month_start_day,
+                   plan: effectivePlan,
+                   subscriptionEndDate: effectiveExpiry
+                 };
+
+                 // Se for um membro, garante que o plano seja identico ao do pai (seja Premium ou Free)
+                 // Substitui a chamada direta in-line anterior que falhava com RLS pelo helper isolado
+                 await authService.ensureMemberInheritsPlan(refreshedUser, profile);
+                 // We keep 'masquerade' properties if they were stored from switchUser.
+                 // Wait! If they masqueraded, storedUser.id !== sessionUser.id
+                 // If that happens, we shouldn't overwrite the masqueraded user!
+                 if (storedUser.id === sessionUser.id) {
+                     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(refreshedUser));
+                     return refreshedUser;
+                 } else {
+                     // They are currently masquerading as someone else, just return the stored user.
+                     return storedUser;
+                 }
+             }
+          }
           return authService.getCurrentUser();
       }
       return null;
@@ -654,6 +775,30 @@ export const authService = {
 
     if (!response.ok) {
       let errorMessage = 'Erro ao transferir dados.';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        console.error(`Erro na API (${response.status}): Resposta não é um JSON válido.`);
+      }
+      throw new Error(errorMessage);
+    }
+  },
+
+  deleteMember: async (memberId: string): Promise<void> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const response = await fetch(`/api/members/${memberId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Erro ao excluir membro.';
       try {
         const errorData = await response.json();
         errorMessage = errorData.error || errorMessage;

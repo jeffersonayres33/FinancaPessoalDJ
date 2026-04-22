@@ -129,6 +129,13 @@ const AuthenticatedApp: React.FC<{
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
+  const [isMasquerading, setIsMasquerading] = useState(() => authService.isMasquerading());
+
+  useEffect(() => {
+     if (user) {
+         setIsMasquerading(authService.isMasquerading());
+     }
+  }, [user]);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; isVisible: boolean }>({
     message: '',
@@ -1273,7 +1280,7 @@ const AuthenticatedApp: React.FC<{
         }} 
         user={user} 
         onLogout={onLogout}
-        onReturnToMain={handleReturnToParent} 
+        onReturnToMain={isMasquerading ? handleReturnToParent : undefined} 
         onBackup={handleBackup}
         onRestoreBackup={handleRestoreBackup}
         onInstall={onInstall}

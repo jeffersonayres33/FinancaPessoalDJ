@@ -21,12 +21,31 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [visitedStatus, setVisitedStatus] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
   }, []);
+
+  useEffect(() => {
+     if (user?.id) {
+         const key = 'bp_visited_' + user.id;
+         const hasVisited = !!localStorage.getItem(key);
+         setVisitedStatus(hasVisited);
+         if (!hasVisited) {
+             localStorage.setItem(key, 'true');
+         }
+     }
+  }, [user?.id]);
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'bom dia';
+    if (hour < 18) return 'boa tarde';
+    return 'boa noite';
+  };
 
   // Prevent scrolling when menu is open
   useEffect(() => {
@@ -63,7 +82,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
     setIsMenuOpen(false);
   };
 
-  const isMemberAccess = user?.parentId;
+  const isMemberAccess = !!(user?.parentId && onReturnToMain);
+  const isMemberTheme = !!user?.parentId;
 
   return (
     <>
@@ -174,7 +194,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
         </div>
       )}
 
-      <header className={`text-white pt-4 pb-16 px-4 print:hidden shadow-lg transition-colors ${isMemberAccess ? 'bg-gray-800 border-t border-gray-700' : 'bg-purple-700'}`}>
+      <header className={`text-white pt-4 pb-16 px-4 print:hidden shadow-lg transition-colors ${isMemberTheme ? 'bg-gray-900 border-t border-gray-800' : 'bg-purple-700'}`}>
         <div className="max-w-6xl mx-auto">
           <div className={`flex items-center justify-between gap-4 mb-2`}>
             <div className="flex items-center gap-3 w-full">
@@ -186,7 +206,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                   <Menu size={24} />
                 </button>
               )}
-              <div className={`p-2 rounded-full shrink-0 ${isMemberAccess ? 'bg-gray-700 text-orange-400' : 'bg-white text-purple-700'}`}>
+              <div className={`p-2 rounded-full shrink-0 ${isMemberTheme ? 'bg-gray-800 text-orange-400' : 'bg-white text-purple-700'}`}>
                 <Wallet className="w-6 h-6" />
               </div>
               <div className="min-w-0 flex-1">
@@ -199,10 +219,17 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                       </span>
                     )}
                   </h1>
+                  
+                  {user && (
+                    <p className={`text-xs mt-0.5 opacity-90 ${isMemberTheme ? 'text-gray-300' : 'text-purple-100'}`}>
+                      Olá {user.name.split(' ')[0]} {getGreeting()}! Seja bem vindo{visitedStatus ? ' novamente' : ''}.
+                    </p>
+                  )}
+                  
                   {user?.plan !== 'premium' && onOpenPaywall && (
                     <button 
                       onClick={onOpenPaywall}
-                      className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold shadow-sm hover:shadow transition-all transform hover:-translate-y-0.5 shrink-0"
+                      className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold shadow-sm hover:shadow transition-all transform hover:-translate-y-0.5 shrink-0 mt-1"
                     >
                       <Star size={10} className="fill-yellow-900" />
                       <span>Seja Premium</span>
@@ -224,9 +251,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
           {/* Drawer do Menu */}
           <div className={`fixed top-0 left-0 h-full w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
             {/* Header do Menu */}
-            <div className={`p-6 flex items-center justify-between ${isMemberAccess ? 'bg-gray-800' : 'bg-purple-700'} text-white`}>
+            <div className={`p-6 flex items-center justify-between ${isMemberTheme ? 'bg-gray-900' : 'bg-purple-700'} text-white`}>
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full ${isMemberAccess ? 'bg-gray-700 text-orange-400' : 'bg-white text-purple-700'}`}>
+                <div className={`p-2 rounded-full ${isMemberTheme ? 'bg-gray-800 text-orange-400' : 'bg-white text-purple-700'}`}>
                   <Wallet className="w-6 h-6" />
                 </div>
                 <h2 className="text-lg font-bold">Menu</h2>
@@ -337,7 +364,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  {!user.parentId ? (
+                  {!user.parentId && (
                     <button 
                       onClick={() => handleNavigate('members')}
                       className={`flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors font-medium ${
@@ -348,7 +375,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                     >
                       <Users size={16} /> Gerenciar Membros
                     </button>
-                  ) : (
+                  )}
+                  {onReturnToMain && (
                     <button 
                       onClick={() => {
                         if (onReturnToMain) onReturnToMain();

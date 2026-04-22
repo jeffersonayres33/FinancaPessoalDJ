@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserPlus, Users, Shield, Share2, LogIn, ArrowRight, Loader2 } from 'lucide-react';
+import { UserPlus, Users, Shield, Share2, LogIn, ArrowRight, Loader2, Trash2, AlertTriangle, X } from 'lucide-react';
 import { User } from '../types';
 import { authService } from '../services/authService';
 
@@ -16,9 +16,19 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [shareData, setShareData] = useState(true);
+  
+  // States to handle forms
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Independent States to handle Member List feedback (switching/deleting)
+  const [listError, setListError] = useState('');
+  const [listSuccess, setListSuccess] = useState('');
+  
   const [loading, setLoading] = useState(false);
+
+  const [memberToDelete, setMemberToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +38,8 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
     }
     setError('');
     setSuccess('');
+    setListError('');
+    setListSuccess('');
     setLoading(true);
 
     try {
@@ -47,17 +59,52 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
 
   const handleSwitchToMember = async (memberId: string) => {
     setLoading(true);
+    setListError('');
+    setListSuccess('');
     try {
         const newUser = await authService.switchUser(memberId);
         if (newUser) {
             onSwitchUser(newUser);
         } else {
-            setError("Erro ao trocar de usuário.");
+            setListError("Erro ao trocar de usuário.");
         }
     } catch (e) {
-        setError("Erro ao conectar.");
+        setListError("Erro ao conectar.");
     } finally {
         setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!memberToDelete) return;
+
+    setIsDeleting(true);
+    setListError('');
+    setListSuccess('');
+    
+    try {
+      await authService.deleteMember(memberToDelete.id);
+      
+      // Update local state by removing the member
+      const updatedMembers = (currentUser.members || []).filter(m => m.id !== memberToDelete.id);
+      const updatedUser = { ...currentUser, members: updatedMembers };
+      
+      // Save locally
+      localStorage.setItem('budget_planner_user', JSON.stringify(updatedUser)); // using CURRENT_USER_KEY manually
+      onUpdateUser(updatedUser);
+      
+      setListSuccess(`Membro excluído definitivamente.`);
+      setMemberToDelete(null);
+    } catch (err: any) {
+      const errMsg = err.message || '';
+      if (errMsg.includes('Invalid token')) {
+          setListError('Sua sessão expirou ou foi invalidada. Pressione a tecla F5 para recarregar ou faça o login novamente na conta principal.');
+      } else {
+          setListError(errMsg || "Erro ao excluir membro.");
+      }
+      setMemberToDelete(null);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -168,6 +215,9 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
           <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
              <Shield size={18} /> Membros da Conta
           </h3>
+
+          {listError && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded border border-red-100">{listError}</div>}
+          {listSuccess && <div className="mb-4 p-3 bg-green-50 text-green-700 text-sm rounded border border-green-100">{listSuccess}</div>}
           
           {(!currentUser.members || currentUser.members.length === 0) ? (
             <div className="text-center py-10 text-gray-400 border border-dashed border-gray-300 rounded-lg">
@@ -194,14 +244,21 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
                       )}
                   </div>
                   
-                  <div className="border-t border-gray-100 pt-3 flex justify-end">
+                  <div className="border-t border-gray-100 pt-3 flex items-center justify-between gap-3">
+                      <button 
+                        type="button"
+                        onClick={() => setMemberToDelete(member)}
+                        disabled={loading || isDeleting}
+                        className="flex-1 flex items-center justify-center gap-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition-colors shadow-sm disabled:opacity-50"
+                      >
+                         <Trash2 size={14} /> Excluir
+                      </button>
                       <button 
                         onClick={() => handleSwitchToMember(member.id)}
-                        disabled={loading}
-                        className="flex items-center gap-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded transition-colors shadow-sm disabled:opacity-50"
+                        disabled={loading || isDeleting}
+                        className="flex-1 flex items-center justify-center gap-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded transition-colors shadow-sm disabled:opacity-50"
                       >
                          <LogIn size={14} /> Acessar Perfil
-                         <ArrowRight size={12} />
                       </button>
                   </div>
                 </li>
@@ -210,6 +267,53 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {memberToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60">
+           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-in-up">
+              <div className="bg-red-50 p-4 flex items-center justify-between border-b border-red-100">
+                 <div className="flex items-center gap-2 text-red-800 font-bold">
+                    <AlertTriangle size={20} />
+                    <span>Excluir Membro Definitivamente</span>
+                 </div>
+                 <button onClick={() => setMemberToDelete(null)} disabled={isDeleting} className="text-gray-400 hover:text-gray-600">
+                    <X size={20} />
+                 </button>
+              </div>
+              <div className="p-6">
+                 <p className="text-gray-800 mb-4">
+                   Tem certeza que deseja excluir o membro <strong>{memberToDelete.name}</strong>?
+                 </p>
+                 <div className="bg-red-50 p-3 rounded-lg border border-red-200 text-sm text-red-800 mb-6 flex items-start gap-2 shadow-sm">
+                   <AlertTriangle className="flex-shrink-0 mt-0.5 text-red-600" size={18} />
+                   <div>
+                     <strong>Advertência:</strong> Ao excluir este membro, <u>todas</u> as suas informações (transações, categorias, análises) serão perdidas <strong>definitivamente e não poderão ser recuperadas</strong>. Se não usou a Ferramenta de Migração para salvá-las, você as perderá para sempre.
+                   </div>
+                 </div>
+                 
+                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                   <button 
+                      onClick={() => setMemberToDelete(null)}
+                      disabled={isDeleting}
+                      className="w-full sm:flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors border border-gray-200 shadow-sm text-sm sm:text-base"
+                   >
+                     Cancelar
+                   </button>
+                   <button 
+                      onClick={handleConfirmDelete}
+                      disabled={isDeleting}
+                      className="w-full sm:flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors shadow-sm flex items-center justify-center gap-2 text-sm sm:text-base"
+                   >
+                     {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                     Confirmar Exclusão
+                   </button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 };
