@@ -1,7 +1,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../types';
-import { supabase } from './supabaseClient';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 
 const CURRENT_USER_KEY = 'finances_current_user';
 
@@ -319,25 +320,54 @@ export const authService = {
   // O usuário usa esse código no registro.
   // Vamos simplificar: O Admin habilita o cadastro público temporariamente.
   
-  // Adicionar Membro (Cria apenas um perfil secundário gerenciado pelo pai)
-  // Nota: Membros criados assim NÃO têm login próprio no Supabase Auth (são "perfis gerenciados").
-  // Para terem login, precisariam de invite via email, o que é mais complexo.
+  // Adicionar Membro (Cria o Auth e o perfil gerenciado pelo pai)
   addMember: async (adminUser: User, name: string, email: string, pass: string, shareData: boolean): Promise<User> => {
-    const newMemberId = uuidv4();
+    // 1. Instanciar um cliente Supabase secundário em memória para não deslogar o admin
+    const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+        }
+    });
+
+    // 2. Realizar o signUp do membro
+    const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
+        email,
+        password: pass,
+        options: {
+            data: { name: name }
+        }
+    });
+
+    if (signUpError) {
+        throw new Error('Erro ao criar login do membro: ' + signUpError.message);
+    }
     
-    // Inserimos na tabela app_users. 
+    // O Supabase retorna o usuário criado. Se já existir, ele pode retornar erro ou mock (identities = []),
+    // mas se for sucesso, pegamos o ID gerado.
+    if (!signUpData.user) {
+         throw new Error('Não foi possível obter o ID do membro gerado.');
+    }
+    
+    // Garantir que a sessão temporária seja encerrada para evitar conflitos
+    await tempClient.auth.signOut().catch(() => {});
+
+    const newMemberId = signUpData.user.id;
+    
+    // 3. Inserimos na tabela app_users do Banco usando a conta Primária (Admin logado)
     // A política RLS permitirá isso pois parent_id será o ID do usuário logado.
     const newMemberPayload = {
       id: newMemberId,
       name,
       email,
-      password: 'managed_profile', // Placeholder
+      password: '***', // O login verdadeiro está protegido no Supabase Auth
       parent_id: adminUser.id,
       data_context_id: shareData ? adminUser.dataContextId : newMemberId
     };
 
     const { error } = await supabase.from('app_users').insert(newMemberPayload);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error('Erro ao salvar o perfil do membro: ' + error.message);
 
     // Retorna o admin atualizado
     const { data: members } = await supabase
@@ -573,5 +603,64 @@ export const authService = {
     });
 
     if (error) throw new Error('Erro ao atualizar senha: ' + error.message);
+  },
+
+  resetPassword: async (email: string): Promise<void> => {
+    // Removemos redirectTo para evitar que URLs não autorizadas de containers efêmeros (AI Studio)
+    // façam a API de email droppar o request silenciosamente na borda do provedor de email.
+    // Usaremos a URL principal cadastrada no painel deles como âncora.
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw new Error('Erro ao enviar email de redefinição: ' + error.message);
+  },
+
+  adminResetUserPassword: async (userId: string, newPassword: string): Promise<void> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const response = await fetch('/api/admin/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ userId, newPassword })
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Erro ao redefinir senha do usuário.';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        // Se não for JSON, logamos o status e usamos a mensagem padrão
+        console.error(`Erro na API (${response.status}): Resposta não é um JSON válido.`);
+      }
+      throw new Error(errorMessage);
+    }
+  },
+
+  adminMigrateData: async (sourceId: string, targetId: string): Promise<void> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const response = await fetch('/api/admin/migrate-data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ sourceId, targetId })
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Erro ao transferir dados.';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        console.error(`Erro na API (${response.status}): Resposta não é um JSON válido.`);
+      }
+      throw new Error(errorMessage);
+    }
   }
 };

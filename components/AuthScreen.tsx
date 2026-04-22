@@ -18,6 +18,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPublicRegistration, setIsPublicRegistration] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState('');
 
   React.useEffect(() => {
     // Verifica se o cadastro público está habilitado ao carregar a tela
@@ -34,10 +36,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setResetSuccess('');
     setIsLoading(true);
 
     try {
-      if (isLogin) {
+      if (isResettingPassword) {
+        if (!email) {
+          setError('Digite seu e-mail para recuperar a senha.');
+          setIsLoading(false);
+          return;
+        }
+        await authService.resetPassword(email);
+        setResetSuccess('true');
+        setIsResettingPassword(false);
+      } else if (isLogin) {
         const user = await authService.login(email, password);
         if (user) {
           if (rememberEmail) {
@@ -117,11 +129,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         {/* Form */}
         <div className="p-8">
           <h2 className="text-xl font-semibold text-gray-700 mb-6 text-center">
-            {isLogin ? 'Acessar sua conta' : 'Criar nova conta'}
+            {isResettingPassword ? 'Recuperar senha' : (isLogin ? 'Acessar sua conta' : 'Criar nova conta')}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+            {!isLogin && !isResettingPassword && (
               <div className="relative group">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
                 <input
@@ -147,27 +159,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               />
             </div>
 
-            <div className="relative group">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Sua senha (mín 6 caracteres)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-600 transition-colors focus:outline-none"
-                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
+            {!isResettingPassword && (
+              <div className="relative group">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Sua senha (mín 6 caracteres)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                  required={!isResettingPassword}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-600 transition-colors focus:outline-none"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            )}
 
-            {isLogin && (
+            {isLogin && !isResettingPassword && (
               <div className="flex items-center justify-between mt-2">
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                   <input
@@ -178,6 +192,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   />
                   Lembrar meu e-mail
                 </label>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsResettingPassword(true); setError(''); setResetSuccess(''); }}
+                  className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+                >
+                  Esqueci minha senha
+                </button>
               </div>
             )}
 
@@ -185,6 +206,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2 border border-red-100 animate-fade-in">
                 <AlertCircle size={16} className="flex-shrink-0" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div className="bg-green-50 text-green-700 text-sm p-4 rounded-lg flex flex-col gap-2 border border-green-200 animate-fade-in shadow-sm">
+                <div className="flex items-center gap-2 font-semibold">
+                  <ShieldCheck size={18} className="flex-shrink-0" />
+                  <span>Link de recuperação enviado com sucesso!</span>
+                </div>
+                <div className="text-green-800 text-xs mt-1 space-y-1">
+                  <p>• Verifique a sua caixa de entrada e a <b>pasta de SPAM/Lixo Eletrônico</b>.</p>
+                  <p>• Caso tenha feito muitas solicitações, o envio poderá ser pausado por segurança. Volte a tentar em 1h.</p>
+                </div>
               </div>
             )}
 
@@ -197,7 +231,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   <span className="flex items-center gap-2">Carregando...</span>
               ) : (
                   <>
-                    {isLogin ? 'Entrar' : 'Cadastrar'} 
+                    {isResettingPassword ? 'Enviar Link' : (isLogin ? 'Entrar' : 'Cadastrar')} 
                     <ArrowRight size={18} />
                   </>
               )}
@@ -205,20 +239,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           </form>
 
           <div className="mt-8 text-center pt-6 border-t border-gray-100">
-            <p className="text-sm text-gray-600">
-              {isLogin ? (
-                  isPublicRegistration ? 'Não tem uma conta?' : ''
-              ) : 'Já possui cadastro?'}
-              
-              {(isPublicRegistration || !isLogin) && (
-                <button
-                    onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                    className="ml-2 text-purple-600 font-bold hover:text-purple-800 transition-colors focus:outline-none"
-                >
-                    {isLogin ? 'Criar conta grátis' : 'Fazer Login'}
-                </button>
-              )}
-            </p>
+            {isResettingPassword ? (
+               <button
+                 onClick={() => { setIsResettingPassword(false); setError(''); setResetSuccess(''); }}
+                 className="text-purple-600 hover:text-purple-800 font-medium transition-colors text-sm"
+               >
+                 Voltar para o login
+               </button>
+            ) : (
+              <p className="text-sm text-gray-600">
+                {isLogin ? (
+                    isPublicRegistration ? 'Não tem uma conta?' : ''
+                ) : 'Já possui cadastro?'}
+                
+                {(isPublicRegistration || !isLogin) && (
+                  <button
+                      onClick={() => { setIsLogin(!isLogin); setError(''); }}
+                      className="ml-2 text-purple-600 font-bold hover:text-purple-800 transition-colors focus:outline-none"
+                  >
+                      {isLogin ? 'Criar conta grátis' : 'Fazer Login'}
+                  </button>
+                )}
+              </p>
+            )}
           </div>
         </div>
       </div>

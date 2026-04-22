@@ -228,7 +228,7 @@ export const dataService = {
         parent_id: user.id, // Garante que fiquem vinculados ao usuário atual
         data_context_id: m.dataContextId || m.data_context_id || user.dataContextId,
         role: m.role || 'user',
-        password: 'managed_profile' // Placeholder para manter o padrão
+        password: '***' // Placeholder para manter o padrão seguro
       }));
 
       // Usamos upsert para atualizar se já existir ou inserir se for novo

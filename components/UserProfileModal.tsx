@@ -68,8 +68,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
         showToast('Perfil atualizado com sucesso!', 'success');
       }
 
-      // 4. Atualizar Senha (se preencheu os campos e for a conta principal)
-      if (!user.parentId && (currentPassword || newPassword || confirmPassword)) {
+      // 4. Atualizar Senha (se preencheu os campos)
+      if (currentPassword || newPassword || confirmPassword) {
         if (!currentPassword || !newPassword || !confirmPassword) {
           showToast('Preencha todos os campos de senha para alterá-la.', 'error');
           setLoading(false);
@@ -108,10 +108,23 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
     }
   };
 
+  const handleResetPassword = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await authService.resetPassword(user.email);
+      showToast('Link de recuperação enviado para seu e-mail!', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Erro ao enviar e-mail de recuperação.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
-        <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] animate-fade-in-up">
+        <div className="flex justify-between items-center p-5 border-b bg-gray-50 shrink-0">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <UserIcon size={20} className="text-purple-600" />
             Meu Perfil
@@ -121,7 +134,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           {/* Email (Read-only) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">E-mail (Não pode ser alterado)</label>
@@ -203,54 +216,61 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen
             </div>
           )}
 
-          {/* Alterar Senha - Só mostra se for a conta principal */}
-          {!user.parentId && (
-            <>
-              <hr className="border-gray-100" />
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                  <Lock size={16} className="text-gray-500" />
-                  Alterar Senha
-                </h3>
-                
+          {/* Alterar Senha */}
+          <>
+            <hr className="border-gray-100" />
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <Lock size={16} className="text-gray-500" />
+                Alterar Senha
+              </h3>
+              
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-medium text-gray-600">Senha Atual</label>
+                  <button 
+                    type="button"
+                    onClick={handleResetPassword}
+                    className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
+                  placeholder="Digite sua senha atual"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Senha Atual</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nova Senha</label>
                   <input
                     type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                    placeholder="Digite sua senha atual"
+                    placeholder="Nova senha"
                   />
                 </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Nova Senha</label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                      placeholder="Nova senha"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Confirmar Nova</label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                      placeholder="Repita a senha"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Confirmar Nova</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
+                    placeholder="Repita a senha"
+                  />
                 </div>
               </div>
-            </>
-          )}
+            </div>
+          </>
 
-          <div className="pt-4">
+          <div className="pt-4 sticky bottom-0 bg-white pb-2 border-t border-gray-100 mt-4">
             <button
               type="submit"
               disabled={loading}

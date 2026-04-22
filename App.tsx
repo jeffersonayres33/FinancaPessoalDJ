@@ -69,7 +69,15 @@ const AVAILABLE_WIDGETS = [
 ];
 
 // Componente Interno Autenticado
-const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUser: (u: User) => void, onInstall?: () => void }> = ({ user, onLogout, onUpdateUser, onInstall }) => {
+const AuthenticatedApp: React.FC<{ 
+  user: User, 
+  onLogout: () => void, 
+  onUpdateUser: (u: User) => void, 
+  onInstall?: () => void,
+  initialProfileOpen?: boolean,
+  initialMessage?: string | null,
+  onInitialStateConsumed?: () => void
+}> = ({ user, onLogout, onUpdateUser, onInstall, initialProfileOpen, initialMessage, onInitialStateConsumed }) => {
   const currentDate = new Date();
   
   // Storage Keys apenas para preferências de UI (Widgets), dados reais vêm do DB
@@ -131,6 +139,19 @@ const AuthenticatedApp: React.FC<{ user: User, onLogout: () => void, onUpdateUse
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type, isVisible: true });
   }, []);
+
+  // Effect to consume initial states from root App (e.g. after password recovery)
+  useEffect(() => {
+    if (initialProfileOpen) {
+      setIsProfileModalOpen(true);
+    }
+    if (initialMessage) {
+      showToast(initialMessage, 'success');
+    }
+    if (initialProfileOpen || initialMessage) {
+      onInitialStateConsumed?.();
+    }
+  }, [initialProfileOpen, initialMessage, onInitialStateConsumed, showToast]);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -1428,6 +1449,10 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(authService.getCurrentUser());
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  
+  // States to handle post-auth-recovery actions
+  const [showProfileOnLoad, setShowProfileOnLoad] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -1473,6 +1498,14 @@ const App: React.FC = () => {
                   setUser(null);
               }
           });
+      }
+
+      // Ao usuário clicar no link de redefinição de senha, o evento emitido será PASSWORD_RECOVERY
+      // Nesse momento, o usuário acabou de ser logado temporariamente via hash URL mas PRECISA de fato 
+      // inserir e trocar a senha na interface real (Meu Perfil) no app.
+      if (event === 'PASSWORD_RECOVERY') {
+          setRecoveryMessage('Por favor, digite e confirme sua nova senha no final do seu perfil.');
+          setShowProfileOnLoad(true);
       }
     });
 
@@ -1541,6 +1574,12 @@ const App: React.FC = () => {
         onLogout={handleLogout}
         onUpdateUser={setUser}
         onInstall={deferredPrompt ? handleInstallClick : undefined}
+        initialProfileOpen={showProfileOnLoad}
+        initialMessage={recoveryMessage}
+        onInitialStateConsumed={() => {
+          setShowProfileOnLoad(false);
+          setRecoveryMessage(null);
+        }}
      />
   );
 };
