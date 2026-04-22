@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X } from 'lucide-react';
+import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/authService';
 import { User } from '../types';
 
@@ -19,6 +19,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   // New states for individual password reset
   const [resettingUser, setResettingUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -39,6 +42,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   useEffect(() => {
     if (resettingUser) {
       setNewPassword('');
+      setConfirmPassword('');
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
       setModalError(null);
       setResetSuccess(false);
     }
@@ -114,6 +120,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
       return;
     }
 
+    if (newPassword !== confirmPassword) {
+      setModalError('As senhas não coincidem. Verifique se digitou corretamente.');
+      return;
+    }
+
     setIsResetting(true);
     setModalError(null);
     try {
@@ -129,6 +140,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
       setTimeout(() => {
         setResettingUser(null);
         setNewPassword('');
+        setConfirmPassword('');
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
         setResetSuccess(false);
 
         if (isSelfReset) {
@@ -193,19 +207,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   }
 
   return (
-    <div className="animate-fade-in-up">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-        <div className="bg-gray-900 text-white p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gray-800 p-2 rounded-lg">
-              <Shield size={24} className="text-purple-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold">Painel do Administrador</h2>
-              <p className="text-gray-400 text-sm">Gerencie o acesso e configurações do sistema</p>
+    <>
+      <div className="animate-fade-in-up">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+          <div className="bg-gray-900 text-white p-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-gray-800 p-2 rounded-lg">
+                <Shield size={24} className="text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Painel do Administrador</h2>
+                <p className="text-gray-400 text-sm">Gerencie o acesso e configurações do sistema</p>
+              </div>
             </div>
           </div>
-        </div>
 
         <div className="p-6">
           {message && (
@@ -383,102 +398,135 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
           )}
 
           {/* Modal de Reset de Senha */}
-          {resettingUser && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white rounded-xl max-w-md w-full shadow-2xl animate-scale-in">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-purple-100 p-2 rounded-lg text-purple-600">
-                      <Key size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900">Alterar Senha</h3>
-                      <p className="text-xs text-gray-500">Para: {resettingUser.name}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setResettingUser(null)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
+        </div>
+      </div>
+      </div>
+      {resettingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl animate-scale-in">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 p-2 rounded-lg text-purple-600">
+                  <Key size={20} />
                 </div>
-                
-                <div className="p-6">
-                  {modalError && (
-                    <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm flex items-center gap-2 animate-shake">
-                      <AlertCircle size={16} />
-                      {modalError}
-                    </div>
-                  )}
+                <div>
+                  <h3 className="font-bold text-gray-900">Alterar Senha</h3>
+                  <p className="text-xs text-gray-500">Para: {resettingUser.name}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setResettingUser(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {modalError && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm flex items-center gap-2 animate-shake">
+                  <AlertCircle size={16} />
+                  {modalError}
+                </div>
+              )}
 
-                  {resetSuccess && (
-                     <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-100 rounded-lg text-sm flex items-center gap-2 animate-bounce-in">
-                        <CheckCircle size={16} />
-                        Senha alterada com sucesso!
-                     </div>
-                  )}
+              {resetSuccess && (
+                 <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-100 rounded-lg text-sm flex items-center gap-2 animate-bounce-in">
+                    <CheckCircle size={16} />
+                    Senha alterada com sucesso!
+                 </div>
+              )}
 
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nova Senha
-                  </label>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nova Senha
+                </label>
+                <div className="relative">
                   <input
-                    type="text"
+                    type={showNewPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Mínimo 6 caracteres"
                     disabled={isResetting || resetSuccess}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400 pr-10"
                     autoFocus
                   />
-                  <p className="mt-2 text-xs text-gray-500 italic">
-                    Atenção: A alteração é imediata e o usuário passará a usar esta nova senha.
-                  </p>
-                </div>
-
-                <div className="p-6 bg-gray-50 rounded-b-xl flex gap-3">
                   <button
-                    onClick={() => setResettingUser(null)}
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
                     disabled={isResetting || resetSuccess}
-                    className="flex-1 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {resetSuccess ? 'Fechar' : 'Cancelar'}
-                  </button>
-                  <button
-                    onClick={handleAdminResetPassword}
-                    disabled={isResetting || resetSuccess || !newPassword || newPassword.length < 6}
-                    className={`flex-1 py-2 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${resetSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}
-                  >
-                    {isResetting ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : resetSuccess ? (
-                      <CheckCircle size={18} />
-                    ) : (
-                      <Key size={18} />
-                    )}
-                    {resetSuccess ? 'Concluído!' : 'Salvar Senha'}
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
 
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirmar Nova Senha
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    disabled={isResetting || resetSuccess}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    disabled={isResetting || resetSuccess}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <p className="mt-2 text-xs text-gray-500 italic">
+                Atenção: A alteração é imediata e o usuário passará a usar esta nova senha.
+              </p>
+            </div>
+
+            <div className="p-6 bg-gray-50 rounded-b-xl flex gap-3">
+              <button
+                onClick={() => setResettingUser(null)}
+                disabled={isResetting || resetSuccess}
+                className="flex-1 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {resetSuccess ? 'Fechar' : 'Cancelar'}
+              </button>
+              <button
+                onClick={handleAdminResetPassword}
+                disabled={isResetting || resetSuccess || !newPassword || newPassword.length < 6 || !confirmPassword}
+                className={`flex-1 py-2 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${resetSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}
+              >
+                {isResetting ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : resetSuccess ? (
+                  <CheckCircle size={18} />
+                ) : (
+                  <Key size={18} />
+                )}
+                {resetSuccess ? 'Concluído!' : 'Salvar Senha'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Modal Profile Transfer */}
       {showMigrateModal && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-start justify-center p-4 pt-[10vh] sm:pt-[15vh] overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-lg mb-[10vh] flex flex-col shadow-2xl animate-fade-in-up">
-            <div className="bg-orange-50 p-4 sm:p-6 flex items-start justify-between flex-shrink-0">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white p-2 sm:p-3 rounded-full shadow-sm text-orange-600 hidden sm:block">
-                  <AlertCircle size={24} />
-                </div>
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">Transferir Dados ("Migração")</h3>
-                  <p className="text-orange-700 text-xs sm:text-sm mt-1">Transfira informações com segurança.</p>
-                </div>
-              </div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 flex flex-col max-h-[90vh]">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex justify-between items-center shrink-0">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <AlertCircle size={24} />
+                Transferir Dados ("Migração")
+              </h2>
               <button 
                 onClick={() => {
                   setShowMigrateModal(false);
@@ -486,27 +534,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   setMigrateSourceId('');
                   setMigrateTargetId('');
                 }}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                className="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/20"
                 disabled={isMigrating}
               >
                 <X size={24} />
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto">
-              <p className="text-xs sm:text-sm text-gray-600 mb-5 sm:mb-6 bg-gray-50 border border-gray-100 p-3 rounded-lg">
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+              <p className="text-gray-600 mb-6 text-sm">
                 Utilize esta ferramenta para mover <strong>todas as despesas, categorias e análises</strong> de um membro antigo ou corrompido para uma nova conta recém-criada. O processo é irreversível.
               </p>
 
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     1. Perfil de Origem (Aquele que tem os dados)
                   </label>
                   <select
                     value={migrateSourceId}
                     onChange={(e) => setMigrateSourceId(e.target.value)}
-                    className="w-full px-3 py-2 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                     disabled={isMigrating || migrateSuccess}
                   >
                     <option value="">-- Selecione o perfil de origem --</option>
@@ -518,18 +566,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   </select>
                 </div>
 
-                <div className="flex justify-center p-1 sm:p-2 text-gray-400">
+                <div className="flex justify-center p-2 text-gray-400">
                   <AlertCircle size={20} className="rotate-180 transform" />
                 </div>
 
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     2. Perfil de Destino (Para onde enviar os dados)
                   </label>
                   <select
                     value={migrateTargetId}
                     onChange={(e) => setMigrateTargetId(e.target.value)}
-                    className="w-full px-3 py-2 sm:px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                     disabled={isMigrating || migrateSuccess}
                   >
                     <option value="">-- Selecione o perfil NOVO --</option>
@@ -547,35 +595,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   {migrateError}
                 </div>
               )}
+            </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-auto">
-                <button
-                  onClick={() => setShowMigrateModal(false)}
-                  disabled={isMigrating}
-                  className="w-full sm:flex-1 py-2.5 text-gray-600 font-medium hover:bg-gray-100 border sm:border-0 border-gray-200 sm:bg-transparent rounded-lg transition-colors disabled:opacity-50 text-sm"
-                >
-                  {migrateSuccess ? 'Fechar' : 'Cancelar'}
-                </button>
-                <button
-                  onClick={handleAdminMigrateData}
-                  disabled={isMigrating || migrateSuccess || !migrateSourceId || !migrateTargetId}
-                  className={`w-full sm:flex-1 py-2.5 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm ${migrateSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'}`}
-                >
-                  {isMigrating ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : migrateSuccess ? (
-                    <CheckCircle size={18} />
-                  ) : (
-                    <AlertCircle size={18} />
-                  )}
-                  {migrateSuccess ? 'Transferência Concluída!' : 'Iniciar Transferência'}
-                </button>
-              </div>
+            <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row gap-3 shrink-0">
+              <button
+                onClick={() => setShowMigrateModal(false)}
+                disabled={isMigrating}
+                className="w-full sm:flex-1 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-100 transition-colors text-sm"
+              >
+                {migrateSuccess ? 'Fechar' : 'Cancelar'}
+              </button>
+              <button
+                onClick={handleAdminMigrateData}
+                disabled={isMigrating || migrateSuccess || !migrateSourceId || !migrateTargetId}
+                className={`w-full sm:flex-1 py-2.5 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm ${migrateSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+              >
+                {isMigrating ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : migrateSuccess ? (
+                  <CheckCircle size={18} />
+                ) : (
+                  <AlertCircle size={18} />
+                )}
+                {migrateSuccess ? 'Transferência Concluída!' : 'Iniciar Transferência'}
+              </button>
             </div>
           </div>
         </div>
       )}
-
-    </div>
+    </>
   );
 };
