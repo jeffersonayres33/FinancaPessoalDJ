@@ -109,8 +109,9 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto mt-6">
-      <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
+    <div className="animate-fade-in-up">
+      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 mb-6 transition-all">
+        <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
         <div className="bg-purple-100 p-2 rounded-full text-purple-600">
            <Users size={24} />
         </div>
@@ -314,6 +315,7 @@ export const MemberManager: React.FC<MemberManagerProps> = ({ currentUser, onUpd
         </div>
       )}
 
+      </div>
     </div>
   );
 };

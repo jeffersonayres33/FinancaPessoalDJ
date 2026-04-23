@@ -50,7 +50,7 @@ export const authService = {
     }
 
     if (success) {
-        user.plan = inheritedPlan;
+        user.plan = inheritedPlan as 'free' | 'premium';
         user.subscriptionEndDate = inheritedEndDate;
 
         if (profileData.plan !== inheritedPlan || profileData.subscription_end_date !== inheritedEndDate) {

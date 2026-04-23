@@ -196,7 +196,7 @@ async function startServer() {
       await supabaseAdmin.from('app_users').delete().eq('id', targetUserId);
       
       // 5. Hard delete the Auth identity if it exists
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId as string);
       if (authError && !authError.message.includes('User not found')) {
          console.warn(`[API] Auth deletion warning (may be corrupted/already gone): ${authError.message}`);
       }
