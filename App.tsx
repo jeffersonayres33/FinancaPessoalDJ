@@ -1087,11 +1087,11 @@ const AuthenticatedApp: React.FC<{
           return (
             <SplitStatCard 
               title="Receitas Totais" 
-              currentTitle="Entradas do Mês"
+              currentTitle="RECEITAS"
               currentValue={dashboardData.income}
               previousBalanceTitle="Saldo Anterior"
               previousBalanceValue={isPositivePrev ? dashboardData.previousMonthBalance : null}
-              totalTitle="Total em Caixa"
+              totalTitle="RECEITAS TOTAIS"
               totalValue={dashboardData.income + (isPositivePrev ? dashboardData.previousMonthBalance : 0)}
               icon={ArrowUpCircle} 
               colorClass="text-green-600" 

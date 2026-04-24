@@ -45,36 +45,40 @@ async function startServer() {
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Supabase credentials missing in server environment!");
     }
-    supabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
+    supabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey);
     return supabaseAdminClient;
   };
 
   // Verify Auth Middleware (General)
   const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "No token provided" });
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-        return res.status(500).json({ error: "Server configuration error" });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "No token provided or invalid format" });
     }
     
     const token = authHeader.split(" ")[1];
-    const client = createClient(supabaseUrl, supabaseAnonKey);
+    if (!token || token === "undefined") {
+      return res.status(401).json({ error: "Empty token provided" });
+    }
+    
     try {
-      const { data: { user }, error } = await client.auth.getUser(token);
-      if (error || !user) {
-        console.error("[verifyAuth] Error validating token:", error);
-        return res.status(401).json({ error: "Invalid token" });
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: supabaseAnonKey
+        }
+      });
+      
+      if (!response.ok) {
+        console.error("[verifyAuth] API Error:", response.status, await response.text());
+        return res.status(401).json({ error: "Invalid or expired token" });
       }
+      
+      const user = await response.json();
       (req as any).user = user;
       next();
     } catch (err) {
-      console.error("[verifyAuth] Server error:", err);
+      console.error("[verifyAuth] Unexpected error:", err);
       res.status(500).json({ error: "Server error" });
     }
   };
@@ -82,25 +86,29 @@ async function startServer() {
   // Verify Admin Middleware
   const verifyAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      console.error("[Auth] No token provided");
-      return res.status(401).json({ error: "No token provided" });
-    }
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-       console.error("[Auth] Supabase URL or Anon Key missing");
-       return res.status(500).json({ error: "Server configuration error" });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "No token provided or invalid format" });
     }
 
     const token = authHeader.split(" ")[1];
-    const client = createClient(supabaseUrl, supabaseAnonKey);
+    if (!token || token === "undefined") {
+      return res.status(401).json({ error: "Empty token provided" });
+    }
     
     try {
-      const { data: { user }, error } = await client.auth.getUser(token);
-      if (error || !user) {
-        console.error("[Auth] Invalid token", error);
-        return res.status(401).json({ error: "Invalid token" });
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: supabaseAnonKey
+        }
+      });
+      
+      if (!response.ok) {
+        console.error("[verifyAdmin] API Error:", response.status, await response.text());
+        return res.status(401).json({ error: "Invalid or expired token" });
       }
+      
+      const user = await response.json();
 
       // Check if user is admin in app_users table using admin client to bypass RLS
       const supabaseAdmin = getSupabaseAdmin();
@@ -111,13 +119,14 @@ async function startServer() {
         .single();
 
       if (profileError || profile?.role !== "admin") {
-        console.error("[Auth] Access denied or profile error", profileError);
+        console.error("[verifyAdmin] Access denied or profile error:", profileError);
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
 
+      (req as any).user = user;
       next();
     } catch (err) {
-      console.error("[Auth] Server error in middleware", err);
+      console.error("[verifyAdmin] Unexpected error:", err);
       res.status(500).json({ error: "Server error" });
     }
   };
@@ -263,6 +272,174 @@ async function startServer() {
     } catch (err: any) {
       console.error("Admin Migrate Data Error:", err);
       res.status(500).json({ error: err.message || "Failed to migrate data" });
+    }
+  });
+
+  // API Route: Create Member
+  app.post("/api/members/create", verifyAuth, async (req, res) => {
+    let { name, email, password, shareData } = req.body;
+    const adminUser = (req as any).user;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Nome, email e senha são obrigatórios." });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      let userId: string | null = null;
+
+      console.log(`[API] Creating Member: ${trimmedEmail}`);
+
+      // 1. Create the user in Supabase Auth using signUp (Anon API) to avoid Service Role DB errors
+      let authData: any = null;
+      let authError: any = null;
+      
+      const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false
+        }
+      });
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        // We use signUp with the anon key as it seems to be more stable on this specific Supabase instance
+        const result = await supabaseAnon.auth.signUp({
+          email: trimmedEmail,
+          password,
+          options: {
+            data: { name }
+          }
+        });
+        authData = result.data;
+        authError = result.error;
+        
+        if (!authError || 
+            authError.message.includes('already registered') || 
+            authError.message.includes('already exists') ||
+            authError.message.includes('AuthApiError')) { // If it's a structural error, don't retry same
+          break; 
+        }
+        
+        console.warn(`[API] signUp Attempt ${attempt} failed:`, authError.message);
+        if (attempt < 3) {
+           await new Promise(res => setTimeout(res, 1000 * attempt));
+        }
+      }
+      
+      // If signUp failed, we can fallback to Admin API createUser just in case
+      if (authError && authError.message !== 'User already registered' && !authError.message.includes('already exists')) {
+        console.log(`[API] signUp failed, falling back to admin.createUser... (${authError.message})`);
+        const result = await supabaseAdmin.auth.admin.createUser({
+          email: trimmedEmail,
+          password,
+          email_confirm: true,
+          user_metadata: { name }
+        });
+        if (!result.error) {
+             authData = result.data;
+             authError = null;
+        } else {
+             authError = result.error; // Keep admin API error
+        }
+      }
+
+      if (authError) {
+        // If user already exists in Auth, we try to recover the ID
+        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+            console.log(`[API] User ${trimmedEmail} already in Auth. Looking up ID...`);
+            let users: any[] = [];
+            let listError: any = null;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                const result = await supabaseAdmin.auth.admin.listUsers();
+                if (result.error) {
+                    listError = result.error;
+                    console.warn(`[API] listUsers Attempt ${attempt} failed:`, listError.message);
+                    if (attempt < 3) await new Promise(res => setTimeout(res, 1000 * attempt));
+                } else {
+                    users = result.data.users;
+                    listError = null;
+                    break;
+                }
+            }
+            
+            let existingUser = (users || []).find(u => u.email?.toLowerCase() === trimmedEmail);
+            
+            // Se o listUsers falhou (o que pode acontecer na API do Supabase), tentamos buscar na tabela app_users
+            if (!existingUser) {
+                console.log(`[API] Trying to find user in app_users table fallback...`);
+                const { data: dbUser } = await supabaseAdmin.from('app_users').select('id').eq('email', trimmedEmail).maybeSingle();
+                if (dbUser) {
+                    existingUser = { id: dbUser.id };
+                }
+            }
+            
+            if (existingUser) {
+                userId = existingUser.id;
+            } else {
+                return res.status(400).json({ error: "Este e-mail está registrado no sistema mas não pôde ser localizado." });
+            }
+        } else {
+            console.error("[API] Error creating member auth:", authError);
+            if (authError.message.includes('Database error')) {
+                return res.status(500).json({ error: "Erro de banco de dados no Supabase (Auth). Tente novamente." });
+            }
+            return res.status(500).json({ error: `Erro na autenticação: ${authError.message}` });
+        }
+      } else {
+        userId = authData.user?.id || null;
+      }
+
+      if (!userId) {
+        return res.status(500).json({ error: "Falha ao gerar ou recuperar o ID do usuário." });
+      }
+
+      // Check if profile already exists in app_users
+      const { data: existingProfile } = await supabaseAdmin
+        .from('app_users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (existingProfile) {
+        return res.status(400).json({ error: "Este membro já possui um perfil ativo no sistema." });
+      }
+
+      // 2. Create the user profile in app_users
+      const { data: adminProfile } = await supabaseAdmin.from('app_users').select('data_context_id').eq('id', adminUser.id).single();
+      
+      const newMemberPayload = {
+        id: userId,
+        name,
+        email: trimmedEmail,
+        password: '***',
+        parent_id: adminUser.id,
+        data_context_id: shareData ? (adminProfile?.data_context_id || adminUser.id) : userId
+      };
+
+      const { error: profileError } = await supabaseAdmin.from('app_users').insert(newMemberPayload);
+      
+      if (profileError) {
+        console.error("[API] Error creating member profile:", profileError);
+        return res.status(500).json({ error: `Erro ao salvar perfil no banco: ${profileError.message}` });
+      }
+
+      // 3. Fetch all members to return updated list
+      const { data: members } = await supabaseAdmin
+        .from('app_users')
+        .select('*')
+        .eq('parent_id', adminUser.id);
+
+      res.json({ 
+        message: "Membro criado com sucesso",
+        members: members || []
+      });
+
+    } catch (err: any) {
+      console.error("Create Member API Error:", err);
+      res.status(500).json({ error: err.message || "Erro interno ao processar novo membro." });
     }
   });
 

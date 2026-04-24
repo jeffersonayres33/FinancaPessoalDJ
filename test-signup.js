@@ -1,13 +1,25 @@
-const { createClient } = require('@supabase/supabase-js');
-const SUPABASE_URL = 'https://pbrbqwjbzjebhlfcfmtk.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_yf2bUxlTHW2MqNxpvqWlZg_2qBgkC2E';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const url = process.env.VITE_SUPABASE_URL || 'https://xyz.supabase.co';
+const key = process.env.VITE_SUPABASE_ANON_KEY || 'fake';
+
+const client = createClient(url, key, { auth: { persistSession: false } });
 
 async function run() {
-  const { data, error } = await supabase.auth.signUp({
-    email: 'test_schema_error@email.com',
-    password: 'MudarSenha123!'
-  });
-  console.log('Result:', data, error);
+  try {
+    const email = `test-member-${Date.now()}@example.com`;
+    const res = await client.auth.signUp({
+        email,
+        password: "password123",
+        options: {
+            data: { name: "Test Member" }
+        }
+    });
+    console.log('signUp returned:', res.data?.user?.email, res.error);
+  } catch (e) {
+    console.error('script error:', e);
+  }
 }
 run();

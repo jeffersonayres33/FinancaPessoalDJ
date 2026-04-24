@@ -381,65 +381,30 @@ export const authService = {
   
   // Adicionar Membro (Cria o Auth e o perfil gerenciado pelo pai)
   addMember: async (adminUser: User, name: string, email: string, pass: string, shareData: boolean): Promise<User> => {
-    // 1. Instanciar um cliente Supabase secundário em memória para não deslogar o admin
-    const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-        }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const response = await fetch('/api/members/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ name, email, password: pass, shareData })
     });
 
-    // 2. Realizar o signUp do membro
-    const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
-        email,
-        password: pass,
-        options: {
-            data: { name: name }
-        }
-    });
-
-    if (signUpError) {
-        if (signUpError.message.includes('Database error')) {
-            throw new Error('O banco de dados do Supabase está instável no momento. Por favor, tente novamente em alguns segundos.');
-        }
-        throw new Error('Erro ao criar login do membro: ' + signUpError.message);
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao criar membro');
     }
-    
-    if (!signUpData.user) {
-         throw new Error('Não foi possível obter o ID do membro gerado.');
-    }
-    
-    // Garantir que a sessão temporária seja encerrada
-    await tempClient.auth.signOut().catch(() => {});
 
-    const newMemberId = signUpData.user.id;
-    
-    // 3. Inserimos na tabela app_users do Banco usando a conta Primária (Admin logado)
-    const { data: adminProfile } = await supabase.from('app_users').select('data_context_id').eq('id', adminUser.id).single();
-
-    const newMemberPayload = {
-      id: newMemberId,
-      name,
-      email,
-      password: '***',
-      parent_id: adminUser.id,
-      data_context_id: shareData ? (adminProfile?.data_context_id || adminUser.id) : newMemberId
-    };
-
-    const { error } = await supabase.from('app_users').insert(newMemberPayload);
-    if (error) throw new Error('Erro ao salvar o perfil do membro: ' + error.message);
-
-    // Busca lista atualizada
-    const { data: members } = await supabase
-        .from('app_users')
-        .select('*')
-        .eq('parent_id', adminUser.id);
+    const data = await response.json();
+    const members = data.members || [];
     
     const effectivePlan = adminUser.plan || 'free';
     const effectiveExpiry = adminUser.subscriptionEndDate;
 
-    const mappedMembers = (members || []).map(m => ({
+    const mappedMembers = (members || []).map((m: any) => ({
       ...m,
       dataContextId: m.data_context_id,
       parentId: m.parent_id,
