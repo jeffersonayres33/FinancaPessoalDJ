@@ -400,41 +400,42 @@ export const authService = {
     });
 
     if (signUpError) {
+        if (signUpError.message.includes('Database error')) {
+            throw new Error('O banco de dados do Supabase está instável no momento. Por favor, tente novamente em alguns segundos.');
+        }
         throw new Error('Erro ao criar login do membro: ' + signUpError.message);
     }
     
-    // O Supabase retorna o usuário criado. Se já existir, ele pode retornar erro ou mock (identities = []),
-    // mas se for sucesso, pegamos o ID gerado.
     if (!signUpData.user) {
          throw new Error('Não foi possível obter o ID do membro gerado.');
     }
     
-    // Garantir que a sessão temporária seja encerrada para evitar conflitos
+    // Garantir que a sessão temporária seja encerrada
     await tempClient.auth.signOut().catch(() => {});
 
     const newMemberId = signUpData.user.id;
     
     // 3. Inserimos na tabela app_users do Banco usando a conta Primária (Admin logado)
-    // A política RLS permitirá isso pois parent_id será o ID do usuário logado.
+    const { data: adminProfile } = await supabase.from('app_users').select('data_context_id').eq('id', adminUser.id).single();
+
     const newMemberPayload = {
       id: newMemberId,
       name,
       email,
-      password: '***', // O login verdadeiro está protegido no Supabase Auth
+      password: '***',
       parent_id: adminUser.id,
-      data_context_id: shareData ? adminUser.dataContextId : newMemberId
+      data_context_id: shareData ? (adminProfile?.data_context_id || adminUser.id) : newMemberId
     };
 
     const { error } = await supabase.from('app_users').insert(newMemberPayload);
     if (error) throw new Error('Erro ao salvar o perfil do membro: ' + error.message);
 
-    // Retorna o admin atualizado
+    // Busca lista atualizada
     const { data: members } = await supabase
         .from('app_users')
         .select('*')
         .eq('parent_id', adminUser.id);
     
-    // Se o admin for premium, os membros herdam o status
     const effectivePlan = adminUser.plan || 'free';
     const effectiveExpiry = adminUser.subscriptionEndDate;
 

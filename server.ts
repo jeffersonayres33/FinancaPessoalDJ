@@ -37,17 +37,21 @@ async function startServer() {
     console.warn("CRITICAL: Supabase credentials missing in server environment!");
   }
 
-  // Helper function to get admin client (Lazy initialization)
+  // Helper function to get admin client (Cached initialization)
+  let supabaseAdminClient: any = null;
   const getSupabaseAdmin = () => {
+    if (supabaseAdminClient) return supabaseAdminClient;
+    
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Supabase credentials missing in server environment!");
     }
-    return createClient(supabaseUrl, supabaseServiceKey, {
+    supabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
       }
     });
+    return supabaseAdminClient;
   };
 
   // Verify Auth Middleware (General)
