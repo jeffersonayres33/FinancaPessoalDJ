@@ -2,6 +2,9 @@
 import { Category, Despesa } from './types';
 import { getCurrentLocalDateString } from './utils';
 
+export const APP_VERSION = "1.0.1";
+export const BUILD_DATE = "2026-04-24";
+
 export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Alimentação', type: 'expense' },
   { id: 'cat-2', name: 'Casa', type: 'expense' },

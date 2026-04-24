@@ -1,15 +1,22 @@
 import React from 'react';
 import { LayoutDashboard, Receipt, TrendingUp, LineChart, ListChecks, Tags, Users, FileSpreadsheet, Printer, ShieldAlert, Download, Upload, Settings, Calendar, Palette, Sparkles } from 'lucide-react';
+import { APP_VERSION, BUILD_DATE } from '../constants';
 
 export const HelpSection: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
-            <ShieldAlert size={24} />
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
+              <ShieldAlert size={24} />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">Ajuda e Funcionalidades</h2>
           </div>
-          <h2 className="text-2xl font-bold text-gray-800">Ajuda e Funcionalidades</h2>
+          <div className="text-right">
+            <span className="text-xs font-mono text-gray-400 block">Versão: {APP_VERSION}</span>
+            <span className="text-[10px] font-mono text-gray-300 block">Build: {BUILD_DATE}</span>
+          </div>
         </div>
         <p className="text-gray-600 mb-6">
           Bem-vindo ao sistema de Finanças Pessoais! Aqui você encontra um guia completo sobre como utilizar cada seção do aplicativo para gerenciar seu dinheiro de forma eficiente.
