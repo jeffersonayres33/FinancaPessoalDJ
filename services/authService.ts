@@ -384,22 +384,80 @@ export const authService = {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Sessão expirada. Faça login novamente.');
 
-    const response = await fetch('/api/members/create', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ name, email, password: pass, shareData })
+    // Implementação Cliente para suportar GitHub Pages
+    const baseUrl = 'https://pbrbqwjbzjebhlfcfmtk.supabase.co';
+    const anonKey = 'sb_publishable_yf2bUxlTHW2MqNxpvqWlZg_2qBgkC2E';
+    
+    // Cria um client isolado para não deslogar o admin atual
+    const tempClient = createClient(baseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao criar membro');
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // 1. Tenta criar o Auth user
+    let targetUserId: string | undefined;
+
+    const { data: authData, error: authError } = await tempClient.auth.signUp({
+      email: trimmedEmail,
+      password: pass,
+      options: { data: { name } }
+    });
+
+    if (authError) {
+        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+            // Conta Fantasma/Já Existente: Tenta fazer login com a senha fornecida para recuperar o ID do usuário!
+            const { data: loginData, error: loginError } = await tempClient.auth.signInWithPassword({
+                email: trimmedEmail,
+                password: pass
+            });
+            
+            if (loginError) {
+                if (loginError.message.includes('Invalid login credentials')) {
+                    throw new Error('Este e-mail já está em uso por uma conta (talvez uma conta fantasma). Para reativá-la como membro, você precisa inserir a SENHA CORRETA que foi usada ao criá-la. Caso contrário, utilize um e-mail diferente.');
+                }
+                throw new Error(`Erro ao recuperar conta existente: ${loginError.message}`);
+            }
+            
+            targetUserId = loginData?.user?.id;
+        } else {
+            throw new Error(authError.message || 'Erro ao criar conta de membro no Supabase Auth.');
+        }
+    } else {
+        targetUserId = authData?.user?.id;
+    }
+    
+    // Fallback: se ainda assim não tivermos o ID.
+    if (!targetUserId) {
+        const { data: existingAppUser } = await supabase.from('app_users').select('id').eq('email', trimmedEmail).maybeSingle();
+        if (existingAppUser) {
+           targetUserId = existingAppUser.id;
+        } else {
+           // Neste caso restrito onde o dbUser não existe, não conseguimos continuar apenas no client (precisaria do server/admin)
+           // Então daremos instrução ao usuário.
+           throw new Error('E-mail já está registrado na plataforma e não pôde ser vinculado. Por favor, utilize outro e-mail.');
+        }
     }
 
-    const data = await response.json();
-    const members = data.members || [];
+    // 2. Insere/Atualiza o perfil na tabela app_users (usando o Admin Client original com a sessão logada do Pai/Admin)
+    const contextId = shareData ? adminUser.dataContextId : targetUserId;
+    const { data: newProfile, error: profileError } = await supabase.from('app_users').upsert({
+      id: targetUserId,
+      name,
+      email: trimmedEmail,
+      parent_id: adminUser.id,
+      data_context_id: contextId,
+      role: 'user',
+      theme_color: adminUser.themeColor || '#10b981',
+      financial_month_start_day: adminUser.financialMonthStartDay || 1
+    }).select().single();
+
+    if (profileError) {
+      throw new Error(`Erro ao criar perfil de membro: ${profileError.message}`);
+    }
+
+    // 3. Atualiza os membros cacheados do Admin localmente
+    const { data: members } = await supabase.from('app_users').select('*').eq('parent_id', adminUser.id);
     
     const effectivePlan = adminUser.plan || 'free';
     const effectiveExpiry = adminUser.subscriptionEndDate;
@@ -727,51 +785,66 @@ export const authService = {
   },
 
   adminMigrateData: async (sourceId: string, targetId: string): Promise<void> => {
+    // Implementado no cliente para suportar GitHub Pages (sem backend Node.js)
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Sessão expirada. Faça login novamente.');
 
-    const response = await fetch('/api/admin/migrate-data', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({ sourceId, targetId })
-    });
-
-    if (!response.ok) {
-      let errorMessage = 'Erro ao transferir dados.';
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch (e) {
-        console.error(`Erro na API (${response.status}): Resposta não é um JSON válido.`);
-      }
-      throw new Error(errorMessage);
+    // RLS Policy permite que o Admin gerencie as transações, categorias e análises de si mesmo e seus filhos.
+    
+    // 0. Transferir configurações
+    const { data: sourceProfile, error: pErr1 } = await supabase.from('app_users')
+        .select('theme_color, financial_month_start_day')
+        .eq('id', sourceId)
+        .single();
+        
+    if (sourceProfile && !pErr1) {
+        await supabase.from('app_users')
+          .update({
+            theme_color: sourceProfile.theme_color,
+            financial_month_start_day: sourceProfile.financial_month_start_day
+          })
+          .eq('id', targetId);
     }
+
+    // 1. Transactions
+    const { error: tError } = await supabase.from('transactions')
+        .update({ data_context_id: targetId })
+        .eq('data_context_id', sourceId);
+    if (tError) throw new Error(`Erro ao transferir transações: ${tError.message}`);
+
+    // 2. Categories
+    const { error: cError } = await supabase.from('categories')
+        .update({ data_context_id: targetId })
+        .eq('data_context_id', sourceId);
+    if (cError) throw new Error(`Erro ao transferir categorias: ${cError.message}`);
+
+    // 3. AI Analyses
+    const { error: aError } = await supabase.from('ai_analyses')
+        .update({ data_context_id: targetId, user_id: targetId })
+        .eq('data_context_id', sourceId);
+    if (aError) throw new Error(`Erro ao transferir análises: ${aError.message}`);
   },
 
   deleteMember: async (memberId: string): Promise<void> => {
+    // Implementação Cliente para suportar GitHub Pages
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Sessão expirada. Faça login novamente.');
 
-    const response = await fetch(`/api/members/${memberId}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      }
-    });
+    // 1. O RLS "for all" permite DELETE de dados dependentes (transactions, categories, ai_analyses).
+    await supabase.from('transactions').delete().eq('data_context_id', memberId);
+    await supabase.from('categories').delete().eq('data_context_id', memberId);
+    await supabase.from('ai_analyses').delete().eq('data_context_id', memberId);
 
-    if (!response.ok) {
-      let errorMessage = 'Erro ao excluir membro.';
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch (e) {
-        console.error(`Erro na API (${response.status}): Resposta não é um JSON válido.`);
-      }
-      throw new Error(errorMessage);
-    }
+    // 2. Não podemos deletar de `app_users` pois a policy é só SELECT/INSERT/UPDATE.
+    // E não podemos deletar de auth.users do cliente.
+    // Então, nós "desvinculamos" o membro, atualizando o parent_id para null e renomeando para "[Excluído]"
+    const { error: profileError } = await supabase.from('app_users')
+      .update({ 
+          parent_id: null,
+          name: '[Excluído]',
+      })
+      .eq('id', memberId);
+
+    if (profileError) throw new Error(`Erro ao desvincular perfil do membro: ${profileError.message}`);
   }
 };
