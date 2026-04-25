@@ -472,12 +472,12 @@ const AuthenticatedApp: React.FC<{
 
         let [cats, trans] = await Promise.race([fetchPromise, timeoutPromise]);
 
-        // 2. Se não houver categorias (primeiro acesso), popula com as iniciais
-        if (cats.length === 0) {
-            console.log("Banco vazio detectado. Populando categorias iniciais...");
-            cats = await dataService.seedCategories(user.dataContextId);
-            showToast('Banco de dados configurado com sucesso!', 'success');
-        }
+        // 2. Removemos a população automática de categorias para que as contas comecem totalmente em branco.
+        // if (cats.length === 0) {
+        //     console.log("Banco vazio detectado. Populando categorias iniciais...");
+        //     cats = await dataService.seedCategories(user.dataContextId);
+        //     showToast('Banco de dados configurado com sucesso!', 'success');
+        // }
         
         setCategories(cats);
         setDespesas(trans);
