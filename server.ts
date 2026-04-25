@@ -66,7 +66,11 @@ async function startServer() {
       const { data: { user }, error } = await client.auth.getUser(token);
       
       if (error || !user) {
-        console.error("[verifyAuth] Auth Error:", error?.message || "User not found");
+        // We do not want to flood the server logs for expired/invalid tokens
+        // Check if error is something unexpected
+        if (error && error.status !== 401 && error.status !== 403 && !error.message.includes('missing')) {
+           console.error("[verifyAuth] Unexpected Auth Error:", error.message);
+        }
         return res.status(401).json({ error: "Invalid or expired token" });
       }
       
@@ -95,7 +99,9 @@ async function startServer() {
       const { data: { user }, error } = await client.auth.getUser(token);
       
       if (error || !user) {
-        console.error("[verifyAdmin] Auth Error:", error?.message || "User not found");
+        if (error && error.status !== 401 && error.status !== 403 && !error.message.includes('missing')) {
+           console.error("[verifyAdmin] Unexpected Auth Error:", error.message);
+        }
         return res.status(401).json({ error: "Invalid or expired token" });
       }
 
