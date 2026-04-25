@@ -62,19 +62,14 @@ async function startServer() {
     }
     
     try {
-      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: supabaseAnonKey
-        }
-      });
+      const client = getSupabaseAdmin();
+      const { data: { user }, error } = await client.auth.getUser(token);
       
-      if (!response.ok) {
-        console.error("[verifyAuth] API Error:", response.status, await response.text());
+      if (error || !user) {
+        console.error("[verifyAuth] Auth Error:", error?.message || "User not found");
         return res.status(401).json({ error: "Invalid or expired token" });
       }
       
-      const user = await response.json();
       (req as any).user = user;
       next();
     } catch (err) {
@@ -96,19 +91,13 @@ async function startServer() {
     }
     
     try {
-      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: supabaseAnonKey
-        }
-      });
+      const client = getSupabaseAdmin();
+      const { data: { user }, error } = await client.auth.getUser(token);
       
-      if (!response.ok) {
-        console.error("[verifyAdmin] API Error:", response.status, await response.text());
+      if (error || !user) {
+        console.error("[verifyAdmin] Auth Error:", error?.message || "User not found");
         return res.status(401).json({ error: "Invalid or expired token" });
       }
-      
-      const user = await response.json();
 
       // Check if user is admin in app_users table using admin client to bypass RLS
       const supabaseAdmin = getSupabaseAdmin();
