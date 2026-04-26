@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
@@ -184,3 +184,180 @@ export const SplitStatCard: React.FC<SplitStatCardProps> = ({
 // Mantemos o componente Summary original apenas para compatibilidade se algo ainda o usar, 
 // mas o App.tsx vai usar o StatCard diretamente agora.
 export const Summary: React.FC<any> = () => null;
+
+export const RevenueWidget: React.FC<{
+  pending: number;
+  received: number;
+  previousBalance: number;
+  formatCurrency: (val: number) => string;
+}> = ({ pending, received, previousBalance, formatCurrency }) => {
+  const previousToShow = Math.max(0, previousBalance);
+  const total = pending + received + previousToShow;
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+      
+      <div className="flex items-center gap-3 mb-6 ml-1">
+         <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
+           <TrendingUp size={22} strokeWidth={2.5} />
+         </div>
+         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Receitas</h2>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 ml-1 flex-grow mb-3">
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pendente</p>
+          <p className="text-xs sm:text-sm font-bold text-rose-500 truncate" title={formatCurrency(pending)}>{formatCurrency(pending)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Recebido</p>
+          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={formatCurrency(received)}>{formatCurrency(received)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Anterior</p>
+          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={'+' + formatCurrency(previousToShow)}>
+            {previousToShow > 0 ? '+' : ''}{formatCurrency(previousToShow)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
+        <p className="text-[10px] sm:text-[11px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Total Geral</p>
+        <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight truncate" title={formatCurrency(total)}>{formatCurrency(total)}</p>
+      </div>
+    </div>
+  );
+};
+
+export const ExpenseWidget: React.FC<{
+  unpaid: number;
+  paid: number;
+  previousBalance: number;
+  formatCurrency: (val: number) => string;
+}> = ({ unpaid, paid, previousBalance, formatCurrency }) => {
+  const previousToShow = previousBalance < 0 ? Math.abs(previousBalance) : 0;
+  const total = unpaid + paid;
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+      
+      <div className="flex items-center gap-3 mb-6 ml-1">
+         <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600">
+           <TrendingDown size={22} strokeWidth={2.5} />
+         </div>
+         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Despesas</h2>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 ml-1 flex-grow mb-3">
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Não Paga</p>
+          <p className="text-xs sm:text-sm font-bold text-rose-500 truncate" title={formatCurrency(unpaid)}>{formatCurrency(unpaid)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Paga</p>
+          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={formatCurrency(paid)}>{formatCurrency(paid)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Anterior</p>
+          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={'-' + formatCurrency(previousToShow)}>
+            {previousToShow > 0 ? '-' : ''}{formatCurrency(previousToShow)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
+        <p className="text-[10px] sm:text-[11px] font-bold text-rose-600/70 uppercase tracking-widest mb-1">Total Geral</p>
+        <p className="text-2xl sm:text-3xl font-extrabold text-rose-600 tracking-tight truncate" title={formatCurrency(total)}>{formatCurrency(total)}</p>
+      </div>
+    </div>
+  );
+};
+
+export const BalanceWidget: React.FC<{
+  currentMonth: number;
+  previousMonth: number;
+  formatCurrency: (val: number) => string;
+}> = ({ currentMonth, previousMonth, formatCurrency }) => {
+  const total = currentMonth + previousMonth;
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+      
+      <div className="flex items-center gap-3 mb-6 ml-1">
+         <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600">
+           <Wallet size={22} strokeWidth={2.5} />
+         </div>
+         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Saldo</h2>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 ml-1 flex-grow mb-3">
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Atual</p>
+          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(currentMonth)}>
+            {formatCurrency(currentMonth)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Anterior</p>
+          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(previousMonth)}>
+            {formatCurrency(previousMonth)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
+        <p className="text-[10px] sm:text-[11px] font-bold text-blue-600/80 uppercase tracking-widest mb-1">Total Geral</p>
+        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-blue-600" title={formatCurrency(total)}>
+          {formatCurrency(total)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export const InvestmentWidget: React.FC<{
+  currentMonth: number;
+  previousMonth: number;
+  formatCurrency: (val: number) => string;
+}> = ({ currentMonth, previousMonth, formatCurrency }) => {
+  const total = currentMonth + previousMonth;
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-purple-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+      
+      <div className="flex items-center gap-3 mb-6 ml-1">
+         <div className="p-2.5 bg-purple-50 rounded-xl text-purple-600">
+           <Wallet size={22} strokeWidth={2.5} />
+         </div>
+         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Investimentos</h2>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 ml-1 flex-grow mb-3">
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Atual</p>
+          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(currentMonth)}>
+            {formatCurrency(currentMonth)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Anterior</p>
+          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(previousMonth)}>
+            {formatCurrency(previousMonth)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
+        <p className="text-[10px] sm:text-[11px] font-bold text-purple-600/80 uppercase tracking-widest mb-1">Total Geral</p>
+        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-purple-600" title={formatCurrency(total)}>
+          {formatCurrency(total)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
