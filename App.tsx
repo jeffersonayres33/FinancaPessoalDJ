@@ -1128,7 +1128,7 @@ const AuthenticatedApp: React.FC<{
           const previousExpense = previousBalanceForTotal < 0 ? Math.abs(previousBalanceForTotal) : 0;
           
           const receitasTotalGeral = dashboardData.pendingIncome + dashboardData.income + previousIncome;
-          const despesasTotalGeral = dashboardData.pending + dashboardData.expense;
+          const despesasTotalGeral = dashboardData.pending + dashboardData.expense + previousExpense;
           
           const saldoAtual = (dashboardData.income + previousIncome) - (dashboardData.expense + previousExpense);
           const totalGeralSaldo = receitasTotalGeral - despesasTotalGeral;

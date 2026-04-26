@@ -1,6 +1,7 @@
 
-import React from 'react';
-import { LucideIcon, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { LucideIcon, TrendingUp, TrendingDown, Wallet, HelpCircle, X } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
@@ -185,48 +186,101 @@ export const SplitStatCard: React.FC<SplitStatCardProps> = ({
 // mas o App.tsx vai usar o StatCard diretamente agora.
 export const Summary: React.FC<any> = () => null;
 
+const WidgetInfoModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  description: React.ReactNode;
+}> = ({ isOpen, onClose, title, description }) => {
+  if (!isOpen) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ position: 'fixed' }}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col pt-0 animate-slide-up relative">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0 rounded-t-2xl">
+          <h3 className="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-2">
+            <HelpCircle size={20} className="text-purple-500 shrink-0" />
+            <span className="truncate">{title}</span>
+          </h3>
+          <button onClick={onClose} className="p-1.5 shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-4 sm:p-6 text-slate-600 text-sm leading-relaxed overflow-y-auto">
+          {description}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 export const RevenueWidget: React.FC<{
   pending: number;
   received: number;
   previousBalance: number;
   formatCurrency: (val: number) => string;
 }> = ({ pending, received, previousBalance, formatCurrency }) => {
+  const [showInfo, setShowInfo] = useState(false);
   const previousToShow = Math.max(0, previousBalance);
   const total = pending + received + previousToShow;
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-      
-      <div className="flex items-center gap-3 mb-6 ml-1">
-         <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
-           <TrendingUp size={22} strokeWidth={2.5} />
+    <>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="px-5 py-3 flex items-center justify-between bg-emerald-500 text-white">
+         <div className="flex items-center gap-3">
+           <div className="p-2 bg-emerald-600 rounded-xl">
+             <TrendingUp size={20} strokeWidth={2.5} />
+           </div>
+           <h2 className="font-bold text-lg sm:text-xl tracking-tight">Receitas</h2>
          </div>
-         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Receitas</h2>
+         <button onClick={() => setShowInfo(true)} className="p-1.5 hover:bg-emerald-600 rounded-full transition-colors" title="Entender os cálculos">
+           <HelpCircle size={18} />
+         </button>
       </div>
+      
+      <div className="p-6 flex flex-col flex-grow">
+        <div className="grid grid-cols-3 gap-3 flex-grow mb-4">
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pendente</p>
+            <p className="text-xs sm:text-sm font-bold text-rose-500 truncate" title={formatCurrency(pending)}>{formatCurrency(pending)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Recebido</p>
+            <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={formatCurrency(received)}>{formatCurrency(received)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mês Anterior</p>
+            <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={'+' + formatCurrency(previousToShow)}>
+              {previousToShow > 0 ? '+' : ''}{formatCurrency(previousToShow)}
+            </p>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-3 gap-3 ml-1 flex-grow mb-3">
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pendente</p>
-          <p className="text-xs sm:text-sm font-bold text-rose-500 truncate" title={formatCurrency(pending)}>{formatCurrency(pending)}</p>
+        <div className="mt-auto pt-4 border-t border-slate-100">
+          <p className="text-[10px] sm:text-[11px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Total Geral</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight truncate" title={formatCurrency(total)}>{formatCurrency(total)}</p>
         </div>
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Recebido</p>
-          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={formatCurrency(received)}>{formatCurrency(received)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Anterior</p>
-          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={'+' + formatCurrency(previousToShow)}>
-            {previousToShow > 0 ? '+' : ''}{formatCurrency(previousToShow)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
-        <p className="text-[10px] sm:text-[11px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Total Geral</p>
-        <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight truncate" title={formatCurrency(total)}>{formatCurrency(total)}</p>
       </div>
     </div>
+    
+    <WidgetInfoModal 
+      isOpen={showInfo} 
+      onClose={() => setShowInfo(false)} 
+      title="Como calculamos as Receitas?" 
+      description={
+        <div className="space-y-4">
+          <p>Este painel mostra a soma de tudo que você ganhou e o que ainda tem para receber.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Pendente:</strong> Valores das receitas que estão previstas para este mês, mas que ainda não foram marcadas como recebidas.</li>
+            <li><strong>Recebido:</strong> Todo o dinheiro das suas receitas que já caiu na sua conta (marcadas como recebidas).</li>
+            <li><strong>Mês Anterior:</strong> Refere-se a qualquer saldo positivo que tenha sobrado do mês anterior. Trazemos para cá apenas se for positivo (dinheiro sobrando).</li>
+            <li><strong>Total Geral:</strong> É a soma do valor Pendente, Recebido e do saldo do Mês Anterior. Representa todo o dinheiro destinado para receitas.</li>
+          </ul>
+        </div>
+      } 
+    />
+    </>
   );
 };
 
@@ -236,42 +290,67 @@ export const ExpenseWidget: React.FC<{
   previousBalance: number;
   formatCurrency: (val: number) => string;
 }> = ({ unpaid, paid, previousBalance, formatCurrency }) => {
+  const [showInfo, setShowInfo] = useState(false);
   const previousToShow = previousBalance < 0 ? Math.abs(previousBalance) : 0;
-  const total = unpaid + paid;
+  const total = unpaid + paid + previousToShow;
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-      
-      <div className="flex items-center gap-3 mb-6 ml-1">
-         <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600">
-           <TrendingDown size={22} strokeWidth={2.5} />
+    <>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="px-5 py-3 flex items-center justify-between bg-rose-500 text-white">
+         <div className="flex items-center gap-3">
+           <div className="p-2 bg-rose-600 rounded-xl">
+             <TrendingDown size={20} strokeWidth={2.5} />
+           </div>
+           <h2 className="font-bold text-lg sm:text-xl tracking-tight">Despesas</h2>
          </div>
-         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Despesas</h2>
+         <button onClick={() => setShowInfo(true)} className="p-1.5 hover:bg-rose-600 rounded-full transition-colors" title="Entender os cálculos">
+           <HelpCircle size={18} />
+         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 ml-1 flex-grow mb-3">
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Não Paga</p>
-          <p className="text-xs sm:text-sm font-bold text-rose-500 truncate" title={formatCurrency(unpaid)}>{formatCurrency(unpaid)}</p>
+      <div className="p-6 flex flex-col flex-grow">
+        <div className="grid grid-cols-3 gap-3 flex-grow mb-4">
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Não Pago</p>
+            <p className="text-xs sm:text-sm font-bold text-rose-500 truncate" title={formatCurrency(unpaid)}>{formatCurrency(unpaid)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pago</p>
+            <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={formatCurrency(paid)}>{formatCurrency(paid)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mês Anterior</p>
+            <p className={`text-xs sm:text-sm font-bold truncate ${previousToShow > 0 ? 'text-rose-500' : 'text-slate-700'}`} title={'-' + formatCurrency(previousToShow)}>
+              {previousToShow > 0 ? '-' : ''}{formatCurrency(previousToShow)}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Paga</p>
-          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={formatCurrency(paid)}>{formatCurrency(paid)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Anterior</p>
-          <p className="text-xs sm:text-sm font-bold text-slate-700 truncate" title={'-' + formatCurrency(previousToShow)}>
-            {previousToShow > 0 ? '-' : ''}{formatCurrency(previousToShow)}
-          </p>
-        </div>
-      </div>
 
-      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
-        <p className="text-[10px] sm:text-[11px] font-bold text-rose-600/70 uppercase tracking-widest mb-1">Total Geral</p>
-        <p className="text-2xl sm:text-3xl font-extrabold text-rose-600 tracking-tight truncate" title={formatCurrency(total)}>{formatCurrency(total)}</p>
+        <div className="mt-auto pt-4 border-t border-slate-100">
+          <p className="text-[10px] sm:text-[11px] font-bold text-rose-600/70 uppercase tracking-widest mb-1">Total Geral</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-rose-600 tracking-tight truncate" title={formatCurrency(total)}>{formatCurrency(total)}</p>
+        </div>
       </div>
     </div>
+
+    <WidgetInfoModal 
+      isOpen={showInfo} 
+      onClose={() => setShowInfo(false)} 
+      title="Como calculamos as Despesas?" 
+      description={
+        <div className="space-y-4">
+          <p>Este painel mostra a soma de tudo que você já pagou e o que ainda tem para pagar.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Não Pago:</strong> Valores de contas ou despesas que já estão cadastradas, mas que você ainda não marcou como pagas.</li>
+            <li><strong>Pago:</strong> Total de despesas que você já quitou (marcadas como pagas).</li>
+            <li><strong>Mês Anterior:</strong> Refere-se a qualquer saldo negativo que tenha ficado para trás do mês anterior. Consideramos aqui apenas os valores negativos (dívidas).</li>
+            <li><strong>Total Geral:</strong> Corresponde ao somatório de despesas (Não Pago + Pago) e às despesas em aberto (negativas) herdadas do Mês Anterior. O Total Geral representa tudo que sairá do seu bolso.</li>
+          </ul>
+        </div>
+      } 
+    />
+    </>
   );
 };
 
@@ -280,33 +359,56 @@ export const BalanceWidget: React.FC<{
   totalGeral: number;
   formatCurrency: (val: number) => string;
 }> = ({ saldoAtual, totalGeral, formatCurrency }) => {
+  const [showInfo, setShowInfo] = useState(false);
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-      
-      <div className="flex items-center gap-3 mb-6 ml-1">
-         <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600">
-           <Wallet size={22} strokeWidth={2.5} />
+    <>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="px-5 py-3 flex items-center justify-between bg-blue-500 text-white">
+         <div className="flex items-center gap-3">
+           <div className="p-2 bg-blue-600 rounded-xl">
+             <Wallet size={20} strokeWidth={2.5} />
+           </div>
+           <h2 className="font-bold text-lg sm:text-xl tracking-tight">Saldo</h2>
          </div>
-         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Saldo</h2>
+         <button onClick={() => setShowInfo(true)} className="p-1.5 hover:bg-blue-600 rounded-full transition-colors" title="Entender os cálculos">
+           <HelpCircle size={18} />
+         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 ml-1 flex-grow mb-3">
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Saldo Atual</p>
-          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(saldoAtual)}>
-            {formatCurrency(saldoAtual)}
+      <div className="p-6 flex flex-col flex-grow">
+        <div className="grid grid-cols-1 gap-4 flex-grow mb-4">
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Saldo Atual</p>
+            <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(saldoAtual)}>
+              {formatCurrency(saldoAtual)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-auto pt-4 border-t border-slate-100">
+          <p className="text-[10px] sm:text-[11px] font-bold text-blue-600/80 uppercase tracking-widest mb-1">Total Geral</p>
+          <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-blue-600" title={formatCurrency(totalGeral)}>
+            {formatCurrency(totalGeral)}
           </p>
         </div>
       </div>
-
-      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
-        <p className="text-[10px] sm:text-[11px] font-bold text-blue-600/80 uppercase tracking-widest mb-1">Total Geral</p>
-        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-blue-600" title={formatCurrency(totalGeral)}>
-          {formatCurrency(totalGeral)}
-        </p>
-      </div>
     </div>
+
+    <WidgetInfoModal 
+      isOpen={showInfo} 
+      onClose={() => setShowInfo(false)} 
+      title="Como calculamos o Saldo?" 
+      description={
+        <div className="space-y-4">
+          <p>Este painel mostra a diferença entre o que você tem de receitas e o que tem de despesas.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Saldo Atual:</strong> É a diferença entre tudo que já foi Recebido menos tudo que já foi Pago no mês atual, somado ao saldo final do mês anterior (seja ele positivo ou negativo). Mostra o dinheiro que você tem em caixa agora.</li>
+            <li><strong>Total Geral:</strong> É a subtração simples do Total Geral do painel de Receitas menos o Total Geral do painel de Despesas. Representa sua projeção final de saldo quando todas as receitas pendentes e todas as despesas não pagas forem concluídas no mês.</li>
+          </ul>
+        </div>
+      } 
+    />
+    </>
   );
 };
 
@@ -315,41 +417,65 @@ export const InvestmentWidget: React.FC<{
   previousMonth: number;
   formatCurrency: (val: number) => string;
 }> = ({ currentMonth, previousMonth, formatCurrency }) => {
+  const [showInfo, setShowInfo] = useState(false);
   const total = currentMonth + previousMonth;
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-purple-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-      
-      <div className="flex items-center gap-3 mb-6 ml-1">
-         <div className="p-2.5 bg-purple-50 rounded-xl text-purple-600">
-           <Wallet size={22} strokeWidth={2.5} />
+    <>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
+      <div className="px-5 py-3 flex items-center justify-between bg-purple-500 text-white">
+         <div className="flex items-center gap-3">
+           <div className="p-2 bg-purple-600 rounded-xl">
+             <Wallet size={20} strokeWidth={2.5} />
+           </div>
+           <h2 className="font-bold text-lg sm:text-xl tracking-tight">Investimentos</h2>
          </div>
-         <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Investimentos</h2>
+         <button onClick={() => setShowInfo(true)} className="p-1.5 hover:bg-purple-600 rounded-full transition-colors" title="Entender os cálculos">
+           <HelpCircle size={18} />
+         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 ml-1 flex-grow mb-3">
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Atual</p>
-          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(currentMonth)}>
-            {formatCurrency(currentMonth)}
-          </p>
+      <div className="p-6 flex flex-col flex-grow">
+        <div className="grid grid-cols-2 gap-4 flex-grow mb-4">
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Atual</p>
+            <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(currentMonth)}>
+              {formatCurrency(currentMonth)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Anterior</p>
+            <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(previousMonth)}>
+              {formatCurrency(previousMonth)}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Anterior</p>
-          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(previousMonth)}>
-            {formatCurrency(previousMonth)}
-          </p>
-        </div>
-      </div>
 
-      <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
-        <p className="text-[10px] sm:text-[11px] font-bold text-purple-600/80 uppercase tracking-widest mb-1">Total Geral</p>
-        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-purple-600" title={formatCurrency(total)}>
-          {formatCurrency(total)}
-        </p>
+        <div className="mt-auto pt-4 border-t border-slate-100">
+          <p className="text-[10px] sm:text-[11px] font-bold text-purple-600/80 uppercase tracking-widest mb-1">Total Geral</p>
+          <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-purple-600" title={formatCurrency(total)}>
+            {formatCurrency(total)}
+          </p>
+        </div>
       </div>
     </div>
+
+    <WidgetInfoModal 
+      isOpen={showInfo} 
+      onClose={() => setShowInfo(false)} 
+      title="Como calculamos os Investimentos?" 
+      description={
+        <div className="space-y-4">
+          <p>Este painel consolida o dinheiro que você separou para investir.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Mês Atual:</strong> Valor investido apenas no mês que você está visualizando no painel.</li>
+            <li><strong>Mês Anterior:</strong> Valor acumulado de investimentos dos meses anteriores.</li>
+            <li><strong>Total Geral:</strong> A soma do valor que você já tinha investido antes com os investimentos realizados no mês atual.</li>
+          </ul>
+        </div>
+      } 
+    />
+    </>
   );
 };
 
