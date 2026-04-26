@@ -1152,12 +1152,12 @@ const AuthenticatedApp: React.FC<{
         case 'category_evolution':
         case 'investment_evolution':
         case 'cash_flow':
-        case 'ai_insight': return 'md:col-span-2 lg:col-span-4';
+        case 'ai_insight': return 'col-span-1 md:col-span-6 lg:col-span-12';
         case 'chart_expense':
         case 'chart_income':
         case 'top_expenses':
-        case 'money_destination': return 'md:col-span-1 lg:col-span-2';
-        default: return 'col-span-1';
+        case 'money_destination': return 'col-span-1 md:col-span-3 lg:col-span-6';
+        default: return 'col-span-1 md:col-span-3 lg:col-span-4';
       }
     };
 
@@ -1223,7 +1223,7 @@ const AuthenticatedApp: React.FC<{
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-6">
            {widgetOrder.map((widgetId) => {
              if (!visibleWidgets[widgetId]) return null;
              return (
