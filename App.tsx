@@ -1122,14 +1122,25 @@ const AuthenticatedApp: React.FC<{
               formatCurrency={formatCurrency}
             />
           );
-        case 'balance': 
+        case 'balance': {
+          const previousBalanceForTotal = dashboardData.isPeriodFilterActive ? dashboardData.previousMonthBalance : 0;
+          const previousIncome = Math.max(0, previousBalanceForTotal);
+          const previousExpense = previousBalanceForTotal < 0 ? Math.abs(previousBalanceForTotal) : 0;
+          
+          const receitasTotalGeral = dashboardData.pendingIncome + dashboardData.income + previousIncome;
+          const despesasTotalGeral = dashboardData.pending + dashboardData.expense;
+          
+          const saldoAtual = (dashboardData.income + previousIncome) - (dashboardData.expense + previousExpense);
+          const totalGeralSaldo = receitasTotalGeral - despesasTotalGeral;
+
           return (
             <BalanceWidget 
-              currentMonth={dashboardData.currentBalance}
-              previousMonth={dashboardData.isPeriodFilterActive ? dashboardData.previousMonthBalance : 0}
+              saldoAtual={saldoAtual}
+              totalGeral={totalGeralSaldo}
               formatCurrency={formatCurrency}
             />
           );
+        }
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
         case 'balance_by_category': return <BalanceByCategory categories={categories} expenses={dashboardData.filteredTransactions} />;
         case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} user={user!} />;

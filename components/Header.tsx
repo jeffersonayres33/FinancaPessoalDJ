@@ -222,7 +222,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                   
                   {user && (
                     <p className={`text-xs mt-0.5 opacity-90 ${isMemberTheme ? 'text-gray-300' : 'text-purple-100'}`}>
-                      Olá {user.name.split(' ')[0]}, {getGreeting()}! Seja bem-vindo (a){visitedStatus ? ' novamente' : ''}
+                      Olá {user.name.split(' ')[0]}, {getGreeting()}! Seja bem-vindo (a){visitedStatus ? ' novamente.' : '.'}
                     </p>
                   )}
                   

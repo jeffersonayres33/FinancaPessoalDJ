@@ -276,12 +276,10 @@ export const ExpenseWidget: React.FC<{
 };
 
 export const BalanceWidget: React.FC<{
-  currentMonth: number;
-  previousMonth: number;
+  saldoAtual: number;
+  totalGeral: number;
   formatCurrency: (val: number) => string;
-}> = ({ currentMonth, previousMonth, formatCurrency }) => {
-  const total = currentMonth + previousMonth;
-
+}> = ({ saldoAtual, totalGeral, formatCurrency }) => {
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-transform hover:-translate-y-1 duration-300">
       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
@@ -293,25 +291,19 @@ export const BalanceWidget: React.FC<{
          <h2 className="font-bold text-slate-800 text-lg sm:text-xl tracking-tight">Saldo</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 ml-1 flex-grow mb-3">
+      <div className="grid grid-cols-1 gap-4 ml-1 flex-grow mb-3">
         <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Atual</p>
-          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(currentMonth)}>
-            {formatCurrency(currentMonth)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Mês Anterior</p>
-          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(previousMonth)}>
-            {formatCurrency(previousMonth)}
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">Saldo Atual</p>
+          <p className="text-xs sm:text-sm font-bold truncate text-slate-900" title={formatCurrency(saldoAtual)}>
+            {formatCurrency(saldoAtual)}
           </p>
         </div>
       </div>
 
       <div className="mt-auto ml-1 pt-4 border-t border-slate-100">
         <p className="text-[10px] sm:text-[11px] font-bold text-blue-600/80 uppercase tracking-widest mb-1">Total Geral</p>
-        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-blue-600" title={formatCurrency(total)}>
-          {formatCurrency(total)}
+        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-blue-600" title={formatCurrency(totalGeral)}>
+          {formatCurrency(totalGeral)}
         </p>
       </div>
     </div>
