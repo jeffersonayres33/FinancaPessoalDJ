@@ -57,6 +57,10 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
   const [maxAmount, setMaxAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [paymentStartDate, setPaymentStartDate] = useState('');
+  const [paymentEndDate, setPaymentEndDate] = useState('');
+  const [updatedStartDate, setUpdatedStartDate] = useState('');
+  const [updatedEndDate, setUpdatedEndDate] = useState('');
   const [createdStartDate, setCreatedStartDate] = useState('');
   const [createdEndDate, setCreatedEndDate] = useState('');
 
@@ -79,6 +83,10 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     setMaxAmount('');
     setStartDate('');
     setEndDate('');
+    setPaymentStartDate('');
+    setPaymentEndDate('');
+    setUpdatedStartDate('');
+    setUpdatedEndDate('');
     setCreatedStartDate('');
     setCreatedEndDate('');
   };
@@ -123,6 +131,30 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
           if (createdEndDate && createdAtDate > createdEndDate) createdDateMatch = false;
         }
 
+        // Payment Date Logic
+        let paymentDateMatch = true;
+        if (paymentStartDate || paymentEndDate) {
+          if (!t.paymentDate) {
+            paymentDateMatch = false;
+          } else {
+            const pDateStr = t.paymentDate;
+            if (paymentStartDate && pDateStr < paymentStartDate) paymentDateMatch = false;
+            if (paymentEndDate && pDateStr > paymentEndDate) paymentDateMatch = false;
+          }
+        }
+
+        // Updated Date Logic
+        let updatedDateMatch = true;
+        if (updatedStartDate || updatedEndDate) {
+          if (!t.updatedAt) {
+            updatedDateMatch = false;
+          } else {
+            const uDateStr = t.updatedAt.split('T')[0];
+            if (updatedStartDate && uDateStr < updatedStartDate) updatedDateMatch = false;
+            if (updatedEndDate && uDateStr > updatedEndDate) updatedDateMatch = false;
+          }
+        }
+
         const statusMatch = statusFilter === 'all' || t.status === statusFilter;
         const typeMatch = typeFilter === 'all' || (typeFilter === 'in' && t.amount >= 0) || (typeFilter === 'out' && t.amount < 0);
         const searchMatch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
@@ -133,14 +165,17 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                                 (recurrenceFilter === 'variable' && !t.isFixed);
         
         let installmentMatch = true;
-        if (installmentFilter === 'installment') installmentMatch = !!t.installments && t.installments.current !== 0;
-        if (installmentFilter === 'single') installmentMatch = !t.installments || t.installments.current === 0;
+        const isInstallment = !!t.installments && t.installments.total > 1 && t.installments.current > 0;
+        if (recurrenceFilter !== 'fixed') {
+            if (installmentFilter === 'installment') installmentMatch = isInstallment;
+            if (installmentFilter === 'single') installmentMatch = !isInstallment;
+        }
         
         let amountMatch = true;
         if (minAmount) amountMatch = amountMatch && t.amount >= Number(minAmount);
         if (maxAmount) amountMatch = amountMatch && t.amount <= Number(maxAmount);
 
-        return dateMatch && createdDateMatch && statusMatch && typeMatch && searchMatch && amountMatch && categoryMatch && recurrenceMatch && installmentMatch;
+        return dateMatch && createdDateMatch && paymentDateMatch && updatedDateMatch && statusMatch && typeMatch && searchMatch && amountMatch && categoryMatch && recurrenceMatch && installmentMatch;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -155,7 +190,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [investimentos, month, year, statusFilter, typeFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, createdStartDate, createdEndDate, categoryFilter, recurrenceFilter, installmentFilter]);
+  }, [investimentos, month, year, statusFilter, typeFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, createdStartDate, createdEndDate, paymentStartDate, paymentEndDate, updatedStartDate, updatedEndDate, categoryFilter, recurrenceFilter, installmentFilter]);
 
   // Calculate totals for all time (not just filtered)
   const allTimeInvestments = useMemo(() => investimentos.filter(t => t.type === 'investment'), [investimentos]);
@@ -222,11 +257,12 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
       t.category,
       t.status === 'paid' ? 'Pago' : 'Pendente',
       t.amount >= 0 ? 'Entrada' : 'Saída',
+      t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
       formatCurrency(Math.abs(t.amount))
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Título', 'Categoria', 'Status', 'Tipo', 'Valor']],
+      head: [['Data', 'Título', 'Categoria', 'Status', 'Tipo', 'Parcela', 'Valor']],
       body: tableData,
       startY: 60,
       headStyles: { fillColor: [59, 130, 246] }, // Blue header
@@ -251,6 +287,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
       Categoria: t.category,
       Status: t.status === 'paid' ? 'Pago' : 'Pendente',
       Tipo: t.amount >= 0 ? 'Entrada' : 'Saída',
+      Parcela: t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
       Valor: Math.abs(t.amount),
       Observação: t.observation || ''
     })));
@@ -491,7 +528,8 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
              <select 
                 value={installmentFilter} 
                 onChange={(e) => setInstallmentFilter(e.target.value as any)}
-                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:opacity-50"
+                disabled={recurrenceFilter === 'fixed'}
              >
                 <option value="all">Parcelamento: Todos</option>
                 <option value="single">À vista</option>
@@ -512,12 +550,39 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
              <input type="number" placeholder="Min R$" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              <input type="number" placeholder="Max R$" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              
-             <div className="md:col-span-2 flex flex-col gap-1">
+             <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data do Pagamento</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={paymentStartDate} onChange={e => setPaymentStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={paymentEndDate} onChange={e => setPaymentEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
                 <span className="text-xs text-gray-500 font-medium">Data de Criação</span>
                 <div className="flex gap-2 items-center">
-                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
+                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
                   <span className="text-gray-400">-</span>
-                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Edição</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={updatedStartDate} onChange={e => setUpdatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={updatedEndDate} onChange={e => setUpdatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
                 </div>
              </div>
 

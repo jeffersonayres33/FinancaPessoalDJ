@@ -69,6 +69,10 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
   const [maxAmount, setMaxAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [paymentStartDate, setPaymentStartDate] = useState('');
+  const [paymentEndDate, setPaymentEndDate] = useState('');
+  const [updatedStartDate, setUpdatedStartDate] = useState('');
+  const [updatedEndDate, setUpdatedEndDate] = useState('');
   const [createdStartDate, setCreatedStartDate] = useState('');
   const [createdEndDate, setCreatedEndDate] = useState('');
 
@@ -90,6 +94,10 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
     setMaxAmount('');
     setStartDate('');
     setEndDate('');
+    setPaymentStartDate('');
+    setPaymentEndDate('');
+    setUpdatedStartDate('');
+    setUpdatedEndDate('');
     setCreatedStartDate('');
     setCreatedEndDate('');
   };
@@ -134,6 +142,30 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
           if (createdEndDate && createdAtDate > createdEndDate) createdDateMatch = false;
         }
 
+        // Payment Date Logic
+        let paymentDateMatch = true;
+        if (paymentStartDate || paymentEndDate) {
+          if (!t.paymentDate) {
+            paymentDateMatch = false;
+          } else {
+            const pDateStr = t.paymentDate;
+            if (paymentStartDate && pDateStr < paymentStartDate) paymentDateMatch = false;
+            if (paymentEndDate && pDateStr > paymentEndDate) paymentDateMatch = false;
+          }
+        }
+
+        // Updated Date Logic
+        let updatedDateMatch = true;
+        if (updatedStartDate || updatedEndDate) {
+          if (!t.updatedAt) {
+            updatedDateMatch = false;
+          } else {
+            const uDateStr = t.updatedAt.split('T')[0];
+            if (updatedStartDate && uDateStr < updatedStartDate) updatedDateMatch = false;
+            if (updatedEndDate && uDateStr > updatedEndDate) updatedDateMatch = false;
+          }
+        }
+
         const statusMatch = statusFilter === 'all' || t.status === statusFilter;
         const searchMatch = (t.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
                             (t.category?.toLowerCase() || '').includes(searchTerm.toLowerCase());
@@ -143,15 +175,19 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
         if (minAmount) amountMatch = amountMatch && t.amount >= Number(minAmount);
         if (maxAmount) amountMatch = amountMatch && t.amount <= Number(maxAmount);
 
+        // Installment Filter
         let installmentMatch = true;
-        if (installmentFilter === 'installment') installmentMatch = !!t.installments && t.installments.current !== 0;
-        if (installmentFilter === 'single') installmentMatch = !t.installments || t.installments.current === 0;
+        const isInstallment = !!t.installments && t.installments.total > 1 && t.installments.current > 0;
+        if (recurrenceFilter !== 'fixed') {
+            if (installmentFilter === 'installment') installmentMatch = isInstallment;
+            if (installmentFilter === 'single') installmentMatch = !isInstallment;
+        }
 
         let recurrenceMatch = true;
         if (recurrenceFilter === 'fixed') recurrenceMatch = !!t.isFixed;
         if (recurrenceFilter === 'variable') recurrenceMatch = !t.isFixed;
 
-        return dateMatch && createdDateMatch && statusMatch && searchMatch && amountMatch && installmentMatch && recurrenceMatch && categoryMatch;
+        return dateMatch && createdDateMatch && paymentDateMatch && updatedDateMatch && statusMatch && searchMatch && amountMatch && installmentMatch && recurrenceMatch && categoryMatch;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -166,7 +202,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [despesas, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, createdStartDate, createdEndDate, installmentFilter, recurrenceFilter, categoryFilter]);
+  }, [despesas, month, year, statusFilter, sortBy, sortOrder, searchTerm, minAmount, maxAmount, startDate, endDate, createdStartDate, createdEndDate, paymentStartDate, paymentEndDate, updatedStartDate, updatedEndDate, installmentFilter, recurrenceFilter, categoryFilter]);
 
   const totalFiltered = filteredExpenses.reduce((acc, t) => acc + t.amount, 0);
   const totalPaid = filteredExpenses.filter(t => t.status === 'paid').reduce((acc, t) => acc + t.amount, 0);
@@ -214,12 +250,13 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
       t.title,
       t.category,
       t.isFixed ? (t.installments?.current === 0 ? 'Fixa (Inativa)' : 'Fixa') : 'Variável',
+      t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
       t.status === 'paid' ? 'Pago' : 'Pendente',
       formatCurrency(t.amount)
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Título', 'Categoria', 'Tipo', 'Status', 'Valor']],
+      head: [['Data', 'Título', 'Categoria', 'Tipo', 'Parcela', 'Status', 'Valor']],
       body: tableData,
       startY: 45,
     });
@@ -242,6 +279,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
       Título: t.title,
       Categoria: t.category,
       Tipo: t.isFixed ? (t.installments?.current === 0 ? 'Fixa (Inativa)' : 'Fixa') : 'Variável',
+      Parcela: t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
       Status: t.status === 'paid' ? 'Pago' : 'Pendente',
       Valor: t.amount,
       Observação: t.observation || ''
@@ -417,7 +455,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
              <select 
                 value={installmentFilter} 
                 onChange={(e) => setInstallmentFilter(e.target.value as any)}
-                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+                className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:opacity-50"
+                disabled={recurrenceFilter === 'fixed'}
              >
                 <option value="all">Parcelamento: Todos</option>
                 <option value="installment">Parcelados</option>
@@ -438,12 +477,39 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
              <input type="number" placeholder="Min R$" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              <input type="number" placeholder="Max R$" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
              
-             <div className="md:col-span-2 flex flex-col gap-1">
+             <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data do Pagamento</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={paymentStartDate} onChange={e => setPaymentStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={paymentEndDate} onChange={e => setPaymentEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
                 <span className="text-xs text-gray-500 font-medium">Data de Criação</span>
                 <div className="flex gap-2 items-center">
-                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Inicial" />
+                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
                   <span className="text-gray-400">-</span>
-                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" placeholder="Data Final" />
+                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 font-medium">Data de Edição</span>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={updatedStartDate} onChange={e => setUpdatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  <span className="text-gray-400">-</span>
+                  <input type="date" value={updatedEndDate} onChange={e => setUpdatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
                 </div>
              </div>
 
