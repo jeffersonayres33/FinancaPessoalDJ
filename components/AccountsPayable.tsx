@@ -445,80 +445,99 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
 
         {/* Collapsible Advanced Filters */}
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-gray-100 animate-fade-in-down">
-             <select 
-               value={recurrenceFilter} 
-               onChange={(e) => setRecurrenceFilter(e.target.value as any)}
-               className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
-             >
-               <option value="all">Recorrência: Todos</option>
-               <option value="fixed">Fixas</option>
-               <option value="variable">Variáveis</option>
-             </select>
+          <div className="flex flex-col gap-4 pt-4 border-t border-gray-100 animate-fade-in-down">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+               <div className="flex flex-col gap-1">
+                 <span className="text-xs text-gray-500 font-medium">Recorrência</span>
+                 <select 
+                   value={recurrenceFilter} 
+                   onChange={(e) => setRecurrenceFilter(e.target.value as any)}
+                   className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+                 >
+                   <option value="all">Recorrência: Todos</option>
+                   <option value="fixed">Fixas</option>
+                   <option value="variable">Variáveis</option>
+                 </select>
+               </div>
+               
+               <div className="flex flex-col gap-1">
+                 <span className="text-xs text-gray-500 font-medium">Parcelas</span>
+                 <select 
+                   value={installmentFilter} 
+                   onChange={(e) => setInstallmentFilter(e.target.value as any)}
+                   className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:opacity-50"
+                   disabled={recurrenceFilter === 'fixed'}
+                 >
+                   <option value="all">Parcelas: Todas</option>
+                   <option value="installment">Parcelados</option>
+                   <option value="single">À vista</option>
+                 </select>
+               </div>
+               
+               <div className="flex flex-col gap-1">
+                 <span className="text-xs text-gray-500 font-medium">Categoria</span>
+                 <select 
+                   value={categoryFilter} 
+                   onChange={(e) => setCategoryFilter(e.target.value)}
+                   className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
+                 >
+                   <option value="all">Categoria: Todas</option>
+                   {categories.filter(c => c.type === 'expense' || c.type === 'both').map(c => (
+                       <option key={c.id} value={c.name}>{c.name}</option>
+                   ))}
+                 </select>
+               </div>
 
-             <select 
-               value={installmentFilter} 
-               onChange={(e) => setInstallmentFilter(e.target.value as any)}
-               className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white disabled:opacity-50"
-               disabled={recurrenceFilter === 'fixed'}
-             >
-               <option value="all">Parcelas: Todas</option>
-               <option value="installment">Parcelados</option>
-               <option value="single">Únicos</option>
-             </select>
-
-             <select 
-               value={categoryFilter} 
-               onChange={(e) => setCategoryFilter(e.target.value)}
-               className="p-2 border border-gray-300 rounded-md text-sm outline-none bg-white"
-             >
-               <option value="all">Categoria: Todas</option>
-               {categories.filter(c => c.type === 'expense' || c.type === 'both').map(c => (
-                   <option key={c.id} value={c.name}>{c.name}</option>
-               ))}
-             </select>
-
-             <input type="number" placeholder="Min R$" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
-             <input type="number" placeholder="Max R$" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="p-2 border border-gray-300 rounded-md text-sm outline-none" />
-
-             <div className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
-                <div className="flex gap-2 items-center">
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                  <span className="text-gray-400">-</span>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                </div>
+               <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-500 font-medium">Valor (R$)</span>
+                  <div className="flex gap-2 items-center">
+                    <input type="number" placeholder="Min" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" />
+                    <span className="text-gray-400">-</span>
+                    <input type="number" placeholder="Max" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm outline-none" />
+                  </div>
+               </div>
              </div>
 
-             <div className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500 font-medium">Data do Pagamento</span>
-                <div className="flex gap-2 items-center">
-                  <input type="date" value={paymentStartDate} onChange={e => setPaymentStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                  <span className="text-gray-400">-</span>
-                  <input type="date" value={paymentEndDate} onChange={e => setPaymentEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                </div>
-             </div>
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 border-t border-gray-50 pt-3">
+               <div className="flex flex-col gap-1 lg:col-span-1">
+                  <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
+                  <div className="flex gap-2 items-center">
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                    <span className="text-gray-400">-</span>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  </div>
+               </div>
 
-             <div className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500 font-medium">Data de Criação</span>
-                <div className="flex gap-2 items-center">
-                  <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                  <span className="text-gray-400">-</span>
-                  <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                </div>
-             </div>
+               <div className="flex flex-col gap-1 lg:col-span-1">
+                  <span className="text-xs text-gray-500 font-medium">Data do Pagamento</span>
+                  <div className="flex gap-2 items-center">
+                    <input type="date" value={paymentStartDate} onChange={e => setPaymentStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                    <span className="text-gray-400">-</span>
+                    <input type="date" value={paymentEndDate} onChange={e => setPaymentEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  </div>
+               </div>
 
-             <div className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500 font-medium">Data de Edição</span>
-                <div className="flex gap-2 items-center">
-                  <input type="date" value={updatedStartDate} onChange={e => setUpdatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                  <span className="text-gray-400">-</span>
-                  <input type="date" value={updatedEndDate} onChange={e => setUpdatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
-                </div>
+               <div className="flex flex-col gap-1 lg:col-span-1">
+                  <span className="text-xs text-gray-500 font-medium">Data de Criação</span>
+                  <div className="flex gap-2 items-center">
+                    <input type="date" value={createdStartDate} onChange={e => setCreatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                    <span className="text-gray-400">-</span>
+                    <input type="date" value={createdEndDate} onChange={e => setCreatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  </div>
+               </div>
+
+               <div className="flex flex-col gap-1 lg:col-span-1">
+                  <span className="text-xs text-gray-500 font-medium">Data de Edição</span>
+                  <div className="flex gap-2 items-center">
+                    <input type="date" value={updatedStartDate} onChange={e => setUpdatedStartDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                    <span className="text-gray-400">-</span>
+                    <input type="date" value={updatedEndDate} onChange={e => setUpdatedEndDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-xs outline-none" />
+                  </div>
+               </div>
              </div>
              
-             <div className="md:col-span-3 lg:col-span-5 flex justify-end">
-                <button onClick={clearFilters} className="text-xs text-red-500 hover:underline">Limpar Filtros</button>
+             <div className="flex justify-end mt-2">
+                <button onClick={clearFilters} className="text-xs text-red-500 hover:underline px-2 py-1">Limpar Filtros</button>
              </div>
           </div>
         )}
