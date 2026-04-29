@@ -278,14 +278,32 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     doc.text(`Total Pendente (${selectedIds.length > 0 ? 'Selecionado' : 'Filtrado'}): ${formatCurrency(totalExport)}`, 14, 32);
     doc.text(`Quantidade de itens: ${itemsToExport.length}`, 14, 37);
 
-    const tableData = itemsToExport.map(t => [
-      formatDate(t.date),
-      t.title + (t.observation ? '\n(Obs: ' + t.observation + ')' : ''),
-      t.category,
-      formatCurrency(t.amount),
-      t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
-      t.status === 'paid' ? 'Pago' : 'Pendente'
-    ]);
+    const tableData: any[] = [];
+    itemsToExport.forEach(t => {
+      if (t.observation) {
+        tableData.push([
+          { content: formatDate(t.date), styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.title, styles: { fontStyle: 'bold', lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.category, styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: formatCurrency(t.amount), styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.status === 'paid' ? 'Pago' : 'Pendente', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } }
+        ]);
+        tableData.push([
+          { content: '', styles: { lineWidth: { top: 0, right: 0.1, bottom: 0.1, left: 0.1 } } },
+          { content: t.observation, colSpan: 5, styles: { textColor: [150, 150, 150], fontSize: 6.5, lineWidth: { top: 0, right: 0.1, bottom: 0.1, left: 0.1 }, cellPadding: { top: 0, bottom: 2, left: 2, right: 2 } } }
+        ]);
+      } else {
+        tableData.push([
+          formatDate(t.date),
+          t.title,
+          t.category,
+          formatCurrency(t.amount),
+          t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
+          t.status === 'paid' ? 'Pago' : 'Pendente'
+        ]);
+      }
+    });
 
     autoTable(doc, {
       head: [['Data', 'Título', 'Categoria', 'Valor', 'Parcela', 'Status']],

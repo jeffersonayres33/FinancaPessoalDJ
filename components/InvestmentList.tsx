@@ -251,15 +251,34 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     doc.text(`Saídas Totais Pendentes (${label}): ${formatCurrency(exportTotalOutPending)}`, 14, 47);
     doc.text(`Quantidade de itens: ${itemsToExport.length}`, 14, 52);
 
-    const tableData = itemsToExport.map(t => [
-      formatDate(t.date),
-      t.title + (t.observation ? '\n(Obs: ' + t.observation + ')' : ''),
-      t.category,
-      t.status === 'paid' ? 'Pago' : 'Pendente',
-      t.amount >= 0 ? 'Entrada' : 'Saída',
-      t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
-      formatCurrency(Math.abs(t.amount))
-    ]);
+    const tableData: any[] = [];
+    itemsToExport.forEach(t => {
+      if (t.observation) {
+        tableData.push([
+          { content: formatDate(t.date), styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.title, styles: { fontStyle: 'bold', lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.category, styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.status === 'paid' ? 'Pago' : 'Pendente', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.amount >= 0 ? 'Entrada' : 'Saída', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
+          { content: formatCurrency(Math.abs(t.amount)), styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } }
+        ]);
+        tableData.push([
+          { content: '', styles: { lineWidth: { top: 0, right: 0.1, bottom: 0.1, left: 0.1 } } },
+          { content: t.observation, colSpan: 6, styles: { textColor: [150, 150, 150], fontSize: 6.5, lineWidth: { top: 0, right: 0.1, bottom: 0.1, left: 0.1 }, cellPadding: { top: 0, bottom: 2, left: 2, right: 2 } } }
+        ]);
+      } else {
+        tableData.push([
+          formatDate(t.date),
+          t.title,
+          t.category,
+          t.status === 'paid' ? 'Pago' : 'Pendente',
+          t.amount >= 0 ? 'Entrada' : 'Saída',
+          t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
+          formatCurrency(Math.abs(t.amount))
+        ]);
+      }
+    });
 
     autoTable(doc, {
       head: [['Data', 'Título', 'Categoria', 'Status', 'Tipo', 'Parcela', 'Valor']],
@@ -495,7 +514,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
         {showFilters && (
           <div className="flex flex-col gap-4 pt-4 border-t border-gray-100 animate-fade-in-down">
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3">
                <div className="flex flex-col gap-1">
                  <span className="text-xs text-gray-500 font-medium">Status</span>
                  <select 
@@ -573,7 +592,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
                </div>
              </div>
 
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 border-t border-gray-50 pt-3">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 border-t border-gray-50 pt-3">
                <div className="flex flex-col gap-1 lg:col-span-1">
                   <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
                   <div className="flex gap-2 items-center">
