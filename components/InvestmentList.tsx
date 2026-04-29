@@ -253,7 +253,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
 
     const tableData = itemsToExport.map(t => [
       formatDate(t.date),
-      t.title,
+      t.title + (t.observation ? '\n(Obs: ' + t.observation + ')' : ''),
       t.category,
       t.status === 'paid' ? 'Pago' : 'Pendente',
       t.amount >= 0 ? 'Entrada' : 'Saída',

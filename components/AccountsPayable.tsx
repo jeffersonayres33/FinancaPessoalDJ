@@ -280,7 +280,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
 
     const tableData = itemsToExport.map(t => [
       formatDate(t.date),
-      t.title,
+      t.title + (t.observation ? '\n(Obs: ' + t.observation + ')' : ''),
       t.category,
       formatCurrency(t.amount),
       t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
@@ -446,7 +446,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
         {/* Collapsible Advanced Filters */}
         {showFilters && (
           <div className="flex flex-col gap-4 pt-4 border-t border-gray-100 animate-fade-in-down">
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                <div className="flex flex-col gap-1">
                  <span className="text-xs text-gray-500 font-medium">Recorrência</span>
                  <select 
@@ -498,7 +498,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
                </div>
              </div>
 
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 border-t border-gray-50 pt-3">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 border-t border-gray-50 pt-3">
                <div className="flex flex-col gap-1 lg:col-span-1">
                   <span className="text-xs text-gray-500 font-medium">Data de Vencimento</span>
                   <div className="flex gap-2 items-center">

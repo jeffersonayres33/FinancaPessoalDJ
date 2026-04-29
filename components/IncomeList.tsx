@@ -234,7 +234,7 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
 
     const tableData = itemsToExport.map(t => [
       formatDate(t.date),
-      t.title,
+      t.title + (t.observation ? '\n(Obs: ' + t.observation + ')' : ''),
       t.category,
       t.isFixed ? (t.installments?.current === 0 ? 'Fixa (Inativa)' : 'Fixa') : 'Variável',
       t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
