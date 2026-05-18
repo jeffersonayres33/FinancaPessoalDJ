@@ -146,7 +146,10 @@ export const dataService = {
                   console.error('Erro ao buscar categorias:', error);
                   throw error;
                 }
-                return data || [];
+                return (data || []).map((cat: any) => ({
+                    ...cat,
+                    budgetHistory: cat.budget_history || []
+                }));
             })();
 
             return await Promise.race([fetchPromise, timeoutPromise]);
@@ -184,9 +187,10 @@ export const dataService = {
   },
 
   addCategory: async (category: Category, dataContextId: string): Promise<Category | null> => {
+    const { id, budgetHistory, ...rest } = category;
     const { data, error } = await supabase
       .from('categories')
-      .insert({ ...category, data_context_id: dataContextId })
+      .insert({ ...rest, budget_history: budgetHistory || [], data_context_id: dataContextId })
       .select()
       .single();
     
@@ -194,13 +198,18 @@ export const dataService = {
       console.error(error);
       throw new Error('Erro ao salvar categoria');
     }
-    return data;
+    return data ? { ...data, budgetHistory: data.budget_history || [] } : null;
   },
 
   updateCategory: async (category: Category): Promise<void> => {
     const { error } = await supabase
       .from('categories')
-      .update({ name: category.name, type: category.type, budget: category.budget })
+      .update({ 
+        name: category.name, 
+        type: category.type, 
+        budget: category.budget,
+        budget_history: category.budgetHistory || []
+      })
       .eq('id', category.id);
       
     if (error) throw error;
@@ -249,6 +258,7 @@ export const dataService = {
         name: cat.name,
         type: cat.type,
         budget: cat.budget || 0,
+        budget_history: cat.budgetHistory || cat.budget_history || [],
         data_context_id: cat.data_context_id || cat.dataContextId || user.dataContextId
       }));
 

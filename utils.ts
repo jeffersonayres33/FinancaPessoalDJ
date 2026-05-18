@@ -1,4 +1,6 @@
 
+import { Category } from './types';
+
 export const formatCurrency = (value: number): string => {
   if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', {
@@ -163,3 +165,42 @@ export const printData = (title: string, headers: string[], rows: (string | numb
     printWindow.print();
   }, 500);
 };
+
+export const getEffectiveBudget = (category: Category, month: number, year: number): number => {
+  if (month === -1 && year !== -1) {
+    // Para todos os meses do ano específico, soma o orçamento de cada mês
+    let total = 0;
+    for (let m = 0; m < 12; m++) {
+      total += getEffectiveBudget(category, m, year);
+    }
+    return total;
+  }
+  
+  if (month === -1 && year === -1) {
+    return 0; // "Todos os períodos" não tem um orçamento mensal definido aplicável
+  }
+
+  if (!category.budgetHistory || category.budgetHistory.length === 0) {
+    return category.budget || 0;
+  }
+
+  const targetVal = year * 12 + month;
+  
+  const sortedHistory = [...category.budgetHistory].sort((a, b) => {
+    return (a.year * 12 + a.month) - (b.year * 12 + b.month);
+  });
+
+  for (let i = sortedHistory.length - 1; i >= 0; i--) {
+    const h = sortedHistory[i];
+    const hVal = h.year * 12 + h.month;
+    if (hVal <= targetVal) {
+      return h.amount;
+    }
+  }
+
+  // Se o período for anterior ao primeiro histórico, o valor verdadeiro que a categoria
+  // possuía antes de sua primeira mutação na linha do tempo está retido no primeiro index!
+  // Pois nós ativamente "congelamos" o valor anterior em nosso histórico quando este é modificado.
+  return sortedHistory[0].amount;
+};
+

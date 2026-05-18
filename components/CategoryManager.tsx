@@ -7,12 +7,13 @@ import { formatCurrency } from '../utils';
 interface CategoryManagerProps {
   categories: Category[];
   onAdd: (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
-  onEdit: (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
+  onEdit: (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget: number, effectConfig?: { type: 'all' | 'immediate' | 'future', month: number, year: number }) => void;
   onDelete: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
+  isPeriodFilterActive?: boolean;
 }
 
-export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onBulkDelete }) => {
+export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onBulkDelete, isPeriodFilterActive = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income' | 'investment'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -30,6 +31,12 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
   const [editType, setEditType] = useState<'income' | 'expense' | 'both' | 'investment'>('expense');
   const [editBudget, setEditBudget] = useState('');
   const [editErrorMsg, setEditErrorMsg] = useState('');
+  
+  // Budget Effect Modal State
+  const [pendingEdit, setPendingEdit] = useState<{ id: string, name: string, type: any, budget: number } | null>(null);
+  const [effectType, setEffectType] = useState<'all' | 'immediate' | 'future'>('immediate');
+  const [effectMonth, setEffectMonth] = useState<number>(new Date().getMonth());
+  const [effectYear, setEffectYear] = useState<number>(new Date().getFullYear());
 
   const filteredCategories = useMemo(() => {
     return categories.filter(cat => {
@@ -81,7 +88,25 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
     }
 
     if (editName.trim() && editingId) {
-      onEdit(editingId, editName, editType, parseFloat(editBudget));
+      const cat = categories.find(c => c.id === editingId);
+      const newB = parseFloat(editBudget);
+      
+      // Se não havia orçamento antes ou o valor é o mesmo, salva direto
+      // Ou se estivermos visualizando "Todos os Períodos" (não há mês específico para ser marco)
+      if (!isPeriodFilterActive || !cat || !cat.budget || cat.budget === newB) {
+        onEdit(editingId, editName, editType, newB);
+        setEditingId(null);
+      } else {
+        // O valor mudou e há um mês filtrado! Pede confirmação de período
+        setPendingEdit({ id: editingId, name: editName, type: editType, budget: newB });
+      }
+    }
+  };
+
+  const confirmEdit = () => {
+    if (pendingEdit) {
+      onEdit(pendingEdit.id, pendingEdit.name, pendingEdit.type, pendingEdit.budget, { type: effectType, month: effectMonth, year: effectYear });
+      setPendingEdit(null);
       setEditingId(null);
     }
   };
@@ -362,6 +387,128 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
            <p className="text-lg font-medium">Nenhuma categoria encontrada.</p>
            <p className="text-sm">Tente ajustar sua busca ou filtros.</p>
          </div>
+      )}
+
+      {/* Confirmation Modal for Budget Change */}
+      {pendingEdit && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col border border-gray-100 animate-scale-in">
+            
+            {/* Header & Scrollable Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Alteração de Orçamento</h3>
+              <p className="text-gray-600 mb-4 sm:mb-6 text-sm">
+                Você alterou o orçamento da categoria <strong>{pendingEdit.name}</strong> para {formatCurrency(pendingEdit.budget)}. 
+                Como deseja aplicar esta alteração?
+              </p>
+              
+              <div className="space-y-2 sm:space-y-3">
+                <label className="flex items-start gap-3 p-3 sm:p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-gray-300 transition-colors">
+                  <div className="pt-0.5">
+                    <input 
+                      type="radio" 
+                      name="effect" 
+                      checked={effectType === 'all'} 
+                      onChange={() => setEffectType('all')}
+                      className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm sm:text-base">Todas as datas (Passado, Presente e Futuro)</div>
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-2 sm:line-clamp-none">
+                      Isso sobrescreverá qualquer histórico de orçamento. O novo valor será o padrão para sempre.
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 sm:p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-purple-300 transition-colors">
+                  <div className="pt-0.5">
+                    <input 
+                      type="radio" 
+                      name="effect" 
+                      checked={effectType === 'immediate'} 
+                      onChange={() => setEffectType('immediate')}
+                      className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm sm:text-base">Efeito Imediato Mês Específico</div>
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-2 sm:line-clamp-none">
+                      Começa a valer no mês selecionado. Os meses anteriores mantêm o valor antigo.
+                    </div>
+                  </div>
+                </label>
+                
+                <label className="flex items-start gap-3 p-3 sm:p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-blue-300 transition-colors">
+                  <div className="pt-0.5">
+                    <input 
+                      type="radio" 
+                      name="effect" 
+                      checked={effectType === 'future'} 
+                      onChange={() => setEffectType('future')}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm sm:text-base">Efeito Futuro A Partir do Mês Específico</div>
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-2 sm:line-clamp-none">
+                      O mês selecionado mantém o valor antigo e o novo valor só passa a valer a partir do mês seguinte a ele.
+                    </div>
+                  </div>
+                </label>
+
+                {(effectType === 'immediate' || effectType === 'future') && (
+                   <div className="flex flex-wrap gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Mês Base:</span>
+                      <div className="flex flex-1 gap-2 min-w-[200px]">
+                        <select 
+                          value={effectMonth} 
+                          onChange={(e) => setEffectMonth(Number(e.target.value))}
+                          className="flex-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm bg-white"
+                        >
+                          <option value={0}>Janeiro</option>
+                          <option value={1}>Fevereiro</option>
+                          <option value={2}>Março</option>
+                          <option value={3}>Abril</option>
+                          <option value={4}>Maio</option>
+                          <option value={5}>Junho</option>
+                          <option value={6}>Julho</option>
+                          <option value={7}>Agosto</option>
+                          <option value={8}>Setembro</option>
+                          <option value={9}>Outubro</option>
+                          <option value={10}>Novembro</option>
+                          <option value={11}>Dezembro</option>
+                        </select>
+                        <input 
+                          type="number" 
+                          value={effectYear} 
+                          onChange={(e) => setEffectYear(Number(e.target.value))}
+                          className="w-20 sm:w-24 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm bg-white"
+                        />
+                      </div>
+                   </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Sticky Footer */}
+            <div className="p-4 sm:p-6 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-2 bg-gray-50 rounded-b-xl flex-shrink-0">
+              <button 
+                onClick={() => setPendingEdit(null)} 
+                className="w-full sm:w-auto px-4 py-2 font-medium text-gray-600 hover:bg-gray-200 bg-white border border-gray-300 rounded-lg transition-colors text-center"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmEdit} 
+                className="w-full sm:w-auto px-4 py-2 font-medium bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors border border-transparent text-center"
+              >
+                Confirmar
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
     </div>
   );

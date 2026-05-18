@@ -6,7 +6,12 @@ export interface Category {
   id: string;
   name: string;
   type: 'income' | 'expense' | 'both' | 'investment';
-  budget?: number; // Orçamento mensal estipulado para esta categoria
+  budget?: number; // Orçamento padrão ou atual
+  budgetHistory?: {
+    month: number;
+    year: number;
+    amount: number;
+  }[];
 }
 
 export interface Despesa {

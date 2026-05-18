@@ -28,7 +28,7 @@ import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
 import { validateConfig, supabase } from './services/supabaseClient';
 import { Despesa, TransactionType, TransactionStatus, Category, User } from './types';
-import { formatCurrency, getCurrentLocalDateString, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from './utils';
+import { formatCurrency, getCurrentLocalDateString, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod, getEffectiveBudget } from './utils';
 import { 
   ArrowUpCircle, 
   ArrowDownCircle, 
@@ -658,6 +658,13 @@ const AuthenticatedApp: React.FC<{
     };
   }, [despesas, filterMonth, filterYear, user]);
 
+  const effectiveCategories = useMemo(() => {
+    return categories.map(cat => ({
+      ...cat,
+      budget: getEffectiveBudget(cat, filterMonth, filterYear)
+    }));
+  }, [categories, filterMonth, filterYear]);
+
   // --- HANDLERS ---
   const toggleWidget = useCallback((id: string) => {
     setVisibleWidgets(prev => ({ ...prev, [id]: !prev[id] }));
@@ -1045,10 +1052,68 @@ const AuthenticatedApp: React.FC<{
     }
   }, [categories, user.dataContextId, showToast]);
 
-  const handleEditCategory = useCallback(async (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
+  const handleEditCategory = useCallback(async (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget: number, effectConfig?: { type: 'all' | 'immediate' | 'future', month: number, year: number }) => {
     setIsGlobalLoading(true);
-    const updated = { id, name, type, budget: budget || 0 };
     try {
+        const oldCat = categories.find(c => c.id === id);
+        let budgetHistory = oldCat?.budgetHistory ? [...oldCat.budgetHistory] : [];
+        if (effectConfig) {
+            if (effectConfig.type === 'all') {
+               budgetHistory = [];
+            } else {
+               let targetMonth = effectConfig.month;
+               let targetYear = effectConfig.year;
+               
+               // Congela o passado para garantir que os meses anteriores ao novo efeito
+               // não peguem o valor novo atualizado por tabela
+               if (effectConfig.type === 'immediate') {
+                  let prevMonth = targetMonth - 1;
+                  let prevYear = targetYear;
+                  if (prevMonth < 0) {
+                    prevMonth = 11;
+                    prevYear -= 1;
+                  }
+                  
+                  const historyForPrev = budgetHistory.find(h => h.month === prevMonth && h.year === prevYear);
+                  if (!historyForPrev) {
+                      const oldEffective = getEffectiveBudget(oldCat!, prevMonth, prevYear);
+                      budgetHistory.push({ month: prevMonth, year: prevYear, amount: oldEffective });
+                  }
+               } else if (effectConfig.type === 'future') {
+                  // Registra o valor antigo para o mês atual
+                  const historyForCurrent = budgetHistory.find(h => h.month === targetMonth && h.year === targetYear);
+                  if (!historyForCurrent) {
+                     const currentEffective = getEffectiveBudget(oldCat!, targetMonth, targetYear);
+                     budgetHistory.push({ month: targetMonth, year: targetYear, amount: currentEffective });
+                  }
+
+                  // Agora avança para o próximo mês para aplicar o novo valor
+                  targetMonth += 1;
+                  if (targetMonth > 11) {
+                     targetMonth = 0;
+                     targetYear += 1;
+                  }
+               }
+
+               // Remove any existing entry for this specific target month/year
+               budgetHistory = budgetHistory.filter(h => !(h.month === targetMonth && h.year === targetYear));
+               
+               // Add the new target budget
+               budgetHistory.push({ month: targetMonth, year: targetYear, amount: budget });
+
+               // Sort history to keep things tidy
+               budgetHistory.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month));
+            }
+        }
+
+        const updated = { 
+          id, 
+          name, 
+          type, 
+          budget: budget, 
+          budgetHistory: budgetHistory 
+        };
+
         if (!navigator.onLine) {
           syncService.addToQueue('UPDATE_CATEGORY', updated);
           setCategories(prev => {
@@ -1071,7 +1136,7 @@ const AuthenticatedApp: React.FC<{
     } finally {
         setIsGlobalLoading(false);
     }
-  }, [showToast, user.dataContextId]);
+  }, [categories, showToast, user.dataContextId, filterMonth, filterYear]);
 
 
 
@@ -1142,7 +1207,7 @@ const AuthenticatedApp: React.FC<{
           );
         }
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
-        case 'balance_by_category': return <BalanceByCategory categories={categories} expenses={dashboardData.filteredTransactions} />;
+        case 'balance_by_category': return <BalanceByCategory categories={effectiveCategories} expenses={dashboardData.filteredTransactions} />;
         case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} user={user!} />;
         case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} user={user!} />;
         case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
@@ -1308,7 +1373,7 @@ const AuthenticatedApp: React.FC<{
             onBulkEditDespesas={handleBulkEditTransactions}
             onEditDespesa={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
-            categories={categories}
+            categories={effectiveCategories}
             onToggleStatus={handleToggleStatus}
             user={user}
             onOpenPaywall={() => setIsPaywallOpen(true)}
@@ -1323,7 +1388,7 @@ const AuthenticatedApp: React.FC<{
             onBulkEditReceitas={handleBulkEditTransactions}
             onEditReceita={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
-            categories={categories}
+            categories={effectiveCategories}
             onToggleStatus={handleToggleStatus}
             user={user}
             onOpenPaywall={() => setIsPaywallOpen(true)}
@@ -1338,7 +1403,7 @@ const AuthenticatedApp: React.FC<{
             onBulkEditInvestimentos={handleBulkEditTransactions}
             onEditInvestimento={openEditDespesaModal}
             onOpenNew={openNewDespesaModal}
-            categories={categories}
+            categories={effectiveCategories}
             onToggleStatus={handleToggleStatus}
             user={user}
             onOpenPaywall={() => setIsPaywallOpen(true)}
@@ -1349,7 +1414,7 @@ const AuthenticatedApp: React.FC<{
           <AccountsPayable 
             despesas={despesas} 
             onMarkAsPaid={handleMarkAsPaid} 
-            categories={categories}
+            categories={effectiveCategories}
             onDeleteConta={handleDeleteDespesa}
             onEditConta={openEditDespesaModal}
             user={user}
@@ -1364,6 +1429,7 @@ const AuthenticatedApp: React.FC<{
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}
             onBulkDelete={handleBulkDeleteCategories}
+            isPeriodFilterActive={dashboardData.isPeriodFilterActive}
           />
         )}
 
@@ -1397,7 +1463,7 @@ const AuthenticatedApp: React.FC<{
         onAddDespesa={handleAddDespesa}
         onUpdateDespesa={handleUpdateDespesa}
         initialData={editingDespesa}
-        categories={categories}
+        categories={effectiveCategories}
         forceType={currentView === 'income' ? 'income' : currentView === 'investments' ? 'investment' : (currentView === 'expenses' ? 'expense' : undefined)}
         user={user}
         onOpenPaywall={() => setIsPaywallOpen(true)}
