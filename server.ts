@@ -471,6 +471,127 @@ async function startServer() {
     }
   });
 
+  // API Route: AI Analyze Finances
+  app.post("/api/gemini/analyze", verifyAuth, async (req, res) => {
+    const { aggregatedData } = req.body;
+    let apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+    
+    if (!apiKey) {
+      console.error("API key missing in environment");
+      return res.status(500).json({ error: "Configuração do servidor incorreta." });
+    }
+    
+    try {
+      const { GoogleGenAI, Type } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const prompt = `
+        Atue como um consultor financeiro pessoal experiente.
+        Analise os seguintes dados financeiros AGREGADOS (JSON) que incluem Receitas, Despesas e Investimentos.
+        Forneça um resumo breve, 3 dicas práticas de economia/investimento e identifique se há algo fora do comum (anomalias).
+        Responda EXCLUSIVAMENTE em formato JSON seguindo o schema.
+        
+        Dados Agregados: ${JSON.stringify(aggregatedData)}
+      `;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            // @ts-ignore
+            type: Type.OBJECT,
+            properties: {
+              summary: { type: Type.STRING, description: "Um resumo geral da saúde financeira em português." },
+              tips: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING },
+                description: "Lista de 3 dicas práticas."
+              },
+              anomalies: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Lista de possíveis gastos anômalos ou alertas."
+              }
+            },
+            required: ["summary", "tips", "anomalies"]
+          }
+        }
+      });
+
+      if (!response.text) throw new Error("No response from Gemini");
+      
+      res.json(JSON.parse(response.text));
+    } catch (err: any) {
+      console.error("Gemini Analyze Error:", err);
+      res.status(500).json({ error: err.message || "Failed to analyze finances" });
+    }
+  });
+
+  // API Route: AI Extract Receipt
+  app.post("/api/gemini/extract", verifyAuth, async (req, res) => {
+    const { extractedText, fallbackDate } = req.body;
+    let apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+    
+    if (!apiKey) {
+      console.error("API key missing in environment");
+      return res.status(500).json({ error: "Configuração do servidor incorreta." });
+    }
+    
+    try {
+      const { GoogleGenAI, Type } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
+        Extraia os dados e retorne ESTRITAMENTE um JSON válido.
+        
+        Texto extraído:
+        """
+        ${extractedText}
+        """
+        
+        Estrutura do JSON desejado:
+        {
+          "title": "string (Nome do estabelecimento)",
+          "amount": number (Valor total numérico),
+          "date": "string (YYYY-MM-DD, se não encontrar use ${fallbackDate})",
+          "observation": "string (Resumo dos itens)"
+        }`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            // @ts-ignore
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING, description: "Nome do estabelecimento" },
+              amount: { type: Type.NUMBER, description: "Valor total numérico" },
+              date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
+              observation: { type: Type.STRING, description: "Resumo dos itens" }
+            },
+            required: ["title", "amount"]
+          }
+        }
+      });
+
+      if (!response.text) throw new Error("No response from Gemini");
+
+      let jsonStr = response.text.trim();
+      if (jsonStr.startsWith('\`\`\`json')) {
+        jsonStr = jsonStr.replace(/^\`\`\`json\s*/, '').replace(/\s*\`\`\`$/, '');
+      } else if (jsonStr.startsWith('\`\`\`')) {
+        jsonStr = jsonStr.replace(/^\`\`\`\s*/, '').replace(/\s*\`\`\`$/, '');
+      }
+
+      res.json(JSON.parse(jsonStr));
+    } catch (err: any) {
+      console.error("Gemini Extract Error:", err);
+      res.status(500).json({ error: err.message || "Failed to extract receipt" });
+    }
+  });
+
   // Specific 404 for API routes to prevent HTML response
   app.all('/api/*all', (req, res) => {
     res.status(404).json({ error: `Route ${req.method} ${req.path} not found` });

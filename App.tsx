@@ -276,11 +276,7 @@ const AuthenticatedApp: React.FC<{
               });
               showToast(`${ids.length} transações removidas localmente.`, 'success');
             } else {
-              // We can delete them one by one or create a bulk delete in dataService.
-              // For simplicity, we'll delete them sequentially for now.
-              for (const id of ids) {
-                 await dataService.deleteTransaction(id);
-              }
+              await dataService.deleteTransactionsBulk(ids);
               setDespesas((prev) => {
                 const updated = prev.filter((t) => !ids.includes(t.id));
                 localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
@@ -305,9 +301,7 @@ const AuthenticatedApp: React.FC<{
               });
               showToast(`${ids.length} categorias excluídas localmente.`, 'success');
             } else {
-              for (const id of ids) {
-                 await dataService.deleteCategory(id);
-              }
+              await dataService.deleteCategoriesBulk(ids);
               setCategories(prev => {
                 const updated = prev.filter(c => !ids.includes(c.id));
                 localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updated));
@@ -548,24 +542,26 @@ const AuthenticatedApp: React.FC<{
   const dashboardData = useMemo(() => {
     let finStartForPrevious: Date | null = null;
     let finEndForPrevious: Date | null = null;
+    
+    const startDay = user?.financialMonthStartDay || 1;
+
+    if (filterYear !== -1 && filterMonth !== -1) {
+        const { startDate: finStart, endDate: finEnd } = getFinancialMonthRange(filterYear, filterMonth, startDay);
+        finStartForPrevious = finStart;
+        finEndForPrevious = finEnd;
+    } else if (filterYear !== -1 && filterMonth === -1) {
+        const { startDate: finStart, endDate: finEnd } = getFinancialYearRange(filterYear, startDay);
+        finStartForPrevious = finStart;
+        finEndForPrevious = finEnd;
+    }
 
     const filtered = despesas.filter(t => {
       const [y, m, d] = (t.date || '').split('-').map(Number);
       const tDate = new Date(y, m - 1, d);
       tDate.setHours(12, 0, 0, 0);
 
-      const startDay = user?.financialMonthStartDay || 1;
-
-      if (filterYear !== -1 && filterMonth !== -1) {
-          const { startDate: finStart, endDate: finEnd } = getFinancialMonthRange(filterYear, filterMonth, startDay);
-          finStartForPrevious = finStart;
-          finEndForPrevious = finEnd;
-          return tDate >= finStart && tDate <= finEnd;
-      } else if (filterYear !== -1 && filterMonth === -1) {
-          const { startDate: finStart, endDate: finEnd } = getFinancialYearRange(filterYear, startDay);
-          finStartForPrevious = finStart;
-          finEndForPrevious = finEnd;
-          return tDate >= finStart && tDate <= finEnd;
+      if (finStartForPrevious && finEndForPrevious) {
+          return tDate >= finStartForPrevious && tDate <= finEndForPrevious;
       } else if (filterYear === -1 && filterMonth !== -1) {
           return (m - 1) === filterMonth;
       }
@@ -880,14 +876,10 @@ const AuthenticatedApp: React.FC<{
           });
           showToast('Transação salva localmente.', 'success');
         } else {
-          const promises = newTransactions.map(t => dataService.addTransaction(t, user.dataContextId));
-          const results = await Promise.all(promises);
+          const results = await dataService.addTransactions(newTransactions, user.dataContextId);
 
-          // Atualizar estado local com os dados retornados do banco (garante IDs e datas corretos)
-          const validResults = results.filter(r => r !== null) as Despesa[];
-          
           setDespesas((prev) => {
-            const updated = [...validResults, ...prev];
+            const updated = [...results, ...prev];
             localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
             return updated;
           });
@@ -1056,7 +1048,9 @@ const AuthenticatedApp: React.FC<{
     setIsGlobalLoading(true);
     try {
         const oldCat = categories.find(c => c.id === id);
-        let budgetHistory = oldCat?.budgetHistory ? [...oldCat.budgetHistory] : [];
+        if (!oldCat) throw new Error("Categoria não encontrada.");
+        
+        let budgetHistory = oldCat.budgetHistory ? [...oldCat.budgetHistory] : [];
         if (effectConfig) {
             if (effectConfig.type === 'all') {
                budgetHistory = [];
@@ -1076,14 +1070,14 @@ const AuthenticatedApp: React.FC<{
                   
                   const historyForPrev = budgetHistory.find(h => h.month === prevMonth && h.year === prevYear);
                   if (!historyForPrev) {
-                      const oldEffective = getEffectiveBudget(oldCat!, prevMonth, prevYear);
+                      const oldEffective = getEffectiveBudget(oldCat, prevMonth, prevYear);
                       budgetHistory.push({ month: prevMonth, year: prevYear, amount: oldEffective });
                   }
                } else if (effectConfig.type === 'future') {
                   // Registra o valor antigo para o mês atual
                   const historyForCurrent = budgetHistory.find(h => h.month === targetMonth && h.year === targetYear);
                   if (!historyForCurrent) {
-                     const currentEffective = getEffectiveBudget(oldCat!, targetMonth, targetYear);
+                     const currentEffective = getEffectiveBudget(oldCat, targetMonth, targetYear);
                      budgetHistory.push({ month: targetMonth, year: targetYear, amount: currentEffective });
                   }
 
@@ -1114,6 +1108,12 @@ const AuthenticatedApp: React.FC<{
           budgetHistory: budgetHistory 
         };
 
+        const oldName = oldCat.name;
+        let transToUpdate: Despesa[] = [];
+        if (oldName !== name) {
+            transToUpdate = despesas.filter(t => t.category === oldName);
+        }
+
         if (!navigator.onLine) {
           syncService.addToQueue('UPDATE_CATEGORY', updated);
           setCategories(prev => {
@@ -1121,6 +1121,17 @@ const AuthenticatedApp: React.FC<{
             localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updatedList));
             return updatedList;
           });
+          
+          if (transToUpdate.length > 0) {
+              const updatedTransList = transToUpdate.map(t => ({ ...t, category: name, updatedAt: new Date().toISOString() }));
+              updatedTransList.forEach(t => syncService.addToQueue('UPDATE_TRANSACTION', t));
+              setDespesas(prev => {
+                  const newList = prev.map(t => t.category === oldName ? { ...t, category: name, updatedAt: new Date().toISOString() } : t);
+                  localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(newList));
+                  return newList;
+              });
+          }
+          
           showToast('Categoria atualizada localmente.', 'success');
         } else {
           await dataService.updateCategory(updated);
@@ -1129,6 +1140,17 @@ const AuthenticatedApp: React.FC<{
             localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(updatedList));
             return updatedList;
           });
+          
+          if (transToUpdate.length > 0) {
+              const idsToUpdate = transToUpdate.map(t => t.id);
+              await dataService.updateTransactionsBulk(idsToUpdate, { category: name, updatedAt: new Date().toISOString() });
+              setDespesas(prev => {
+                  const newList = prev.map(t => t.category === oldName ? { ...t, category: name, updatedAt: new Date().toISOString() } : t);
+                  localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(newList));
+                  return newList;
+              });
+          }
+          
           showToast('Categoria atualizada.', 'success');
         }
     } catch (e) {
@@ -1136,7 +1158,7 @@ const AuthenticatedApp: React.FC<{
     } finally {
         setIsGlobalLoading(false);
     }
-  }, [categories, showToast, user.dataContextId, filterMonth, filterYear]);
+  }, [categories, despesas, showToast, user.dataContextId, filterMonth, filterYear]);
 
 
 

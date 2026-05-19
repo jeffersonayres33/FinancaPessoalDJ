@@ -1,8 +1,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = 'https://pbrbqwjbzjebhlfcfmtk.supabase.co';
-export const SUPABASE_ANON_KEY = 'sb_publishable_yf2bUxlTHW2MqNxpvqWlZg_2qBgkC2E';
+// Get keys from environment variables or use fallback (just for dev)
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://pbrbqwjbzjebhlfcfmtk.supabase.co';
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_yf2bUxlTHW2MqNxpvqWlZg_2qBgkC2E';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

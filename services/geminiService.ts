@@ -1,38 +1,7 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
 import { Despesa, AIAnalysisResult, ReceiptData } from '../types';
 import { getCurrentLocalDateString } from '../utils';
 import Tesseract, { createWorker, PSM } from 'tesseract.js';
-
-let aiInstance: GoogleGenAI | null = null;
-
-const getAI = (): GoogleGenAI => {
-  if (!aiInstance) {
-    let key = '';
-    
-    // Tenta pegar a chave injetada pelo AI Studio ou pelo build do Vite
-    try {
-      key = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    } catch (e) {
-      // Ignora erro se process não estiver definido no navegador
-    }
-    
-    // Tenta pegar a chave das variáveis de ambiente do Vite (se existirem)
-    if (!key) {
-      // @ts-ignore
-      key = import.meta.env?.VITE_GEMINI_API_KEY || import.meta.env?.VITE_API_KEY || '';
-    }
-
-    if (!key) {
-      console.error("Erro Crítico: Chave da API do Gemini não encontrada!");
-      console.error("Verifique se a variável GEMINI_API_KEY ou VITE_GEMINI_API_KEY está configurada corretamente no seu ambiente de deploy (ex: GitHub Actions).");
-      throw new Error("API key must be set when using the Gemini API.");
-    }
-    
-    aiInstance = new GoogleGenAI({ apiKey: key });
-  }
-  return aiInstance;
-};
+import { supabase } from './supabaseClient';
 
 // Função para melhorar a imagem antes do OCR (Grayscale + Contraste)
 const enhanceImageForOCR = (base64: string): Promise<string> => {
@@ -119,46 +88,25 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
     transactionCount: data.count
   }));
 
-  const prompt = `
-    Atue como um consultor financeiro pessoal experiente.
-    Analise os seguintes dados financeiros AGREGADOS (JSON) que incluem Receitas, Despesas e Investimentos.
-    Forneça um resumo breve, 3 dicas práticas de economia/investimento e identifique se há algo fora do comum (anomalias).
-    Responda EXCLUSIVAMENTE em formato JSON seguindo o schema.
-    
-    Dados Agregados: ${JSON.stringify(aggregatedData)}
-  `;
-
   try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite', // Modelo mais econômico
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            summary: { type: Type.STRING, description: "Um resumo geral da saúde financeira em português." },
-            tips: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "Lista de 3 dicas práticas."
-            },
-            anomalies: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Lista de possíveis gastos anômalos ou alertas."
-            }
-          },
-          required: ["summary", "tips", "anomalies"]
-        }
-      }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Não autenticado");
+
+    const response = await fetch('/api/gemini/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ aggregatedData })
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Sem resposta do Gemini");
-    
-    return JSON.parse(text) as AIAnalysisResult;
+    if (!response.ok) {
+      throw new Error("Erro na resposta do servidor");
+    }
+
+    const data = await response.json();
+    return data as AIAnalysisResult;
 
   } catch (error) {
     console.error("Erro ao analisar finanças:", error);
@@ -172,8 +120,6 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
 
 export const extractReceiptData = async (base64Image: string): Promise<ReceiptData | null> => {
   try {
-    const ai = getAI();
-    
     // 1. Extração de Texto Local com Tesseract.js (OCR)
     console.log("Melhorando imagem para OCR...");
     const enhancedImage = await enhanceImageForOCR(base64Image);
@@ -192,52 +138,31 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
       throw new Error("Não foi possível ler nenhum texto na imagem.");
     }
 
-    // 2. Análise Semântica com Gemini (Apenas Texto)
-    console.log("Enviando texto extraído para o Gemini...");
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite', // Modelo mais econômico
-      contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
-      Extraia os dados e retorne ESTRITAMENTE um JSON válido.
-      
-      Texto extraído:
-      """
-      ${extractedText}
-      """
-      
-      Estrutura do JSON desejado:
-      {
-        "title": "string (Nome do estabelecimento)",
-        "amount": number (Valor total numérico),
-        "date": "string (YYYY-MM-DD, se não encontrar use ${getCurrentLocalDateString()})",
-        "observation": "string (Resumo dos itens)"
-      }`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: "Nome do estabelecimento" },
-            amount: { type: Type.NUMBER, description: "Valor total numérico" },
-            date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
-            observation: { type: Type.STRING, description: "Resumo dos itens" }
-          },
-          required: ["title", "amount"]
-        }
-      }
+    // 2. Análise Semântica via Backend
+    console.log("Enviando texto extraído para o Backend...");
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Não autenticado");
+
+    const response = await fetch('/api/gemini/extract', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ 
+        extractedText,
+        fallbackDate: getCurrentLocalDateString()
+      })
     });
 
-    if (response.text) {
-      let jsonStr = response.text.trim();
-      
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-
-      return JSON.parse(jsonStr) as ReceiptData;
+    if (!response.ok) {
+      throw new Error("Erro na analise do recibo pelo servidor");
     }
-    return null;
+
+    const data = await response.json();
+    return data as ReceiptData;
+
   } catch (error) {
     console.error("Erro ao extrair dados do recibo:", error);
     throw error;
