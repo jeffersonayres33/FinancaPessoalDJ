@@ -1424,12 +1424,14 @@ const AuthenticatedApp: React.FC<{
 
         {currentView === 'categories' && (
           <CategoryManager 
-            categories={categories}
+            categories={effectiveCategories}
             onAdd={handleAddCategory}
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}
             onBulkDelete={handleBulkDeleteCategories}
             isPeriodFilterActive={dashboardData.isPeriodFilterActive}
+            filterMonth={filterMonth !== -1 ? filterMonth : currentFinancialPeriod.month}
+            filterYear={filterYear !== -1 ? filterYear : currentFinancialPeriod.year}
           />
         )}
 

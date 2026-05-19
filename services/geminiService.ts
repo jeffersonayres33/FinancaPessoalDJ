@@ -131,7 +131,7 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-preview', // Modelo mais econômico
+      model: 'gemini-3.1-flash-lite', // Modelo mais econômico
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -195,7 +195,7 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
     // 2. Análise Semântica com Gemini (Apenas Texto)
     console.log("Enviando texto extraído para o Gemini...");
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-preview', // Modelo mais econômico
+      model: 'gemini-3.1-flash-lite', // Modelo mais econômico
       contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
       Extraia os dados e retorne ESTRITAMENTE um JSON válido.
       

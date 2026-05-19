@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Search, Tag, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, DollarSign } from 'lucide-react';
 import { Category } from '../types';
 import { formatCurrency } from '../utils';
@@ -11,9 +11,11 @@ interface CategoryManagerProps {
   onDelete: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
   isPeriodFilterActive?: boolean;
+  filterMonth?: number;
+  filterYear?: number;
 }
 
-export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onBulkDelete, isPeriodFilterActive = true }) => {
+export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onBulkDelete, isPeriodFilterActive = true, filterMonth = -1, filterYear = -1 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income' | 'investment'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -35,8 +37,18 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
   // Budget Effect Modal State
   const [pendingEdit, setPendingEdit] = useState<{ id: string, name: string, type: any, budget: number } | null>(null);
   const [effectType, setEffectType] = useState<'all' | 'immediate' | 'future'>('immediate');
-  const [effectMonth, setEffectMonth] = useState<number>(new Date().getMonth());
-  const [effectYear, setEffectYear] = useState<number>(new Date().getFullYear());
+  const [effectMonth, setEffectMonth] = useState<number>(filterMonth !== -1 ? filterMonth : new Date().getMonth());
+  const [effectYear, setEffectYear] = useState<number>(filterYear !== -1 ? filterYear : new Date().getFullYear());
+
+  useEffect(() => {
+    if (filterMonth !== -1) {
+      setEffectMonth(filterMonth);
+    }
+    if (filterYear !== -1) {
+      setEffectYear(filterYear);
+    }
+  }, [filterMonth, filterYear]);
+
 
   const filteredCategories = useMemo(() => {
     return categories.filter(cat => {
@@ -98,6 +110,9 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
         setEditingId(null);
       } else {
         // O valor mudou e há um mês filtrado! Pede confirmação de período
+        setEffectMonth(filterMonth !== -1 ? filterMonth : new Date().getMonth());
+        setEffectYear(filterYear !== -1 ? filterYear : new Date().getFullYear());
+        setEffectType('immediate');
         setPendingEdit({ id: editingId, name: editName, type: editType, budget: newB });
       }
     }
