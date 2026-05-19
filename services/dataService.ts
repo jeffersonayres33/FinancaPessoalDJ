@@ -1,8 +1,10 @@
 
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 import { supabase } from './supabaseClient';
 import { Despesa, Category, AIAnalysis } from '../types';
 import { INITIAL_CATEGORIES } from '../constants';
+
+const RECURRING_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f3341';
 
 // Helper para limpar o payload antes de enviar ao Supabase
 const sanitizeTransactionPayload = (despesa: Despesa, dataContextId?: string) => {
@@ -583,8 +585,13 @@ export const dataService = {
                 );
 
                 if (count === 0 && !alreadyInAddedQueue) {
+                    // Use uuidv5 for deterministic IDs based on data context, title, category, and month
+                    // This prevents duplicates if multiple clients run this check simultaneously
+                    const uniqueString = `${dataContextId}_${trans.title.toLowerCase().trim()}_${trans.category}_${targetMonthStart}`;
+                    const deterministicId = uuidv5(uniqueString, RECURRING_NAMESPACE);
+
                     const newTrans: Despesa = {
-                        id: uuidv4(),
+                        id: deterministicId,
                         title: trans.title,
                         amount: trans.amount,
                         type: trans.type,
@@ -612,9 +619,10 @@ export const dataService = {
                 id: t.id
             }));
 
+            // Use upsert to handle deterministic UUID conflicts safely at the database level
             const { error } = await supabase
                 .from('transactions')
-                .insert(payload);
+                .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
 
             if (error) {
                 console.error('Erro ao gerar transações recorrentes:', error);
