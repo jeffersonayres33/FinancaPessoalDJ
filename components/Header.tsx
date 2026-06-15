@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare, Upload, Star } from 'lucide-react';
+import { Wallet, LayoutDashboard, ListChecks, Tags, Receipt, TrendingUp, LogOut, Users, ArrowLeftCircle, ShieldAlert, LineChart, Menu, X, User as UserIcon, Settings, Download, Shield, Share, PlusSquare, Upload, Star, CalendarClock } from 'lucide-react';
 import { User } from '../types';
 
 interface HeaderProps {
-  currentView?: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'help';
-  onNavigate?: (view: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'help') => void;
+  currentView?: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'help' | 'future_launches';
+  onNavigate?: (view: 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'help' | 'future_launches') => void;
   user?: User;
   onLogout?: () => void;
   onReturnToMain?: () => void;
@@ -285,6 +285,10 @@ export const Header: React.FC<HeaderProps> = ({ currentView = 'dashboard', onNav
                   <button onClick={() => handleNavigate('investments')} className={getLinkClass('investments')}>
                     <LineChart size={20} />
                     <span>Investimentos</span>
+                  </button>
+                  <button onClick={() => handleNavigate('future_launches')} className={getLinkClass('future_launches')}>
+                    <CalendarClock size={20} />
+                    <span>Lançamentos Futuros</span>
                   </button>
                   <button onClick={() => handleNavigate('payable')} className={getLinkClass('payable')}>
                     <ListChecks size={20} />

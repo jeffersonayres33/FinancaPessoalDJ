@@ -12,6 +12,7 @@ import { AccountsPayable } from './components/AccountsPayable';
 import { ExpenseList } from './components/ExpenseList';
 import { IncomeList } from './components/IncomeList';
 import { InvestmentList } from './components/InvestmentList';
+import { FutureLaunches } from './components/FutureLaunches';
 import { BalanceByCategory } from './components/BalanceByCategory';
 import { Toast } from './components/Toast';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -46,7 +47,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'admin' | 'help';
+type View = 'dashboard' | 'payable' | 'categories' | 'expenses' | 'income' | 'investments' | 'members' | 'admin' | 'help' | 'future_launches';
 
 // Definição dos Widgets Disponíveis
 const AVAILABLE_WIDGETS = [
@@ -1172,6 +1173,70 @@ const AuthenticatedApp: React.FC<{
     setIsDespesaModalOpen(true);
   }, []);
 
+  const handleToggleFutureActive = async (trans: Despesa, isActive: boolean) => {
+      setIsGlobalLoading(true);
+      try {
+          const payload = { installments: { current: isActive ? 1 : 0, total: 1 } };
+          const { error } = await supabase.from('transactions').update(payload).eq('id', trans.id);
+          if (error) throw error;
+          
+          setDespesas(prev => prev.map(t => t.id === trans.id ? { ...t, installments: payload.installments } : t));
+          showToast(`Lançamento futuro ${isActive ? 'ativado' : 'pausado'} com sucesso.`, 'success');
+      } catch (e) {
+          showToast('Erro ao alterar status do lançamento.', 'error');
+      } finally {
+          setIsGlobalLoading(false);
+      }
+  };
+
+  const handleAnticipateFuture = async (trans: Despesa) => {
+      const d = new Date(trans.date + 'T12:00:00');
+      d.setMonth(d.getMonth() + 1);
+      if (d.getDate() !== new Date(trans.date + 'T12:00:00').getDate()) d.setDate(0);
+      const nextDateStr = d.toISOString().split('T')[0];
+
+      await handleAddDespesa(
+          trans.title,
+          trans.amount,
+          trans.type,
+          trans.category,
+          trans.type === 'investment' ? trans.status : 'pending',
+          nextDateStr,
+          undefined,
+          1,
+          trans.observation,
+          true
+      );
+      showToast('Lançamento da próxima competência antecipado com sucesso!', 'success');
+  };
+
+  const handleDeleteFuture = async (trans: Despesa) => {
+      setIsGlobalLoading(true);
+      try {
+          const { error } = await supabase.from('transactions')
+              .update({ is_fixed: false, updated_at: new Date().toISOString() })
+              .eq('data_context_id', user.dataContextId)
+              .eq('title', trans.title)
+              .eq('category', trans.category)
+              .eq('is_fixed', true)
+              .lte('date', trans.date);
+          
+          if (error) throw error;
+
+          setDespesas(prev => prev.map(t => {
+              if (t.isFixed && t.title === trans.title && t.category === trans.category && t.date <= trans.date) {
+                  return { ...t, isFixed: false };
+              }
+              return t;
+          }));
+          showToast('Série de recorrências removida com sucesso.', 'success');
+      } catch (e) {
+          showToast('Erro ao remover recorrências.', 'error');
+      } finally {
+          setIsGlobalLoading(false);
+      }
+  };
+
   // --- RENDERIZADORES DE VIEW ---
   
   const renderDashboard = () => {
@@ -1387,6 +1452,16 @@ const AuthenticatedApp: React.FC<{
       <main className="max-w-6xl mx-auto px-4 w-full flex-1 -mt-4 pb-12">
         {currentView === 'dashboard' && renderDashboard()}
         
+        {currentView === 'future_launches' && (
+          <FutureLaunches 
+            despesas={despesas}
+            onToggleActive={handleToggleFutureActive}
+            onEdit={openEditDespesaModal}
+            onDelete={handleDeleteFuture}
+            onAnticipate={handleAnticipateFuture}
+          />
+        )}
+
         {currentView === 'expenses' && (
           <ExpenseList 
             despesas={despesas}
