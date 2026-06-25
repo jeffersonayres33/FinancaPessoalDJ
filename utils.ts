@@ -206,3 +206,26 @@ export const getEffectiveBudget = (category: Category, month: number, year: numb
   return getAmountForPeriod(month, year);
 };
 
+export const isCategoryActiveInPeriod = (category: Category, month: number, year: number): boolean => {
+  if (category.isActive !== false) {
+    return true;
+  }
+
+  if (category.inactivationMonth === undefined || category.inactivationYear === undefined || category.inactivationMonth === null || category.inactivationYear === null) {
+    return false;
+  }
+
+  if (month === -1 && year === -1) {
+    return true;
+  }
+
+  if (month === -1) {
+    return year < category.inactivationYear || (year === category.inactivationYear && category.inactivationMonth > 0);
+  }
+
+  const currentVal = year * 12 + month;
+  const inactivationVal = category.inactivationYear * 12 + category.inactivationMonth;
+
+  return currentVal < inactivationVal;
+};
+

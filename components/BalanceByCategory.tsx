@@ -1,18 +1,23 @@
 
 import React, { useMemo } from 'react';
 import { Category, Despesa } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, isCategoryActiveInPeriod } from '../utils';
 import { AlertTriangle } from 'lucide-react';
 
 interface BalanceByCategoryProps {
   categories: Category[];
   expenses: Despesa[]; // Despesas já filtradas por mês/ano
+  filterMonth: number;
+  filterYear: number;
 }
 
-export const BalanceByCategory: React.FC<BalanceByCategoryProps> = ({ categories, expenses }) => {
+export const BalanceByCategory: React.FC<BalanceByCategoryProps> = ({ categories, expenses, filterMonth, filterYear }) => {
   const data = useMemo(() => {
-    // Filtra apenas categorias de despesa
-    const relevantCategories = categories.filter(c => c.type === 'expense');
+    // Filtra apenas categorias de despesa que estão ativas no período filtrado
+    const relevantCategories = categories.filter(c => 
+      c.type === 'expense' && 
+      isCategoryActiveInPeriod(c, filterMonth, filterYear)
+    );
 
     const report = relevantCategories.map(cat => {
       const budget = cat.budget || 0;

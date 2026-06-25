@@ -8,6 +8,7 @@ import { Charts, EvolutionChart, CategoryEvolutionChart } from './components/Cha
 import { InvestmentEvolutionChart, CashFlowChart, TopExpensesChart, MoneyDestinationChart } from './components/DashboardCharts';
 import { AIInsight } from './components/AIInsight';
 import { CategoryManager } from './components/CategoryManager';
+import { CategoryActionModal, CategoryActionData } from './components/CategoryActionModal';
 import { AccountsPayable } from './components/AccountsPayable';
 import { ExpenseList } from './components/ExpenseList';
 import { IncomeList } from './components/IncomeList';
@@ -29,7 +30,7 @@ import { dataService } from './services/dataService';
 import { syncService } from './services/syncService';
 import { validateConfig, supabase } from './services/supabaseClient';
 import { Despesa, TransactionType, TransactionStatus, Category, User } from './types';
-import { formatCurrency, getCurrentLocalDateString, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod, getEffectiveBudget } from './utils';
+import { formatCurrency, getCurrentLocalDateString, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod, getEffectiveBudget, isCategoryActiveInPeriod } from './utils';
 import { 
   ArrowUpCircle, 
   ArrowDownCircle, 
@@ -177,6 +178,18 @@ const AuthenticatedApp: React.FC<{
     targetId: null,
     targetIds: [],
     isCheckboxChecked: false
+  });
+
+  const [categoryActionModal, setCategoryActionModal] = useState<{
+    isOpen: boolean;
+    category: Category | null;
+    mode: 'delete' | 'rename' | 'inactivate' | 'activate' | null;
+    pendingNewName?: string;
+  }>({
+    isOpen: false,
+    category: null,
+    mode: null,
+    pendingNewName: ''
   });
 
   // DATA STATES
@@ -341,20 +354,290 @@ const AuthenticatedApp: React.FC<{
       const categoryToDelete = categories.find(c => c.id === id);
       if (!categoryToDelete) return;
       
-      const isCategoryInUse = despesas.some(t => t.category === categoryToDelete.name);
-      if (isCategoryInUse) {
-        showToast('Erro de Integridade: Categoria em uso por transações existentes.', 'error');
-        return;
-      }
-
-      setConfirmModal({
-         isOpen: true,
-         title: "Excluir Categoria",
-         message: `Deseja excluir "${categoryToDelete.name}"?`,
-         action: 'delete_category',
-         targetId: id
+      setCategoryActionModal({
+        isOpen: true,
+        category: categoryToDelete,
+        mode: 'delete'
       });
-  }, [categories, despesas, showToast]);
+  }, [categories]);
+
+  const handleToggleCategoryActive = useCallback((id: string) => {
+      const categoryToToggle = categories.find(c => c.id === id);
+      if (!categoryToToggle) return;
+      
+      setCategoryActionModal({
+        isOpen: true,
+        category: categoryToToggle,
+        mode: categoryToToggle.isActive !== false ? 'inactivate' : 'activate'
+      });
+  }, [categories]);
+
+  const handleCategoryActionConfirm = useCallback(async (actionData: CategoryActionData) => {
+    if (!categoryActionModal.category) return;
+    const cat = categoryActionModal.category;
+    setIsGlobalLoading(true);
+    setCategoryActionModal(prev => ({ ...prev, isOpen: false }));
+    
+    try {
+      const oldName = cat.name;
+      
+      if (actionData.mode === 'delete') {
+        const option = actionData.deleteOption;
+        
+        if (option === 'inactivate') {
+          const updatedCat = { ...cat, isActive: false };
+          if (!navigator.onLine) {
+            syncService.addToQueue('UPDATE_CATEGORY', updatedCat);
+          } else {
+            await dataService.updateCategory(updatedCat);
+          }
+          
+          setCategories(prev => {
+            const newList = prev.map(c => c.id === cat.id ? updatedCat : c);
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(newList));
+            return newList;
+          });
+          showToast('Categoria inativada com sucesso.', 'success');
+          
+        } else if (option === 'migrate' && actionData.targetCategoryName) {
+          const targetName = actionData.targetCategoryName;
+          const transToMove = despesas.filter(t => t.category === oldName);
+          const transIds = transToMove.map(t => t.id);
+          const updatedAt = new Date().toISOString();
+          
+          if (transIds.length > 0) {
+            if (!navigator.onLine) {
+              transToMove.forEach(t => syncService.addToQueue('UPDATE_TRANSACTION', { ...t, category: targetName, updatedAt }));
+            } else {
+              await dataService.updateTransactionsBulk(transIds, { category: targetName, updatedAt });
+            }
+            
+            setDespesas(prev => {
+              const newList = prev.map(t => t.category === oldName ? { ...t, category: targetName, updatedAt } : t);
+              localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(newList));
+              return newList;
+            });
+          }
+          
+          if (!navigator.onLine) {
+            syncService.addToQueue('DELETE_CATEGORY', cat.id);
+          } else {
+            await dataService.deleteCategory(cat.id);
+          }
+          
+          setCategories(prev => {
+            const newList = prev.filter(c => c.id !== cat.id);
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(newList));
+            return newList;
+          });
+          
+          showToast(`Lançamentos migrados para "${targetName}" e categoria excluída com sucesso.`, 'success');
+          
+        } else if (option === 'delete_all') {
+          const transToDelete = despesas.filter(t => t.category === oldName);
+          const transIds = transToDelete.map(t => t.id);
+          
+          if (transIds.length > 0) {
+            if (!navigator.onLine) {
+              transIds.forEach(id => syncService.addToQueue('DELETE_TRANSACTION', id));
+            } else {
+              await supabase.from('transactions').delete().in('id', transIds);
+            }
+            
+            setDespesas(prev => {
+              const newList = prev.filter(t => t.category !== oldName);
+              localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(newList));
+              return newList;
+            });
+          }
+          
+          if (!navigator.onLine) {
+            syncService.addToQueue('DELETE_CATEGORY', cat.id);
+          } else {
+            await dataService.deleteCategory(cat.id);
+          }
+          
+          setCategories(prev => {
+            const newList = prev.filter(c => c.id !== cat.id);
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(newList));
+            return newList;
+          });
+          
+          showToast('Categoria e seus lançamentos excluídos com sucesso.', 'success');
+        }
+        
+      } else if (actionData.mode === 'rename' && actionData.newName) {
+        const newName = actionData.newName;
+        const option = actionData.renameOption;
+        
+        if (option === 'all') {
+          const updatedCat = { ...cat, name: newName };
+          if (!navigator.onLine) {
+            syncService.addToQueue('UPDATE_CATEGORY', updatedCat);
+          } else {
+            await dataService.updateCategory(updatedCat);
+          }
+          
+          setCategories(prev => {
+            const newList = prev.map(c => c.id === cat.id ? updatedCat : c);
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(newList));
+            return newList;
+          });
+          
+          const transToRename = despesas.filter(t => t.category === oldName);
+          const transIds = transToRename.map(t => t.id);
+          const updatedAt = new Date().toISOString();
+          
+          if (transIds.length > 0) {
+            if (!navigator.onLine) {
+              transToRename.forEach(t => syncService.addToQueue('UPDATE_TRANSACTION', { ...t, category: newName, updatedAt }));
+            } else {
+              await dataService.updateTransactionsBulk(transIds, { category: newName, updatedAt });
+            }
+            
+            setDespesas(prev => {
+              const newList = prev.map(t => t.category === oldName ? { ...t, category: newName, updatedAt } : t);
+              localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(newList));
+              return newList;
+            });
+          }
+          
+          showToast('Categoria renomeada em todo o histórico com sucesso.', 'success');
+          
+        } else if (option === 'future') {
+          const inactivatedOldCat = { ...cat, isActive: false };
+          if (!navigator.onLine) {
+            syncService.addToQueue('UPDATE_CATEGORY', inactivatedOldCat);
+          } else {
+            await dataService.updateCategory(inactivatedOldCat);
+          }
+          
+          const newCatPayload: Category = {
+            id: crypto.randomUUID(),
+            name: newName,
+            type: cat.type,
+            budget: cat.budget,
+            budgetHistory: cat.budgetHistory ? [...cat.budgetHistory] : [],
+            isActive: true
+          };
+          
+          if (!navigator.onLine) {
+            syncService.addToQueue('ADD_CATEGORY', newCatPayload);
+          } else {
+            await dataService.addCategory(newCatPayload, user.dataContextId);
+          }
+          
+          const targetMonth = actionData.effectMonth ?? new Date().getMonth();
+          const targetYear = actionData.effectYear ?? new Date().getFullYear();
+          const updatedAt = new Date().toISOString();
+          
+          const futureTransactions = despesas.filter(t => {
+            if (t.category !== oldName) return false;
+            const tDate = new Date(t.date);
+            const tMonth = tDate.getUTCMonth();
+            const tYear = tDate.getUTCFullYear();
+            return (tYear > targetYear) || (tYear === targetYear && tMonth >= targetMonth);
+          });
+          
+          if (futureTransactions.length > 0) {
+            const transIds = futureTransactions.map(t => t.id);
+            if (!navigator.onLine) {
+              futureTransactions.forEach(t => syncService.addToQueue('UPDATE_TRANSACTION', { ...t, category: newName, updatedAt }));
+            } else {
+              await dataService.updateTransactionsBulk(transIds, { category: newName, updatedAt });
+            }
+            
+            setDespesas(prev => {
+              const newList = prev.map(t => {
+                if (t.category === oldName) {
+                  const tDate = new Date(t.date);
+                  const tMonth = tDate.getUTCMonth();
+                  const tYear = tDate.getUTCFullYear();
+                  if ((tYear > targetYear) || (tYear === targetYear && tMonth >= targetMonth)) {
+                    return { ...t, category: newName, updatedAt };
+                  }
+                }
+                return t;
+              });
+              localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(newList));
+              return newList;
+            });
+          }
+          
+          setCategories(prev => {
+            const updatedList = prev.map(c => c.id === cat.id ? inactivatedOldCat : c);
+            const final = [...updatedList, newCatPayload];
+            localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(final));
+            return final;
+          });
+          
+          showToast(`Nova categoria "${newName}" criada para lançamentos futuros. Histórico de "${oldName}" preservado.`, 'success');
+        }
+      } else if (actionData.mode === 'inactivate') {
+        let inactivationMonth: number | undefined = undefined;
+        let inactivationYear: number | undefined = undefined;
+
+        if (actionData.inactivateOption === 'immediate' && actionData.effectMonth !== undefined && actionData.effectYear !== undefined) {
+          inactivationMonth = actionData.effectMonth;
+          inactivationYear = actionData.effectYear;
+        } else if (actionData.inactivateOption === 'future' && actionData.effectMonth !== undefined && actionData.effectYear !== undefined) {
+          let targetMonth = actionData.effectMonth + 1;
+          let targetYear = actionData.effectYear;
+          if (targetMonth > 11) {
+            targetMonth = 0;
+            targetYear += 1;
+          }
+          inactivationMonth = targetMonth;
+          inactivationYear = targetYear;
+        }
+
+        const updatedCat = { 
+          ...cat, 
+          isActive: false, 
+          inactivationMonth, 
+          inactivationYear 
+        };
+
+        if (!navigator.onLine) {
+          syncService.addToQueue('UPDATE_CATEGORY', updatedCat);
+        } else {
+          await dataService.updateCategory(updatedCat);
+        }
+        
+        setCategories(prev => {
+          const newList = prev.map(c => c.id === cat.id ? updatedCat : c);
+          localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(newList));
+          return newList;
+        });
+        showToast('Categoria inativada.', 'success');
+        
+      } else if (actionData.mode === 'activate') {
+        const updatedCat = { 
+          ...cat, 
+          isActive: true, 
+          inactivationMonth: undefined, 
+          inactivationYear: undefined 
+        };
+        if (!navigator.onLine) {
+          syncService.addToQueue('UPDATE_CATEGORY', updatedCat);
+        } else {
+          await dataService.updateCategory(updatedCat);
+        }
+        
+        setCategories(prev => {
+          const newList = prev.map(c => c.id === cat.id ? updatedCat : c);
+          localStorage.setItem(`finances_cats_${user.dataContextId}`, JSON.stringify(newList));
+          return newList;
+        });
+        showToast('Categoria reativada com sucesso!', 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao realizar ação na categoria.', 'error');
+    } finally {
+      setIsGlobalLoading(false);
+    }
+  }, [categoryActionModal, user.dataContextId, despesas, showToast, categories]);
 
   const handleBulkDeleteTransactions = useCallback((ids: string[]) => {
     setConfirmModal({
@@ -1050,6 +1333,18 @@ const AuthenticatedApp: React.FC<{
     try {
         const oldCat = categories.find(c => c.id === id);
         if (!oldCat) throw new Error("Categoria não encontrada.");
+
+        // Se o nome foi alterado, exibe as opções completas de renomeação com efeitos temporais
+        if (oldCat.name !== name) {
+          setIsGlobalLoading(false);
+          setCategoryActionModal({
+            isOpen: true,
+            category: oldCat,
+            mode: 'rename',
+            pendingNewName: name
+          });
+          return;
+        }
         
         let budgetHistory = oldCat.budgetHistory ? [...oldCat.budgetHistory] : [];
         if (effectConfig) {
@@ -1294,7 +1589,7 @@ const AuthenticatedApp: React.FC<{
           );
         }
         case 'savings_rate': return <StatCard title="Taxa de Economia" value={`${dashboardData.savingsRate.toFixed(1)}%`} icon={Percent} colorClass={dashboardData.savingsRate >= 20 ? "text-emerald-600" : (dashboardData.savingsRate > 0 ? "text-yellow-600" : "text-red-600")} bgClass={dashboardData.savingsRate >= 20 ? "bg-emerald-100" : "bg-gray-100"} />;
-        case 'balance_by_category': return <BalanceByCategory categories={effectiveCategories} expenses={dashboardData.filteredTransactions} />;
+        case 'balance_by_category': return <BalanceByCategory categories={effectiveCategories} expenses={dashboardData.filteredTransactions} filterMonth={filterMonth} filterYear={filterYear} />;
         case 'evolution_chart': return <EvolutionChart despesas={despesas} year={filterYear} user={user!} />;
         case 'category_evolution': return <CategoryEvolutionChart despesas={despesas} year={filterYear} user={user!} />;
         case 'chart_expense': return <Charts despesas={dashboardData.filteredTransactions} type="expense" title={`Despesas: ${filterMonth === -1 ? 'Todos os Meses' : months[filterMonth]}`} />;
@@ -1525,6 +1820,7 @@ const AuthenticatedApp: React.FC<{
             onAdd={handleAddCategory}
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}
+            onToggleActive={handleToggleCategoryActive}
             onBulkDelete={handleBulkDeleteCategories}
             isPeriodFilterActive={dashboardData.isPeriodFilterActive}
             filterMonth={filterMonth !== -1 ? filterMonth : currentFinancialPeriod.month}
@@ -1601,6 +1897,17 @@ const AuthenticatedApp: React.FC<{
         type={toast.type} 
         isVisible={toast.isVisible} 
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} 
+      />
+
+      <CategoryActionModal
+        isOpen={categoryActionModal.isOpen}
+        onClose={() => setCategoryActionModal(prev => ({ ...prev, isOpen: false }))}
+        category={categoryActionModal.category}
+        mode={categoryActionModal.mode}
+        categories={categories}
+        transactions={despesas}
+        pendingNewName={categoryActionModal.pendingNewName}
+        onConfirm={handleCategoryActionConfirm}
       />
 
       <ConfirmModal

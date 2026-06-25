@@ -82,7 +82,10 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setIsSaving(false);
   }, [initialData, isOpen, forceType]);
 
-  const availableCategories = categories.filter(c => c.type === type || c.type === 'both');
+  const availableCategories = categories.filter(c => 
+    (c.type === type || c.type === 'both') && 
+    (c.isActive !== false || (initialData && initialData.category === c.name))
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

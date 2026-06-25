@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Search, Tag, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Tag, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, DollarSign, Eye, EyeOff } from 'lucide-react';
 import { Category } from '../types';
 import { formatCurrency } from '../utils';
 
@@ -9,13 +9,14 @@ interface CategoryManagerProps {
   onAdd: (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => void;
   onEdit: (id: string, name: string, type: 'income' | 'expense' | 'both' | 'investment', budget: number, effectConfig?: { type: 'all' | 'immediate' | 'future', month: number, year: number }) => void;
   onDelete: (id: string) => void;
+  onToggleActive?: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
   isPeriodFilterActive?: boolean;
   filterMonth?: number;
   filterYear?: number;
 }
 
-export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onBulkDelete, isPeriodFilterActive = true, filterMonth = -1, filterYear = -1 }) => {
+export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, onAdd, onEdit, onDelete, onToggleActive, onBulkDelete, isPeriodFilterActive = true, filterMonth = -1, filterYear = -1 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income' | 'investment'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -140,7 +141,9 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
         {cats.map(cat => (
           <div 
             key={cat.id} 
-            className={`bg-white rounded-lg p-4 shadow-sm border transition-all hover:shadow-md relative group ${editingId === cat.id ? 'ring-2 ring-purple-500 border-transparent' : selectedIds.includes(cat.id) ? 'border-purple-400 ring-1 ring-purple-400' : 'border-gray-100'}`}
+            className={`rounded-lg p-4 shadow-sm border transition-all hover:shadow-md relative group ${
+              cat.isActive === false ? 'bg-gray-50 border-gray-200 opacity-75 border-dashed' : 'bg-white border-gray-100'
+            } ${editingId === cat.id ? 'ring-2 ring-purple-500 border-transparent' : selectedIds.includes(cat.id) ? 'border-purple-400 ring-1 ring-purple-400' : ''}`}
           >
             {!editingId && (
               <div className="absolute top-3 right-3 z-10">
@@ -202,6 +205,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3 w-full">
                   <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-lg ${
+                    cat.isActive === false ? 'bg-gray-100 text-gray-400' :
                     cat.type === 'income' ? 'bg-green-100 text-green-700' : 
                     cat.type === 'expense' ? 'bg-red-100 text-red-700' : 
                     cat.type === 'investment' ? 'bg-blue-100 text-blue-700' :
@@ -210,11 +214,16 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
                     {cat.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-800 truncate" title={cat.name}>{cat.name}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className={`font-semibold truncate ${cat.isActive === false ? 'text-gray-400 line-through font-normal' : 'text-gray-800'}`} title={cat.name}>{cat.name}</h3>
+                      {cat.isActive === false && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-amber-100 text-amber-800 flex-shrink-0">Inativa</span>
+                      )}
+                    </div>
                     {cat.budget && cat.budget > 0 ? (
                       <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-                        <DollarSign size={12} className="text-purple-500" /> 
-                        <span>Orçamento: {formatCurrency(cat.budget)}</span>
+                        <DollarSign size={12} className={cat.isActive === false ? "text-gray-400" : "text-purple-500"} /> 
+                        <span className={cat.isActive === false ? "text-gray-400" : ""}>Orçamento: {formatCurrency(cat.budget)}</span>
                       </div>
                     ) : (
                       <span className="text-xs text-red-400 block mt-0.5 font-medium">Orçamento pendente</span>
@@ -222,8 +231,17 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, on
                   </div>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
-                  <button onClick={() => startEdit(cat)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Edit2 size={16} /></button>
-                  <button onClick={() => onDelete(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
+                  <button onClick={() => startEdit(cat)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Editar"><Edit2 size={16} /></button>
+                  {onToggleActive && (
+                    <button 
+                      onClick={() => onToggleActive(cat.id)} 
+                      className={`p-1.5 rounded-md transition-colors ${cat.isActive === false ? 'text-green-500 hover:bg-green-50' : 'text-amber-500 hover:bg-amber-50'}`}
+                      title={cat.isActive === false ? "Reativar Categoria" : "Inativar Categoria"}
+                    >
+                      {cat.isActive === false ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                  )}
+                  <button onClick={() => onDelete(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Excluir"><Trash2 size={16} /></button>
                 </div>
               </div>
             )}

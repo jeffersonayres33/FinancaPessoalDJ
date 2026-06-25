@@ -70,7 +70,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   }, [initialData, isOpen, forceType]);
 
   // Filter categories based on type
-  const availableCategories = categories.filter(c => c.type === 'both' || c.type === type);
+  const availableCategories = categories.filter(c => 
+    (c.type === 'both' || c.type === type) && 
+    (c.isActive !== false || (initialData && initialData.category === c.name))
+  );
 
   // Set default category
   useEffect(() => {

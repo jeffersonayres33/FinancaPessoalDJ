@@ -150,7 +150,10 @@ export const dataService = {
                 }
                 return (data || []).map((cat: any) => ({
                     ...cat,
-                    budgetHistory: cat.budget_history || []
+                    budgetHistory: cat.budget_history || [],
+                    isActive: cat.is_active !== false,
+                    inactivationMonth: cat.inactivation_month,
+                    inactivationYear: cat.inactivation_year
                 }));
             })();
 
@@ -189,10 +192,17 @@ export const dataService = {
   },
 
   addCategory: async (category: Category, dataContextId: string): Promise<Category | null> => {
-    const { id, budgetHistory, ...rest } = category;
+    const { id, budgetHistory, isActive, inactivationMonth, inactivationYear, ...rest } = category;
     const { data, error } = await supabase
       .from('categories')
-      .insert({ ...rest, budget_history: budgetHistory || [], data_context_id: dataContextId })
+      .insert({ 
+        ...rest, 
+        is_active: isActive !== false, 
+        budget_history: budgetHistory || [], 
+        data_context_id: dataContextId,
+        inactivation_month: inactivationMonth,
+        inactivation_year: inactivationYear
+      })
       .select()
       .single();
     
@@ -200,7 +210,13 @@ export const dataService = {
       console.error(error);
       throw new Error('Erro ao salvar categoria');
     }
-    return data ? { ...data, budgetHistory: data.budget_history || [] } : null;
+    return data ? { 
+      ...data, 
+      budgetHistory: data.budget_history || [], 
+      isActive: data.is_active !== false,
+      inactivationMonth: data.inactivation_month,
+      inactivationYear: data.inactivation_year
+    } : null;
   },
 
   updateCategory: async (category: Category): Promise<void> => {
@@ -210,7 +226,10 @@ export const dataService = {
         name: category.name, 
         type: category.type, 
         budget: category.budget,
-        budget_history: category.budgetHistory || []
+        budget_history: category.budgetHistory || [],
+        is_active: category.isActive !== false,
+        inactivation_month: category.inactivationMonth,
+        inactivation_year: category.inactivationYear
       })
       .eq('id', category.id);
       

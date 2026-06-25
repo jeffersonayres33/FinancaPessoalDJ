@@ -12,6 +12,9 @@ export interface Category {
     year: number;
     amount: number;
   }[];
+  isActive?: boolean; // Se a categoria está ativa ou não
+  inactivationMonth?: number;
+  inactivationYear?: number;
 }
 
 export interface Despesa {
