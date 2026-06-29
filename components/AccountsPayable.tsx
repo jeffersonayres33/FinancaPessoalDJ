@@ -202,6 +202,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     setCategoryFilter('all');
     setRecurrenceFilter('all');
     setInstallmentFilter('all');
+    setSelectedIds([]);
   };
 
   // Selection Handlers
@@ -313,6 +314,20 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
       styles: { fontSize: 8 },
       headStyles: { fillColor: [220, 38, 38] }, // Red header
     });
+
+    // Adicionar número de páginas no rodapé ("X de Y")
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.getWidth() - 14,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'right' }
+      );
+    }
 
     // Abrir em nova aba em vez de baixar
     window.open(doc.output('bloburl'), '_blank');

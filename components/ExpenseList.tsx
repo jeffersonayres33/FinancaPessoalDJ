@@ -100,6 +100,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
     setUpdatedEndDate('');
     setCreatedStartDate('');
     setCreatedEndDate('');
+    setSelectedIds([]);
   };
 
   const filteredExpenses = useMemo(() => {
@@ -279,6 +280,20 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
       body: tableData,
       startY: 45,
     });
+
+    // Adicionar número de páginas no rodapé ("X de Y")
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.getWidth() - 14,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'right' }
+      );
+    }
 
     // Abrir em nova aba em vez de baixar
     window.open(doc.output('bloburl'), '_blank');
