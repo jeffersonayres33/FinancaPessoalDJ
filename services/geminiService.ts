@@ -110,11 +110,7 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
 
   } catch (error) {
     console.error("Erro ao analisar finanças:", error);
-    return {
-      summary: "Não foi possível gerar a análise no momento.",
-      tips: ["Tente novamente mais tarde."],
-      anomalies: []
-    };
+    throw error;
   }
 };
 

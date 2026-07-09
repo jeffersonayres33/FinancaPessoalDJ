@@ -20,27 +20,42 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
   const [error, setError] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'info' | 'success' | 'warning' } | null>(null);
 
-  // Carregar última análise do banco de dados ao montar
+  // Carregar última análise e histórico do banco de dados ao montar
   useEffect(() => {
-    const loadLastAnalysis = async () => {
+    const loadInitialData = async () => {
       try {
         const lastAnalysis = await dataService.fetchLatestAnalysis(user.dataContextId, user.id);
         if (lastAnalysis) {
-          setAnalysis(lastAnalysis);
+          // Se for uma análise com mensagem de erro, ignora ela
+          if (lastAnalysis.summary?.includes("Não foi possível gerar") || lastAnalysis.summary?.includes("erro")) {
+            setAnalysis(null);
+          } else {
+            setAnalysis(lastAnalysis);
+          }
         }
+        
+        const historyData = await dataService.fetchAnalysisHistory(user.dataContextId, user.id);
+        // Filtrar erros legados para não poluir o histórico
+        const cleanHistory = (historyData || []).filter(item => 
+          !item.summary?.includes("Não foi possível gerar") && !item.summary?.includes("erro")
+        );
+        setHistory(cleanHistory);
       } catch (e) {
-        console.error("Erro ao carregar análise inicial:", e);
+        console.error("Erro ao carregar dados iniciais do consultor:", e);
       } finally {
         setInitialLoading(false);
       }
     };
-    loadLastAnalysis();
+    loadInitialData();
   }, [user.dataContextId, user.id]);
 
   const loadHistory = async () => {
     try {
       const data = await dataService.fetchAnalysisHistory(user.dataContextId, user.id);
-      setHistory(data);
+      const cleanHistory = (data || []).filter(item => 
+        !item.summary?.includes("Não foi possível gerar") && !item.summary?.includes("erro")
+      );
+      setHistory(cleanHistory);
       setShowHistory(true);
     } catch (e) {
       console.error("Erro ao carregar histórico:", e);
@@ -48,45 +63,38 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
   };
 
   const canGenerateNewAnalysis = useCallback(() => {
-    if (!analysis) return { allowed: true };
+    if (history.length === 0) return { allowed: true };
 
-    const lastDate = new Date(analysis.createdAt);
     const now = new Date();
-    const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
+    
+    // Filtra apenas as análises válidas geradas nas últimas 24 horas
+    const recentAnalyses = history.filter(item => {
+      if (item.summary?.includes("Não foi possível gerar") || item.summary?.includes("erro")) {
+        return false;
+      }
+      const itemDate = new Date(item.createdAt);
+      const diffHours = (now.getTime() - itemDate.getTime()) / (1000 * 60 * 60);
+      return diffHours < 24;
+    });
 
-    // Regra 1: Limite de 24 horas
-    if (diffHours < 24) {
-      return { 
-        allowed: false, 
-        reason: `Aguarde mais ${Math.ceil(24 - diffHours)}h para uma nova análise automática.` 
-      };
-    }
+    if (recentAnalyses.length >= 3) {
+      // Encontrar quando a mais antiga expira para liberar o limite
+      const sortedDates = recentAnalyses
+        .map(item => new Date(item.createdAt))
+        .sort((a, b) => a.getTime() - b.getTime());
+      
+      const oldestOfThree = sortedDates[0];
+      const timeRemainingMs = oldestOfThree.getTime() + (24 * 60 * 60 * 1000) - now.getTime();
+      const hoursRemaining = Math.ceil(timeRemainingMs / (1000 * 60 * 60));
 
-    // Regra 2: Mudança significativa nos dados
-    const currentExpenses = despesas.filter(d => d.type === 'expense').reduce((acc, d) => acc + d.amount, 0);
-    const currentIncome = despesas.filter(d => d.type === 'income').reduce((acc, d) => acc + d.amount, 0);
-    const currentInvestments = despesas.filter(d => d.type === 'investment').reduce((acc, d) => acc + d.amount, 0);
-    const currentCount = despesas.length;
-
-    const expenseDiff = Math.abs(currentExpenses - analysis.totalExpenses) / (analysis.totalExpenses || 1);
-    const incomeDiff = Math.abs(currentIncome - analysis.totalIncome) / (analysis.totalIncome || 1);
-    const investmentDiff = Math.abs(currentInvestments - (analysis.totalInvestments || 0)) / (analysis.totalInvestments || 1);
-    const countDiff = Math.abs(currentCount - analysis.transactionCount);
-
-    // Consideramos mudança significativa se:
-    // - Gastos, Receitas ou Investimentos mudaram mais de 10%
-    // - Mais de 5 transações novas foram adicionadas
-    const isSignificant = expenseDiff > 0.1 || incomeDiff > 0.1 || investmentDiff > 0.1 || countDiff >= 5;
-
-    if (!isSignificant) {
-      return { 
-        allowed: false, 
-        reason: "Não houve mudanças significativas nos seus dados financeiros para justificar uma nova análise." 
+      return {
+        allowed: false,
+        reason: `Você atingiu o limite de 3 análises diárias. Uma nova análise estará disponível em aproximadamente ${hoursRemaining}h.`
       };
     }
 
     return { allowed: true };
-  }, [analysis, despesas]);
+  }, [history]);
 
   const handleAnalyze = async () => {
     const check = canGenerateNewAnalysis();
@@ -125,6 +133,7 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
 
       if (savedAnalysis) {
         setAnalysis(savedAnalysis);
+        setHistory(prev => [savedAnalysis, ...prev]);
         setMessage({ text: "Nova análise gerada e salva com sucesso!", type: 'success' });
         setTimeout(() => setMessage(null), 3000);
       }
