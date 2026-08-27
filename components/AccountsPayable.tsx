@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Search, Filter, Trash2, Edit2, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Calendar, CheckCircle, Clock, ArrowDownUp, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, CheckSquare, Square, X, CalendarCheck, Layers, CheckCircle2, Repeat, LayoutGrid, List as ListIcon, FastForward } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
 import { formatCurrency, formatDate, getCurrentLocalDateString, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
 import jsPDF from 'jspdf';
@@ -13,6 +13,7 @@ interface AccountsPayableProps {
   onEditConta: (conta: Despesa) => void;
   categories: Category[];
   onMarkAsPaid: (ids: string[], date: string) => void;
+  onAnticipateInstallments?: (ids: string[], paymentDate: string) => Promise<void> | void;
   user?: User;
   onOpenPaywall?: () => void;
 }
@@ -25,6 +26,7 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   onEditConta,
   categories,
   onMarkAsPaid,
+  onAnticipateInstallments,
   user,
   onOpenPaywall
 }) => {
@@ -58,6 +60,11 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
   const [bulkPaymentDate, setBulkPaymentDate] = useState(getCurrentLocalDateString());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Anticipation State
+  const [anticipateTarget, setAnticipateTarget] = useState<Despesa | null>(null);
+  const [selectedAnticipateIds, setSelectedAnticipateIds] = useState<string[]>([]);
+  const [anticipatePaymentDate, setAnticipatePaymentDate] = useState<string>(getCurrentLocalDateString());
 
   // Derived filtered data
   const filteredContas = useMemo(() => {
@@ -229,6 +236,85 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
     onMarkAsPaid(selectedIds, bulkPaymentDate);
     setShowBulkPaymentModal(false);
     setSelectedIds([]);
+  };
+
+  // Anticipation Calculations and Handlers
+  const seriesInstallments = useMemo(() => {
+    if (!anticipateTarget || !anticipateTarget.installments) return [];
+    const normalizeTitle = (str: string) => str.replace(/\s*\(\d+\/\d+\)\s*/g, '').trim().toLowerCase();
+    const targetBaseTitle = normalizeTitle(anticipateTarget.title);
+    const targetTotal = anticipateTarget.installments.total;
+    
+    return despesas
+      .filter(d => 
+        d.type === 'expense' && 
+        d.category === anticipateTarget.category &&
+        d.installments && 
+        d.installments.total === targetTotal &&
+        normalizeTitle(d.title) === targetBaseTitle
+      )
+      .sort((a, b) => (a.installments?.current || 0) - (b.installments?.current || 0));
+  }, [anticipateTarget, despesas]);
+
+  const pendingSeriesInstallments = useMemo(() => {
+    return seriesInstallments.filter(t => t.status === 'pending');
+  }, [seriesInstallments]);
+
+  const seriesStats = useMemo(() => {
+    const totalAmount = seriesInstallments.reduce((acc, curr) => acc + curr.amount, 0);
+    const paidItems = seriesInstallments.filter(t => t.status === 'paid');
+    const paidAmount = paidItems.reduce((acc, curr) => acc + curr.amount, 0);
+    const pendingAmount = pendingSeriesInstallments.reduce((acc, curr) => acc + curr.amount, 0);
+    
+    const selectedItems = pendingSeriesInstallments.filter(t => selectedAnticipateIds.includes(t.id));
+    const selectedAmount = selectedItems.reduce((acc, curr) => acc + curr.amount, 0);
+
+    return {
+      totalCount: seriesInstallments.length || (anticipateTarget?.installments?.total || 0),
+      paidCount: paidItems.length,
+      pendingCount: pendingSeriesInstallments.length,
+      selectedCount: selectedItems.length,
+      totalAmount,
+      paidAmount,
+      pendingAmount,
+      selectedAmount
+    };
+  }, [seriesInstallments, pendingSeriesInstallments, selectedAnticipateIds, anticipateTarget]);
+
+  const openAnticipateModal = (conta: Despesa) => {
+    setAnticipateTarget(conta);
+    setAnticipatePaymentDate(getCurrentLocalDateString());
+    setSelectedAnticipateIds([conta.id]);
+  };
+
+  const handleToggleAnticipate = (id: string) => {
+    setSelectedAnticipateIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectNextN = (n: number) => {
+    const ids = pendingSeriesInstallments.slice(0, n).map(t => t.id);
+    setSelectedAnticipateIds(ids);
+  };
+
+  const handleSelectAllPending = () => {
+    setSelectedAnticipateIds(pendingSeriesInstallments.map(t => t.id));
+  };
+
+  const handleClearAnticipateSelection = () => {
+    setSelectedAnticipateIds([]);
+  };
+
+  const handleConfirmAnticipation = () => {
+    if (selectedAnticipateIds.length === 0) return;
+    if (onAnticipateInstallments) {
+      onAnticipateInstallments(selectedAnticipateIds, anticipatePaymentDate);
+    } else {
+      onMarkAsPaid(selectedAnticipateIds, anticipatePaymentDate);
+    }
+    setAnticipateTarget(null);
+    setSelectedAnticipateIds([]);
   };
 
   const handleExportExcel = () => {
@@ -633,6 +719,261 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
         </div>
       )}
 
+      {/* Anticipate Installments Modal */}
+      {anticipateTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-gray-100">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-800 text-white p-5 flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl text-purple-200 border border-white/20">
+                  <FastForward size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Antecipação de Parcelas
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/40 text-purple-100 border border-purple-300/30">
+                      {seriesStats.totalCount}x parcelas
+                    </span>
+                  </h3>
+                  <p className="text-purple-200 text-xs mt-0.5 font-medium">
+                    {anticipateTarget.title} • <span className="opacity-90">{anticipateTarget.category}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setAnticipateTarget(null)}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                title="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {/* Progress & Totals Summary */}
+              <div className="bg-purple-50/60 rounded-xl p-4 border border-purple-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-semibold text-purple-900">Progresso do Parcelamento</span>
+                  <span className="text-xs font-bold text-purple-700">
+                    {seriesStats.paidCount} de {seriesStats.totalCount} pagas ({seriesStats.totalCount > 0 ? Math.round((seriesStats.paidCount / seriesStats.totalCount) * 100) : 0}%)
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full bg-purple-200/60 rounded-full h-2 overflow-hidden mb-3">
+                  <div 
+                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${seriesStats.totalCount > 0 ? (seriesStats.paidCount / seriesStats.totalCount) * 100 : 0}%` }}
+                  ></div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-purple-100/80">
+                  <div>
+                    <div className="text-[11px] text-gray-500 font-medium">Total da Compra</div>
+                    <div className="text-sm font-bold text-gray-800">{formatCurrency(seriesStats.totalAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-green-700 font-medium">Já Pago</div>
+                    <div className="text-sm font-bold text-green-700">{formatCurrency(seriesStats.paidAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-red-600 font-medium">Saldo Restante</div>
+                    <div className="text-sm font-bold text-red-600">{formatCurrency(seriesStats.pendingAmount)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selection Fast-Actions */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold uppercase text-gray-600 tracking-wide flex items-center gap-1.5">
+                    <Layers size={14} className="text-purple-600" />
+                    Selecione as parcelas para adiantar
+                  </label>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {seriesStats.selectedCount} selecionada(s)
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectNextN(1)}
+                    className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-purple-100 hover:text-purple-800 text-gray-700 font-medium transition-colors border border-gray-200 hover:border-purple-200"
+                  >
+                    + Próxima (1)
+                  </button>
+                  {seriesStats.pendingCount >= 2 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectNextN(2)}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-purple-100 hover:text-purple-800 text-gray-700 font-medium transition-colors border border-gray-200 hover:border-purple-200"
+                    >
+                      + Próximas 2
+                    </button>
+                  )}
+                  {seriesStats.pendingCount >= 3 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectNextN(3)}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-purple-100 hover:text-purple-800 text-gray-700 font-medium transition-colors border border-gray-200 hover:border-purple-200"
+                    >
+                      + Próximas 3
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSelectAllPending}
+                    className="text-xs px-2.5 py-1 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold transition-colors border border-purple-200"
+                  >
+                    Todas Pendentes ({seriesStats.pendingCount})
+                  </button>
+                  {selectedAnticipateIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAnticipateSelection}
+                      className="text-xs px-2.5 py-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors ml-auto"
+                    >
+                      Desmarcar todas
+                    </button>
+                  )}
+                </div>
+
+                {/* Installment Items Cards */}
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {seriesInstallments.map((t) => {
+                    const isPaid = t.status === 'paid';
+                    const isSelected = selectedAnticipateIds.includes(t.id);
+                    const isAdvance = t.isAdvancePayment || t.installments?.isAdvancePayment;
+
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => {
+                          if (!isPaid) handleToggleAnticipate(t.id);
+                        }}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                          isPaid 
+                            ? 'bg-gray-50/80 border-gray-200 opacity-65 cursor-not-allowed' 
+                            : isSelected
+                              ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-400/30 cursor-pointer shadow-xs'
+                              : 'bg-white border-gray-200 hover:border-purple-300 hover:bg-gray-50/60 cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {isPaid ? (
+                            <div className="text-green-600">
+                              <CheckCircle size={18} />
+                            </div>
+                          ) : (
+                            <div className={`transition-colors ${isSelected ? 'text-purple-600' : 'text-gray-400'}`}>
+                              {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+                            </div>
+                          )}
+
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800">
+                                Parcela {t.installments?.current || 1}/{t.installments?.total || 1}
+                              </span>
+                              <span className="text-xs text-gray-600 font-medium">
+                                Vencimento: {formatDate(t.date)}
+                              </span>
+                            </div>
+                            
+                            <div className="mt-1">
+                              {isPaid ? (
+                                isAdvance ? (
+                                  <span className="inline-flex items-center text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                                    <FastForward size={10} className="mr-1" /> Pago Antecipado em {formatDate(t.paymentDate || t.date)}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">
+                                    <CheckCircle size={10} className="mr-1" /> Pago em {formatDate(t.paymentDate || t.date)}
+                                  </span>
+                                )
+                              ) : isSelected ? (
+                                <span className="inline-flex items-center text-[10px] font-bold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded">
+                                  <FastForward size={10} className="mr-1" /> Será debitada no mês atual como "Pago Antecipado"
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-[10px] font-semibold text-yellow-700 bg-yellow-100/80 px-2 py-0.5 rounded">
+                                  <Clock size={10} className="mr-1" /> Pendente
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className={`font-bold text-sm ${isPaid ? 'text-gray-500' : isSelected ? 'text-purple-900' : 'text-gray-800'}`}>
+                            {formatCurrency(t.amount)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Debit Date Configuration */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <label className="block text-xs font-bold uppercase text-gray-700 tracking-wide mb-1.5">
+                  Data de Débito no Mês Atual
+                </label>
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <input 
+                    type="date" 
+                    value={anticipatePaymentDate}
+                    onChange={(e) => setAnticipatePaymentDate(e.target.value)}
+                    className="p-2.5 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-auto font-medium text-gray-800"
+                  />
+                  <p className="text-xs text-gray-500 leading-tight">
+                    As parcelas antecipadas serão debitadas nesta data no mês corrente e receberão a etiqueta <strong className="text-purple-700">"Pago Antecipado"</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Anticipation Summary Box */}
+              {selectedAnticipateIds.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-purple-500/10 p-4 rounded-xl border border-purple-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <div className="text-xs font-semibold text-purple-900">Total a Antecipar no Mês Atual:</div>
+                    <div className="text-xs text-gray-600">
+                      {seriesStats.selectedCount} parcela(s) selecionada(s)
+                    </div>
+                  </div>
+                  <div className="text-xl font-extrabold text-purple-800">
+                    {formatCurrency(seriesStats.selectedAmount)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 items-center">
+              <button 
+                type="button"
+                onClick={() => setAnticipateTarget(null)}
+                className="px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-200/80 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirmAnticipation}
+                disabled={selectedAnticipateIds.length === 0}
+                className="px-5 py-2.5 text-sm font-bold bg-purple-700 hover:bg-purple-800 text-white rounded-xl shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+              >
+                <FastForward size={16} />
+                <span>Confirmar Antecipação ({selectedAnticipateIds.length})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Grid of Cards */}
       {filteredContas.length > 0 ? (
         <>
@@ -729,26 +1070,51 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
                      <div className="text-xs text-gray-400 italic">
                         {t.createdAt ? `Criado em ${formatDate(t.createdAt)}` : ''}
                      </div>
-                     <div className="flex gap-2">
+                     <div className="flex items-center gap-1.5">
+                        {t.installments && t.installments.total > 1 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAnticipateModal(t);
+                            }}
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors shadow-xs"
+                            title="Antecipar parcelas desta compra"
+                          >
+                            <FastForward size={13} />
+                            <span>Antecipar</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedIds([t.id]);
+                            setShowBulkPaymentModal(true);
+                          }}
+                          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors shadow-xs"
+                          title="Marcar como Pago"
+                        >
+                          <CheckCircle size={13} />
+                          <span>Pagar</span>
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onEditConta(t);
                           }}
-                          className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                          className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
                           title="Editar"
                         >
-                          <Edit2 size={16} />
+                          <Edit2 size={15} />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onDeleteConta(t.id);
                           }}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                           title="Excluir"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                      </div>
                   </div>
@@ -825,6 +1191,31 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
                         </td>
                         <td className="p-3 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
+                            {t.installments && t.installments.total > 1 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openAnticipateModal(t);
+                                }}
+                                className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors"
+                                title="Antecipar parcelas desta compra"
+                              >
+                                <FastForward size={12} />
+                                <span>Antecipar</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedIds([t.id]);
+                                setShowBulkPaymentModal(true);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-md transition-colors"
+                              title="Marcar como Pago"
+                            >
+                              <CheckCircle size={12} />
+                              <span>Pagar</span>
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

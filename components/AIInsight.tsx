@@ -62,12 +62,8 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
     }
   };
 
-  const canGenerateNewAnalysis = useCallback(() => {
-    if (history.length === 0) return { allowed: true };
-
+  const getDailyUsage = useCallback(() => {
     const now = new Date();
-    
-    // Filtra apenas as análises válidas geradas nas últimas 24 horas
     const recentAnalyses = history.filter(item => {
       if (item.summary?.includes("Não foi possível gerar") || item.summary?.includes("erro")) {
         return false;
@@ -76,25 +72,29 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
       const diffHours = (now.getTime() - itemDate.getTime()) / (1000 * 60 * 60);
       return diffHours < 24;
     });
-
-    if (recentAnalyses.length >= 3) {
-      // Encontrar quando a mais antiga expira para liberar o limite
-      const sortedDates = recentAnalyses
-        .map(item => new Date(item.createdAt))
-        .sort((a, b) => a.getTime() - b.getTime());
-      
-      const oldestOfThree = sortedDates[0];
-      const timeRemainingMs = oldestOfThree.getTime() + (24 * 60 * 60 * 1000) - now.getTime();
-      const hoursRemaining = Math.ceil(timeRemainingMs / (1000 * 60 * 60));
-
-      return {
-        allowed: false,
-        reason: `Você atingiu o limite de 3 análises diárias. Uma nova análise estará disponível em aproximadamente ${hoursRemaining}h.`
-      };
-    }
-
-    return { allowed: true };
+    const used = recentAnalyses.length;
+    const remaining = Math.max(0, 3 - used);
+    return { used, remaining, recentAnalyses };
   }, [history]);
+
+  const canGenerateNewAnalysis = useCallback(() => {
+    const { recentAnalyses, remaining } = getDailyUsage();
+    if (recentAnalyses.length === 0 || remaining > 0) return { allowed: true };
+
+    const now = new Date();
+    const sortedDates = recentAnalyses
+      .map(item => new Date(item.createdAt))
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    const oldestOfThree = sortedDates[0];
+    const timeRemainingMs = oldestOfThree.getTime() + (24 * 60 * 60 * 1000) - now.getTime();
+    const hoursRemaining = Math.max(1, Math.ceil(timeRemainingMs / (1000 * 60 * 60)));
+
+    return {
+      allowed: false,
+      reason: `Você atingiu o limite de 3 análises diárias. Uma nova análise estará disponível em aproximadamente ${hoursRemaining}h.`
+    };
+  }, [getDailyUsage]);
 
   const handleAnalyze = async () => {
     const check = canGenerateNewAnalysis();
@@ -197,10 +197,15 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
     <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 sm:p-6 rounded-lg shadow-md border border-indigo-100 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
-            <Sparkles className="text-indigo-600" size={20} />
-            Consultor Financeiro AI
-          </h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
+              <Sparkles className="text-indigo-600" size={20} />
+              Consultor Financeiro AI
+            </h3>
+            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+              {getDailyUsage().remaining} de 3 análises hoje
+            </span>
+          </div>
           {analysis && (
             <p className="text-xs text-indigo-400 mt-1 flex items-center gap-1">
               <History size={12} />

@@ -181,8 +181,10 @@ export const HelpSection: React.FC = () => {
       title: 'Gestão de Receitas & Entradas Financeiras',
       icon: TrendingUp,
       badgeColor: 'bg-green-100 text-green-800 border-green-200',
-      summary: 'Registre salários, comissões, freelas, aluguéis recebidos e bonificações com controle de recebimento pendente/realizado.',
+      summary: 'Registre salários, comissões, freelas, rendimentos e bonificações com botão de pagamento/recebimento rápido e modal de data.',
       keyFeatures: [
+        'Botão "Pagar/Receber" verde com modal de confirmação e alteração da data de recebimento',
+        'Quitação em lote de múltiplas receitas com 1 clique',
         'Receitas fixas recorrentes que geram previsibilidade automática',
         'Marcação de recebimento (Pendente / Recebido) com impacto no saldo real',
         'Edição e exclusão em lote para agilizar a manutenção',
@@ -192,12 +194,14 @@ export const HelpSection: React.FC = () => {
         '1. Clique em "Nova Receita" na tela de Receitas.',
         '2. Informe o título, valor, data de recebimento esperada e categoria (ex: Salário, Rendimentos, Vendas).',
         '3. Se for salário ou rendimento mensal contínuo, ative "Receita Fixa" para replicar nos próximos períodos.',
-        '4. Ao receber o dinheiro na conta, clique no ícone de status para marcar como Recebido.'
+        '4. Para confirmar recebimento: clique no botão verde "Pagar", confira ou ajuste a data real de recebimento no modal e confirme.',
+        '5. Para quitar várias receitas de uma vez: marque as caixas de seleção e clique no botão verde "Pagar (X)" no cabeçalho.'
       ],
       proTips: [
+        'O modal de confirmação permite ajustar a data em que o dinheiro realmente caiu na sua conta corrente.',
         'Cadastre receitas pendentes com as datas previstas de recebimento para que o cálculo de Saldo Geral Previsto do Dashboard seja 100% exato.'
       ],
-      tags: ['receitas', 'salario', 'entradas', 'rendimentos', 'ganhos', 'relatorios', 'pdf', 'excel']
+      tags: ['receitas', 'salario', 'entradas', 'rendimentos', 'ganhos', 'pagar', 'receber', 'modal data', 'relatorios', 'pdf', 'excel']
     },
     {
       id: 'investments-management',
@@ -205,8 +209,10 @@ export const HelpSection: React.FC = () => {
       title: 'Controle de Investimentos & Aplicações',
       icon: LineChart,
       badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
-      summary: 'Monitore aportes, reservas financeiras, renda fixa, ações e resgates de capital de forma clara e separada do fluxo operacional.',
+      summary: 'Monitore aportes, reservas financeiras, renda fixa, ações e resgates de capital com botão de liquidação e modal de data.',
       keyFeatures: [
+        'Botão "Pagar" verde com modal de confirmação e seleção da data de liquidação',
+        'Liquidação em lote de múltiplos investimentos selecionados',
         'Classificação de operações: Entrada (Aporte/Aplicação) e Saída (Resgate/Venda)',
         'Histórico cronológico de rentabilidade e evolução patrimonial',
         'Widget dedicado no Dashboard para acompanhar o crescimento dos investimentos',
@@ -216,12 +222,13 @@ export const HelpSection: React.FC = () => {
         '1. Acesse a aba "Investimentos" e clique em "Novo Investimento".',
         '2. Selecione a operação: "Entrada" (quando colocar dinheiro no investimento) ou "Saída" (quando resgatar de volta para a conta corrente).',
         '3. Atribua à categoria correspondente (ex: CDB, Tesouro Direto, Ações, FIIs, Cripto).',
-        '4. Acompanhe a evolução do montante no card dedicado do Dashboard.'
+        '4. Para liquidar o aporte/operação: clique no botão verde "Pagar", escolha a data no modal e confirme.',
+        '5. Para liquidar vários aportes juntos: marque os checkboxes e clique em "Pagar (X)" no cabeçalho.'
       ],
       proTips: [
         'Manter investimentos cadastrados separadamente de despesas cotidianas impede distorções na sua taxa de economia real.'
       ],
-      tags: ['investimentos', 'aporte', 'resgate', 'renda fixa', 'acoes', 'patrimonio', 'cdb', 'tesouro']
+      tags: ['investimentos', 'aporte', 'resgate', 'renda fixa', 'acoes', 'patrimonio', 'pagar', 'modal data', 'cdb', 'tesouro']
     },
     {
       id: 'payable-management',
@@ -274,7 +281,7 @@ export const HelpSection: React.FC = () => {
     {
       id: 'ai-advisor',
       category: 'ai',
-      title: 'Consultor Financeiro AI (Powered by Gemini 3.5)',
+      title: 'Consultor Financeiro AI (Powered by Gemini AI)',
       icon: Sparkles,
       badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
       summary: 'Um consultor financeiro de inteligência artificial de ponta que analisa seu padrão de consumo, detecta anomalias e orienta cortes.',

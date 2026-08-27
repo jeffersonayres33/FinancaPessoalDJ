@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Trash2, Search, Filter, CheckCircle, Clock, Layers } from 'lucide-react';
+import { Trash2, Search, Filter, CheckCircle, Clock, Layers, FastForward } from 'lucide-react';
 import { Transaction, Category } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 
@@ -101,7 +101,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             {filteredTransactions.map((transaction) => (
               <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
                  <td className="px-6 py-4 whitespace-nowrap">
-                  {transaction.status === 'paid' ? (
+                  {transaction.isAdvancePayment || transaction.installments?.isAdvancePayment ? (
+                    <span className="flex items-center text-purple-700 text-xs font-semibold bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-full w-fit">
+                      <FastForward size={12} className="mr-1" />
+                      Pago Antecipado
+                    </span>
+                  ) : transaction.status === 'paid' ? (
                     <span className="flex items-center text-green-600 text-xs font-medium bg-green-100 px-2 py-1 rounded-full w-fit">
                       <CheckCircle size={12} className="mr-1" />
                       {transaction.type === 'income' ? 'Recebido' : 'Pago'}

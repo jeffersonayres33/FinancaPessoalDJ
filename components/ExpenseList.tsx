@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon, Lock } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, Download, FileSpreadsheet, File as FileIcon, ChevronDown, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon, Lock, FastForward } from 'lucide-react';
 import { Despesa, TransactionStatus, Category, User } from '../types';
 import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
 import { BulkEditModal } from './BulkEditModal';
@@ -685,7 +685,12 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                      </div>
 
                      <div className="flex flex-col gap-2">
-                       {t.status === 'paid' ? (
+                       {t.isAdvancePayment || t.installments?.isAdvancePayment ? (
+                         <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-purple-700 bg-purple-100 border border-purple-200" title="Parcela Paga Antecipadamente">
+                            <FastForward size={10} className="mr-1" />
+                            <span>PAGO ANTECIPADO {t.paymentDate && <span className="font-normal opacity-80 ml-1">em {formatDate(t.paymentDate)}</span>}</span>
+                         </div>
+                       ) : t.status === 'paid' ? (
                          <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit text-green-700 bg-green-50 border border-green-100">
                             <CheckCircle size={10} className="mr-1" />
                             <span>PAGO {t.paymentDate && <span className="font-normal opacity-80 ml-1">em {formatDate(t.paymentDate)}</span>}</span>
@@ -832,7 +837,11 @@ export const ExpenseList: React.FC<ExpenseListProps> = React.memo(({
                         </div>
                       </td>
                       <td className="p-3">
-                        {t.status === 'paid' ? (
+                        {t.isAdvancePayment || t.installments?.isAdvancePayment ? (
+                          <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded text-purple-700 bg-purple-100 border border-purple-200 whitespace-nowrap" title="Parcela Paga Antecipadamente">
+                            <FastForward size={10} className="mr-1" /> PAGO ANTECIPADO
+                          </span>
+                        ) : t.status === 'paid' ? (
                           <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded text-green-700 bg-green-50 border border-green-100 whitespace-nowrap">
                             <CheckCircle size={10} className="mr-1" /> PAGO
                           </span>

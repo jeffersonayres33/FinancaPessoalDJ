@@ -501,35 +501,58 @@ async function startServer() {
         Dados Agregados: ${JSON.stringify(aggregatedData)}
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            // @ts-ignore
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING, description: "Um resumo geral da saúde financeira em português." },
-              tips: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "Lista de 3 dicas práticas."
-              },
-              anomalies: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Lista de possíveis gastos anômalos ou alertas."
-              }
-            },
-            required: ["summary", "tips", "anomalies"]
-          }
-        }
-      });
+      let responseText = "";
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.7-flash'];
+      let lastError: any = null;
 
-      if (!response.text) throw new Error("No response from Gemini");
+      for (const modelName of modelsToTry) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                // @ts-ignore
+                type: Type.OBJECT,
+                properties: {
+                  summary: { type: Type.STRING, description: "Um resumo geral da saúde financeira em português." },
+                  tips: { 
+                    type: Type.ARRAY, 
+                    items: { type: Type.STRING },
+                    description: "Lista de 3 dicas práticas."
+                  },
+                  anomalies: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: "Lista de possíveis gastos anômalos ou alertas."
+                  }
+                },
+                required: ["summary", "tips", "anomalies"]
+              }
+            }
+          });
+
+          if (response.text) {
+            responseText = response.text;
+            break;
+          }
+        } catch (err) {
+          console.warn(`[Gemini Analyze] Model ${modelName} failed, trying next:`, err);
+          lastError = err;
+        }
+      }
+
+      if (!responseText) throw lastError || new Error("No response from Gemini");
       
-      res.json(JSON.parse(response.text));
+      let cleanText = responseText.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      res.json(JSON.parse(cleanText));
     } catch (err: any) {
       console.error("Gemini Analyze Error:", err);
       res.status(500).json({ error: err.message || "Failed to analyze finances" });
@@ -557,42 +580,58 @@ async function startServer() {
         }
       });
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
-        Extraia os dados e retorne ESTRITAMENTE um JSON válido.
-        
-        Texto extraído:
-        """
-        ${extractedText}
-        """
-        
-        Estrutura do JSON desejado:
-        {
-          "title": "string (Nome do estabelecimento)",
-          "amount": number (Valor total numérico),
-          "date": "string (YYYY-MM-DD, se não encontrar use ${fallbackDate})",
-          "observation": "string (Resumo dos itens)"
-        }`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            // @ts-ignore
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING, description: "Nome do estabelecimento" },
-              amount: { type: Type.NUMBER, description: "Valor total numérico" },
-              date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
-              observation: { type: Type.STRING, description: "Resumo dos itens" }
-            },
-            required: ["title", "amount"]
+      let responseText = "";
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.7-flash'];
+      let lastError: any = null;
+
+      for (const modelName of modelsToTry) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: `Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
+            Extraia os dados e retorne ESTRITAMENTE um JSON válido.
+            
+            Texto extraído:
+            """
+            ${extractedText}
+            """
+            
+            Estrutura do JSON desejado:
+            {
+              "title": "string (Nome do estabelecimento)",
+              "amount": number (Valor total numérico),
+              "date": "string (YYYY-MM-DD, se não encontrar use ${fallbackDate})",
+              "observation": "string (Resumo dos itens)"
+            }`,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                // @ts-ignore
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING, description: "Nome do estabelecimento" },
+                  amount: { type: Type.NUMBER, description: "Valor total numérico" },
+                  date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
+                  observation: { type: Type.STRING, description: "Resumo dos itens" }
+                },
+                required: ["title", "amount"]
+              }
+            }
+          });
+
+          if (response.text) {
+            responseText = response.text;
+            break;
           }
+        } catch (err) {
+          console.warn(`[Gemini Extract] Model ${modelName} failed, trying next:`, err);
+          lastError = err;
         }
-      });
+      }
 
-      if (!response.text) throw new Error("No response from Gemini");
+      if (!responseText) throw lastError || new Error("No response from Gemini");
 
-      let jsonStr = response.text.trim();
+      let jsonStr = responseText.trim();
       if (jsonStr.startsWith('\`\`\`json')) {
         jsonStr = jsonStr.replace(/^\`\`\`json\s*/, '').replace(/\s*\`\`\`$/, '');
       } else if (jsonStr.startsWith('\`\`\`')) {

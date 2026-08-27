@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon, Lock } from 'lucide-react';
+import { Search, Filter, Trash2, Edit2, Plus, Calendar, CheckCircle, CheckCircle2, Clock, ArrowDownUp, Layers, CalendarCheck, FileText, Printer, FileSpreadsheet, Repeat, TrendingUp, TrendingDown, LayoutGrid, List as ListIcon, Lock } from 'lucide-react';
 import { Despesa, Category, User } from '../types';
-import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod } from '../utils';
+import { formatCurrency, formatDate, getFinancialMonthRange, getFinancialYearRange, getCurrentFinancialPeriod, getCurrentLocalDateString } from '../utils';
 import { BulkEditModal } from './BulkEditModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -17,6 +17,7 @@ interface IncomeListProps {
   onOpenNew: () => void;
   categories: Category[];
   onToggleStatus: (receita: Despesa) => void;
+  onMarkAsPaid?: (ids: string[], paymentDate: string) => void;
   user?: User;
   onOpenPaywall?: () => void;
 }
@@ -30,6 +31,7 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
   onOpenNew,
   categories,
   onToggleStatus,
+  onMarkAsPaid,
   user,
   onOpenPaywall
 }) => {
@@ -48,6 +50,59 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+
+  // Modal de Confirmação de Pagamento
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentDate, setPaymentDate] = useState(getCurrentLocalDateString());
+  const [paymentTarget, setPaymentTarget] = useState<{ type: 'single'; item: Despesa } | { type: 'bulk'; ids: string[] } | null>(null);
+
+  const openSinglePaymentModal = (item: Despesa) => {
+    setPaymentTarget({ type: 'single', item });
+    setPaymentDate(getCurrentLocalDateString());
+    setShowPaymentModal(true);
+  };
+
+  const initiateBulkPayment = () => {
+    if (selectedIds.length === 0) return;
+    setPaymentTarget({ type: 'bulk', ids: selectedIds });
+    setPaymentDate(getCurrentLocalDateString());
+    setShowPaymentModal(true);
+  };
+
+  const handleConfirmPayment = () => {
+    if (!paymentTarget) return;
+
+    if (paymentTarget.type === 'single') {
+      if (onMarkAsPaid) {
+        onMarkAsPaid([paymentTarget.item.id], paymentDate);
+      } else if (onToggleStatus) {
+        onToggleStatus({
+          ...paymentTarget.item,
+          status: 'paid',
+          paymentDate: paymentDate
+        });
+      }
+    } else {
+      if (onMarkAsPaid) {
+        onMarkAsPaid(paymentTarget.ids, paymentDate);
+      } else if (onToggleStatus) {
+        paymentTarget.ids.forEach(id => {
+          const item = receitas.find(r => r.id === id);
+          if (item) {
+            onToggleStatus({
+              ...item,
+              status: 'paid',
+              paymentDate: paymentDate
+            });
+          }
+        });
+      }
+      setSelectedIds([]);
+    }
+
+    setShowPaymentModal(false);
+    setPaymentTarget(null);
+  };
 
   const [categoryFilter, setCategoryFilter] = useState('all');
 
@@ -336,6 +391,18 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
               </div>
            )}
 
+           {/* Bulk Payment Button */}
+           {selectedIds.length > 0 && (
+             <button 
+               type="button"
+               onClick={initiateBulkPayment}
+               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-bold shadow-sm flex items-center gap-2 transition-colors animate-fade-in text-sm"
+             >
+               <CheckCircle2 size={18} />
+               Pagar {selectedIds.length}
+             </button>
+           )}
+
            <div className="flex gap-2 w-full sm:w-auto">
               <div className="flex bg-gray-100 rounded-md p-1 mr-2">
                 <button 
@@ -592,6 +659,15 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
                   <span className="text-gray-600">Selecionar Todos</span>
                 </div>
               )}
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={initiateBulkPayment}
+                  className="text-green-700 hover:text-green-900 font-semibold flex items-center gap-1.5 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-md transition-colors text-xs sm:text-sm border border-green-200"
+                >
+                  <CheckCircle2 size={15} /> Pagar ({selectedIds.length})
+                </button>
+              )}
               {selectedIds.length > 0 && onBulkDeleteReceitas && (
                 <button
                   onClick={() => {
@@ -713,17 +789,32 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
                          </div>
                        )}
                      </div>
-                     <div className="flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onToggleStatus) onToggleStatus(t);
-                          }}
-                          className={`p-2 rounded-full transition-colors ${t.status === 'paid' ? 'text-yellow-500 hover:bg-yellow-50' : 'text-green-500 hover:bg-green-50'}`}
-                          title={t.status === 'paid' ? 'Marcar como Pendente' : 'Marcar como Recebido'}
-                        >
-                           {t.status === 'paid' ? <Clock size={16} /> : <CheckCircle size={16} />}
-                        </button>
+                     <div className="flex items-center gap-2">
+                        {t.status === 'paid' ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onToggleStatus) onToggleStatus(t);
+                            }}
+                            className="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1 transition-colors"
+                            title="Marcar como Pendente"
+                          >
+                            <Clock size={13} />
+                            <span>Pendente</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSinglePaymentModal(t);
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors"
+                            title="Pagar"
+                          >
+                            <CheckCircle2 size={14} />
+                            <span>Pagar</span>
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -840,17 +931,32 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
                         {formatCurrency(t.amount)}
                       </td>
                       <td className="p-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onToggleStatus) onToggleStatus(t);
-                            }}
-                            className={`p-1.5 rounded-md transition-colors ${t.status === 'paid' ? 'text-yellow-500 hover:bg-yellow-50' : 'text-green-500 hover:bg-green-50'}`}
-                            title={t.status === 'paid' ? 'Marcar como Pendente' : 'Marcar como Recebido'}
-                          >
-                             {t.status === 'paid' ? <Clock size={14} /> : <CheckCircle size={14} />}
-                          </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {t.status === 'paid' ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onToggleStatus) onToggleStatus(t);
+                              }}
+                              className="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-1 transition-colors"
+                              title="Marcar como Pendente"
+                            >
+                              <Clock size={12} />
+                              <span>Pendente</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openSinglePaymentModal(t);
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-md font-bold text-xs shadow-sm flex items-center gap-1 transition-colors"
+                              title="Pagar"
+                            >
+                              <CheckCircle2 size={13} />
+                              <span>Pagar</span>
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -885,6 +991,60 @@ export const IncomeList: React.FC<IncomeListProps> = React.memo(({
            <CalendarCheck size={48} className="mb-4 opacity-20" />
            <p>Nenhuma receita encontrada para os filtros selecionados.</p>
          </div>
+      )}
+
+      {/* Modal de Confirmação de Pagamento */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl animate-scale-up">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <CheckCircle2 className="text-green-600" size={22} />
+              {paymentTarget?.type === 'bulk' ? 'Confirmar Pagamento em Lote' : 'Confirmar Pagamento'}
+            </h3>
+            
+            <p className="text-gray-600 mb-4 text-sm">
+              {paymentTarget?.type === 'bulk' 
+                ? `Deseja marcar ${paymentTarget.ids.length} receita(s) selecionada(s) como recebida(s)?`
+                : (
+                  <>
+                    Deseja confirmar o recebimento de <strong>{paymentTarget?.item.title}</strong> no valor de <strong className="text-green-700">{formatCurrency(paymentTarget?.item.amount || 0)}</strong>?
+                  </>
+                )
+              }
+            </p>
+            
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Data do Pagamento</label>
+              <input 
+                type="date" 
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-green-500 text-sm font-medium"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setPaymentTarget(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors text-sm font-medium"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirmPayment}
+                className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-md transition-colors text-sm font-bold shadow-sm flex items-center gap-1.5"
+              >
+                <CheckCircle2 size={16} />
+                Confirmar Pagamento
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <BulkEditModal 

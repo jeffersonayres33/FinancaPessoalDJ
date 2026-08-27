@@ -1294,6 +1294,82 @@ const AuthenticatedApp: React.FC<{
     }
   }, [despesas, showToast, user.dataContextId]);
 
+  const handleAnticipateInstallments = useCallback(async (ids: string[], paymentDate: string) => {
+    setIsGlobalLoading(true);
+    try {
+        const updatedAt = new Date().toISOString();
+        if (!navigator.onLine) {
+          ids.forEach(id => {
+            const transaction = despesas.find(t => t.id === id);
+            if (transaction) {
+              const updatedTrans: Despesa = { 
+                ...transaction, 
+                status: 'paid' as TransactionStatus, 
+                paymentDate, 
+                date: paymentDate,
+                isAdvancePayment: true,
+                installments: transaction.installments ? { ...transaction.installments, isAdvancePayment: true } : undefined,
+                updatedAt 
+              };
+              syncService.addToQueue('UPDATE_TRANSACTION', updatedTrans);
+            }
+          });
+          setDespesas((prev) => {
+            const updated = prev.map((t) => {
+              if (ids.includes(t.id)) {
+                return { 
+                  ...t, 
+                  status: 'paid' as TransactionStatus, 
+                  paymentDate, 
+                  date: paymentDate,
+                  isAdvancePayment: true,
+                  installments: t.installments ? { ...t.installments, isAdvancePayment: true } : undefined,
+                  updatedAt 
+                };
+              }
+              return t;
+            });
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast(`${ids.length} parcela(s) antecipada(s) e debitada(s) localmente no mês atual como "Pago Antecipado".`, 'success');
+        } else {
+          await dataService.updateTransactionsBulk(ids, {
+            status: 'paid',
+            paymentDate,
+            date: paymentDate,
+            isAdvancePayment: true,
+            updatedAt
+          });
+
+          setDespesas((prev) => {
+            const updated = prev.map((t) => {
+              if (ids.includes(t.id)) {
+                return { 
+                  ...t, 
+                  status: 'paid' as TransactionStatus, 
+                  paymentDate, 
+                  date: paymentDate,
+                  isAdvancePayment: true,
+                  installments: t.installments ? { ...t.installments, isAdvancePayment: true } : undefined,
+                  updatedAt 
+                };
+              }
+              return t;
+            });
+            localStorage.setItem(`finances_trans_${user.dataContextId}`, JSON.stringify(updated));
+            return updated;
+          });
+          showToast(`${ids.length} parcela(s) antecipada(s) e debitada(s) com sucesso no mês atual como "Pago Antecipado"!`, 'success');
+        }
+    } catch (e) {
+        console.error('Erro em handleAnticipateInstallments:', e);
+        showToast('Erro ao antecipar parcelas.', 'error');
+    } finally {
+        setIsGlobalLoading(false);
+    }
+  }, [despesas, showToast, user.dataContextId]);
+
   const handleAddCategory = useCallback(async (name: string, type: 'income' | 'expense' | 'both' | 'investment', budget?: number) => {
     if (categories.some(c => (c.name?.toLowerCase() || '') === name.toLowerCase())) {
         showToast('Já existe uma categoria com este nome.', 'error');
@@ -1782,6 +1858,7 @@ const AuthenticatedApp: React.FC<{
             onOpenNew={openNewDespesaModal}
             categories={effectiveCategories}
             onToggleStatus={handleToggleStatus}
+            onMarkAsPaid={handleMarkAsPaid}
             user={user}
             onOpenPaywall={() => setIsPaywallOpen(true)}
           />
@@ -1797,6 +1874,7 @@ const AuthenticatedApp: React.FC<{
             onOpenNew={openNewDespesaModal}
             categories={effectiveCategories}
             onToggleStatus={handleToggleStatus}
+            onMarkAsPaid={handleMarkAsPaid}
             user={user}
             onOpenPaywall={() => setIsPaywallOpen(true)}
           />
@@ -1806,6 +1884,7 @@ const AuthenticatedApp: React.FC<{
           <AccountsPayable 
             despesas={despesas} 
             onMarkAsPaid={handleMarkAsPaid} 
+            onAnticipateInstallments={handleAnticipateInstallments}
             categories={effectiveCategories}
             onDeleteConta={handleDeleteDespesa}
             onEditConta={openEditDespesaModal}
