@@ -907,9 +907,14 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
                         </div>
 
                         <div className="text-right">
-                          <span className={`font-bold text-sm ${isPaid ? 'text-gray-500' : isSelected ? 'text-purple-900' : 'text-gray-800'}`}>
+                          <span className={`font-bold text-sm block ${isPaid ? 'text-gray-500' : isSelected ? 'text-purple-900' : 'text-gray-800'}`}>
                             {formatCurrency(t.amount)}
                           </span>
+                          {isSelected && (
+                            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                              Selecionado
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -936,19 +941,23 @@ export const AccountsPayable: React.FC<AccountsPayableProps> = React.memo(({
               </div>
 
               {/* Anticipation Summary Box */}
-              {selectedAnticipateIds.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-purple-500/10 p-4 rounded-xl border border-purple-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <div className="text-xs font-semibold text-purple-900">Total a Antecipar no Mês Atual:</div>
-                    <div className="text-xs text-gray-600">
-                      {seriesStats.selectedCount} parcela(s) selecionada(s)
-                    </div>
-                  </div>
-                  <div className="text-xl font-extrabold text-purple-800">
-                    {formatCurrency(seriesStats.selectedAmount)}
+              <div className="bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-purple-500/10 p-4 rounded-xl border border-purple-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-purple-900">Total Selecionado para Antecipação:</div>
+                  <div className="text-xs text-gray-600 mt-0.5">
+                    {seriesStats.selectedCount > 0 ? (
+                      <span>
+                        Parcelas selecionadas: {seriesInstallments.filter(t => selectedAnticipateIds.includes(t.id)).map(t => `${t.installments?.current || '?'}/${t.installments?.total || '?'}`).join(', ')}
+                      </span>
+                    ) : (
+                      <span className="italic text-gray-400">Nenhuma parcela selecionada no momento</span>
+                    )}
                   </div>
                 </div>
-              )}
+                <div className="text-xl font-extrabold text-purple-800 whitespace-nowrap">
+                  {formatCurrency(seriesStats.selectedAmount)}
+                </div>
+              </div>
             </div>
 
             {/* Modal Footer */}
