@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff, Edit } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff, Edit, Calendar, ShieldCheck, User as UserIcon, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { authService } from '../services/authService';
 import { User } from '../types';
 
 interface AdminPanelProps {
   currentUser: User;
 }
+
+type SortField = 'name' | 'email' | 'role' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
@@ -26,6 +29,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // New states for role update
+  const [editingRoleUser, setEditingRoleUser] = useState<User | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'user'>('user');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleSuccess, setRoleSuccess] = useState(false);
+
+  // Search & Filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user' | 'member'>('all');
+
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // New states for data migration
   const [showMigrateModal, setShowMigrateModal] = useState(false);
@@ -204,6 +222,124 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     }
   };
 
+  const formatRegistrationDate = (dateString?: string) => {
+    if (!dateString) return { date: 'Não informada', time: '' };
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return { date: dateString, time: '' };
+      const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+      const time = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(d);
+      return { date, time: `${time}h` };
+    } catch {
+      return { date: dateString, time: '' };
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingRoleUser) return;
+    setIsUpdatingRole(true);
+    setRoleError(null);
+    try {
+      await authService.updateUserRole(editingRoleUser.id, selectedRole);
+      setRoleSuccess(true);
+      setUsers(prev => prev.map(u => u.id === editingRoleUser.id ? { ...u, role: selectedRole } : u));
+      setMessage({
+        text: `Nível de acesso de ${editingRoleUser.name} alterado para ${selectedRole === 'admin' ? 'Administrador' : 'Usuário Padrão'} com sucesso!`,
+        type: 'success'
+      });
+      setTimeout(() => {
+        setEditingRoleUser(null);
+        setRoleSuccess(false);
+      }, 1400);
+    } catch (e: any) {
+      setRoleError(e.message || 'Erro ao alterar nível de acesso.');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch = !searchTerm.trim() || 
+      (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if (!matchesSearch) return false;
+
+    if (roleFilter === 'admin') return u.role === 'admin';
+    if (roleFilter === 'user') return u.role !== 'admin' && !u.parentId;
+    if (roleFilter === 'member') return !!u.parentId;
+
+    return true;
+  });
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'createdAt' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      let result = 0;
+      if (sortField === 'name') {
+        const nameA = (a.name || '').trim().toLowerCase();
+        const nameB = (b.name || '').trim().toLowerCase();
+        result = nameA.localeCompare(nameB, 'pt-BR');
+      } else if (sortField === 'email') {
+        const emailA = (a.email || '').trim().toLowerCase();
+        const emailB = (b.email || '').trim().toLowerCase();
+        result = emailA.localeCompare(emailB, 'pt-BR');
+      } else if (sortField === 'role') {
+        // Hierarchy: Admin (1) -> Usuário Padrão (2) -> Membro Vinculado (3)
+        const getRoleWeight = (u: User) => {
+          if (u.role === 'admin') return 1;
+          if (!u.parentId) return 2;
+          return 3;
+        };
+        result = getRoleWeight(a) - getRoleWeight(b);
+        if (result === 0) {
+          result = (a.name || '').localeCompare(b.name || '', 'pt-BR');
+        }
+      } else if (sortField === 'createdAt') {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        result = timeA - timeB;
+      }
+
+      return sortDirection === 'asc' ? result : -result;
+    });
+  }, [filteredUsers, sortField, sortDirection]);
+
+  const renderSortHeader = (label: string, field: SortField) => {
+    const isActive = sortField === field;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(field)}
+        className={`group inline-flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider transition-colors hover:text-purple-700 select-none py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+          isActive ? 'text-purple-700 font-extrabold' : 'text-gray-600'
+        }`}
+        title={`Clique para ordenar por ${label} (${isActive && sortDirection === 'asc' ? 'Decrescente' : 'Crescente'})`}
+      >
+        <span>{label}</span>
+        <span
+          className={`p-1 rounded transition-colors ${
+            isActive ? 'bg-purple-100 text-purple-700' : 'text-gray-400 group-hover:text-purple-600 group-hover:bg-purple-50'
+          }`}
+        >
+          {isActive ? (
+            sortDirection === 'asc' ? <ArrowUp size={13} className="stroke-[2.5]" /> : <ArrowDown size={13} className="stroke-[2.5]" />
+          ) : (
+            <ArrowUpDown size={12} className="opacity-40 group-hover:opacity-100" />
+          )}
+        </span>
+      </button>
+    );
+  };
+
   if (currentUser.role !== 'admin') {
     return (
       <div className="p-8 text-center text-gray-500">
@@ -357,46 +493,189 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
 
           {/* Lista de Usuários */}
           {showUserList && (
-              <div className="border border-gray-200 rounded-xl overflow-hidden animate-fade-in">
-                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                      <h3 className="font-bold text-gray-700">Usuários Cadastrados ({users.length})</h3>
+              <div className="border border-gray-200 rounded-xl overflow-hidden animate-fade-in shadow-xs">
+                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <Users size={18} className="text-purple-600" />
+                          Usuários Cadastrados ({sortedUsers.length}{sortedUsers.length !== users.length ? ` de ${users.length}` : ''})
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Clique nas colunas para ordenar • Ordenado por{' '}
+                          <span className="font-semibold text-purple-700">
+                            {sortField === 'name' ? 'Nome' : sortField === 'email' ? 'Email' : sortField === 'role' ? 'Nível de Acesso' : 'Data do Cadastro'}
+                          </span>{' '}
+                          ({sortDirection === 'asc' ? 'Crescente' : 'Decrescente'})
+                        </p>
+                      </div>
+
+                      {/* Busca e Filtros */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Buscar por nome ou e-mail..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 w-48 sm:w-56"
+                          />
+                        </div>
+
+                        <select
+                          value={roleFilter}
+                          onChange={(e) => setRoleFilter(e.target.value as any)}
+                          className="px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-medium"
+                        >
+                          <option value="all">Todos os Níveis</option>
+                          <option value="admin">Apenas Administradores</option>
+                          <option value="user">Usuários Padrão</option>
+                          <option value="member">Membros Vinculados</option>
+                        </select>
+                      </div>
                   </div>
+
                   <div className="overflow-x-auto">
                       <table className="w-full text-sm text-left">
-                          <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-100">
+                          <thead className="text-xs uppercase bg-gray-50/80 border-b border-gray-200">
                               <tr>
-                                  <th className="px-6 py-3">Nome</th>
-                                  <th className="px-6 py-3">Email</th>
-                                  <th className="px-6 py-3 text-center">Ações</th>
+                                  <th className="px-6 py-3.5">
+                                    {renderSortHeader('Nome / Usuário', 'name')}
+                                  </th>
+                                  <th className="px-6 py-3.5">
+                                    {renderSortHeader('Email', 'email')}
+                                  </th>
+                                  <th className="px-6 py-3.5">
+                                    {renderSortHeader('Nível de Acesso', 'role')}
+                                  </th>
+                                  <th className="px-6 py-3.5">
+                                    {renderSortHeader('Data do Cadastro', 'createdAt')}
+                                  </th>
+                                  <th className="px-6 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Ações
+                                  </th>
                               </tr>
                           </thead>
-                          <tbody>
-                              {users.map((u) => (
-                                  <tr key={u.id} className="bg-white border-b border-gray-50 hover:bg-gray-50">
-                                      <td className="px-6 py-4 font-medium text-gray-900">
-                                        <div className="flex flex-col">
-                                          <span>{u.name}</span>
-                                          <span className={`w-fit px-2 py-0.5 mt-1 rounded-full text-[10px] font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                                              {u.role === 'admin' ? 'ADMIN' : 'USUÁRIO'}
-                                          </span>
-                                        </div>
-                                      </td>
-                                      <td className="px-6 py-4 text-gray-500">{u.email}</td>
-                                      <td className="px-6 py-4 text-center">
-                                          <button 
-                                            onClick={() => setResettingUser(u)}
-                                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                            title="Alterar Senha"
-                                          >
-                                            <Key size={18} />
-                                          </button>
-                                      </td>
-                                  </tr>
-                              ))}
-                              {users.length === 0 && (
+                          <tbody className="divide-y divide-gray-100">
+                              {sortedUsers.map((u) => {
+                                  const regInfo = formatRegistrationDate(u.createdAt);
+                                  const isAdmin = u.role === 'admin';
+                                  const isMember = !!u.parentId;
+                                  const isCurrentUser = currentUser.id === u.id;
+
+                                  return (
+                                    <tr key={u.id} className="bg-white hover:bg-gray-50/70 transition-colors">
+                                        {/* Usuário / Nome */}
+                                        <td className="px-6 py-4 font-medium text-gray-900">
+                                          <div className="flex items-center gap-3">
+                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                              isAdmin 
+                                                ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                                                : isMember 
+                                                ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                                                : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                            }`}>
+                                              {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                                            </div>
+                                            <div>
+                                              <div className="flex items-center gap-1.5 font-semibold text-gray-900">
+                                                <span>{u.name}</span>
+                                                {isCurrentUser && (
+                                                  <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded font-semibold border border-purple-200">
+                                                    Você
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <span className="text-[11px] text-gray-400 font-mono">ID: {u.id.slice(0, 8)}...</span>
+                                            </div>
+                                          </div>
+                                        </td>
+
+                                        {/* Email */}
+                                        <td className="px-6 py-4 text-gray-600 text-xs font-mono">
+                                          {u.email || <span className="text-gray-400 italic">Sem e-mail informado</span>}
+                                        </td>
+
+                                        {/* Nível de Acesso */}
+                                        <td className="px-6 py-4">
+                                          <div className="flex flex-col items-start gap-1">
+                                            {isAdmin ? (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs">
+                                                <Shield size={12} className="text-purple-600" />
+                                                Administrador
+                                              </span>
+                                            ) : isMember ? (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                                <Users size={12} className="text-blue-500" />
+                                                Membro Vinculado
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <UserIcon size={12} className="text-emerald-600" />
+                                                Usuário Padrão
+                                              </span>
+                                            )}
+
+                                            {/* Badge do Plano */}
+                                            {u.plan === 'premium' ? (
+                                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1">
+                                                ⭐ Plano Premium
+                                              </span>
+                                            ) : (
+                                              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                                Plano Gratuito
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+
+                                        {/* Data do Cadastro */}
+                                        <td className="px-6 py-4">
+                                          <div className="flex items-start gap-2 text-gray-700">
+                                            <Calendar size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                                            <div>
+                                              <div className="font-medium text-xs text-gray-800">{regInfo.date}</div>
+                                              {regInfo.time && (
+                                                <div className="text-[11px] text-gray-400 font-mono">às {regInfo.time}</div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </td>
+
+                                        {/* Ações */}
+                                        <td className="px-6 py-4 text-center">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <button 
+                                              onClick={() => {
+                                                setEditingRoleUser(u);
+                                                setSelectedRole(u.role || 'user');
+                                                setRoleError(null);
+                                                setRoleSuccess(false);
+                                              }}
+                                              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
+                                              title="Alterar Nível de Acesso (Administrador / Usuário)"
+                                            >
+                                              <ShieldCheck size={18} />
+                                            </button>
+                                            <button 
+                                              onClick={() => setResettingUser(u)}
+                                              className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
+                                              title="Alterar Senha"
+                                            >
+                                              <Key size={18} />
+                                            </button>
+                                          </div>
+                                        </td>
+                                    </tr>
+                                  );
+                              })}
+                              {sortedUsers.length === 0 && (
                                   <tr>
-                                      <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
-                                          Nenhum usuário encontrado.
+                                      <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
+                                          <div className="flex flex-col items-center justify-center gap-2">
+                                            <Users size={32} className="text-gray-300" />
+                                            <span className="font-medium">Nenhum usuário encontrado com os filtros atuais.</span>
+                                          </div>
                                       </td>
                                   </tr>
                               )}
@@ -626,6 +905,147 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                   <AlertCircle size={18} />
                 )}
                 {migrateSuccess ? 'Transferência Concluída!' : 'Iniciar Transferência'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Alteração de Nível de Acesso */}
+      {editingRoleUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-scale-in">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-50 to-indigo-50/50">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-600 p-2.5 rounded-xl text-white shadow-xs">
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg">Alterar Nível de Acesso</h3>
+                  <p className="text-xs text-gray-500 font-medium">Permissões de: {editingRoleUser.name}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setEditingRoleUser(null)}
+                disabled={isUpdatingRole}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="text-xs text-gray-500">
+                Selecione o nível de permissão atribuído a <strong className="text-gray-800">{editingRoleUser.email || editingRoleUser.name}</strong>:
+              </div>
+
+              <div className="space-y-3">
+                {/* Opção: Administrador */}
+                <div
+                  onClick={() => setSelectedRole('admin')}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
+                    selectedRole === 'admin'
+                      ? 'border-purple-600 bg-purple-50/50 shadow-xs'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg mt-0.5 ${selectedRole === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    <Shield size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-gray-900">Administrador</span>
+                      {selectedRole === 'admin' && (
+                        <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">Selecionado</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Acesso irrestrito a todas as configurações, painel administrativo, gerenciamento de usuários e migração de dados.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Opção: Usuário Padrão */}
+                <div
+                  onClick={() => setSelectedRole('user')}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
+                    selectedRole === 'user'
+                      ? 'border-purple-600 bg-purple-50/50 shadow-xs'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg mt-0.5 ${selectedRole === 'user' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    <UserIcon size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-gray-900">Usuário Padrão</span>
+                      {selectedRole === 'user' && (
+                        <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">Selecionado</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Acesso padrão ao controle das suas próprias despesas, receitas, cartões e membros dependentes vinculados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aviso se for alterar o próprio usuário logado */}
+              {currentUser.id === editingRoleUser.id && selectedRole !== 'admin' && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs">
+                  <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Cuidado:</strong> Você está prestes a remover o privilégio de Administrador da sua própria conta. Você não terá mais acesso a este painel.
+                  </span>
+                </div>
+              )}
+
+              {/* Erro */}
+              {roleError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs">
+                  <AlertCircle size={16} className="text-red-500 shrink-0" />
+                  <span>{roleError}</span>
+                </div>
+              )}
+
+              {/* Sucesso */}
+              {roleSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2 text-green-700 text-xs">
+                  <CheckCircle size={16} className="text-green-500 shrink-0" />
+                  <span>Nível de acesso atualizado com sucesso!</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setEditingRoleUser(null)}
+                disabled={isUpdatingRole}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateRole}
+                disabled={isUpdatingRole || roleSuccess || (editingRoleUser.role || 'user') === selectedRole}
+                className="px-5 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUpdatingRole ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Salvando...
+                  </>
+                ) : roleSuccess ? (
+                  <>
+                    <CheckCircle size={16} />
+                    Atualizado!
+                  </>
+                ) : (
+                  'Salvar Nível'
+                )}
               </button>
             </div>
           </div>

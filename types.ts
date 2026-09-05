@@ -86,4 +86,5 @@ export interface User {
   financialMonthStartDay?: number; // Dia de início do mês financeiro (1-31)
   plan?: 'free' | 'premium'; // Plano de assinatura
   subscriptionEndDate?: string; // Data de término da assinatura
+  createdAt?: string; // Data de cadastro
 }

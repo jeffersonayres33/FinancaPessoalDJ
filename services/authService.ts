@@ -368,8 +368,36 @@ export const authService = {
           role: u.role || 'user',
           financialMonthStartDay: u.financial_month_start_day,
           plan: u.plan || 'free',
-          subscriptionEndDate: u.subscription_end_date
+          subscriptionEndDate: u.subscription_end_date,
+          createdAt: u.created_at || u.createdAt
       }));
+  },
+
+  // Altera o nível de acesso do usuário (Apenas Admin)
+  updateUserRole: async (userId: string, newRole: 'admin' | 'user'): Promise<void> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      try {
+        const response = await fetch('/api/admin/update-role', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ userId, newRole })
+        });
+        if (response.ok) return;
+      } catch (e) {
+        console.warn('API update-role fallback to direct Supabase:', e);
+      }
+    }
+
+    const { error } = await supabase
+      .from('app_users')
+      .update({ role: newRole })
+      .eq('id', userId);
+
+    if (error) throw new Error('Erro ao atualizar nível de acesso: ' + error.message);
   },
 
   // Admin cria um pré-cadastro (Convite)

@@ -315,13 +315,12 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
           { content: t.title, styles: { fontStyle: 'bold', lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
           { content: t.category, styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
           { content: t.status === 'paid' ? 'Pago' : 'Pendente', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
-          { content: t.amount >= 0 ? 'Entrada' : 'Saída', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
           { content: t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-', styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } },
           { content: formatCurrency(Math.abs(t.amount)), styles: { lineWidth: { top: 0.1, right: 0.1, bottom: 0, left: 0.1 } } }
         ]);
         tableData.push([
           { content: '', styles: { lineWidth: { top: 0, right: 0.1, bottom: 0.1, left: 0.1 } } },
-          { content: t.observation, colSpan: 6, styles: { textColor: [150, 150, 150], fontSize: 6.5, lineWidth: { top: 0, right: 0.1, bottom: 0.1, left: 0.1 }, cellPadding: { top: 0, bottom: 2, left: 2, right: 2 } } }
+          { content: t.observation, colSpan: 5, styles: { textColor: [150, 150, 150], fontSize: 6.5, lineWidth: { top: 0, right: 0.1, bottom: 0, left: 0.1 }, cellPadding: { top: 0, bottom: 2, left: 2, right: 2 } } }
         ]);
       } else {
         tableData.push([
@@ -329,7 +328,6 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
           t.title,
           t.category,
           t.status === 'paid' ? 'Pago' : 'Pendente',
-          t.amount >= 0 ? 'Entrada' : 'Saída',
           t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
           formatCurrency(Math.abs(t.amount))
         ]);
@@ -337,7 +335,7 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
     });
 
     autoTable(doc, {
-      head: [['Data', 'Título', 'Categoria', 'Status', 'Tipo', 'Parcela', 'Valor']],
+      head: [['Data', 'Título', 'Categoria', 'Status', 'Parcela', 'Valor']],
       body: tableData,
       startY: 60,
       headStyles: { fillColor: [59, 130, 246] }, // Blue header
@@ -375,7 +373,6 @@ export const InvestmentList: React.FC<InvestmentListProps> = React.memo(({
       Título: t.title,
       Categoria: t.category,
       Status: t.status === 'paid' ? 'Pago' : 'Pendente',
-      Tipo: t.amount >= 0 ? 'Entrada' : 'Saída',
       Parcela: t.installments && t.installments.total > 1 && t.installments.current > 0 ? `${t.installments.current}/${t.installments.total}` : '-',
       Valor: Math.abs(t.amount),
       Observação: t.observation || ''

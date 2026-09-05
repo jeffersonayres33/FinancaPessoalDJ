@@ -167,6 +167,35 @@ async function startServer() {
     }
   });
 
+  // API Route: Update User Role (Access Level)
+  app.post("/api/admin/update-role", verifyAdmin, async (req, res) => {
+    const { userId, newRole } = req.body;
+    console.log(`[API] Admin attempting to update role for user ${userId} to ${newRole}`);
+
+    if (!userId || !newRole || !['admin', 'user'].includes(newRole)) {
+      return res.status(400).json({ error: "userId and valid newRole ('admin' | 'user') are required" });
+    }
+
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const { error } = await supabaseAdmin
+        .from('app_users')
+        .update({ role: newRole })
+        .eq('id', userId);
+
+      if (error) {
+        console.error("[API] Supabase Admin Update Role Error:", error);
+        throw error;
+      }
+
+      console.log(`[API] Successfully updated role for: ${userId} to ${newRole}`);
+      res.json({ message: "Role updated successfully" });
+    } catch (err: any) {
+      console.error("Admin Update Role Error:", err);
+      res.status(500).json({ error: err.message || "Failed to update role" });
+    }
+  });
+
   // API Route: Delete Member
   app.delete("/api/members/:id", verifyAuth, async (req, res) => {
     const targetUserId = req.params.id;
