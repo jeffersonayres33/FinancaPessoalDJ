@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff, Edit, Calendar, ShieldCheck, User as UserIcon, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Shield, UserPlus, Users, ToggleLeft, ToggleRight, Loader2, AlertCircle, CheckCircle, CheckSquare, Key, X, Eye, EyeOff, Edit, Calendar, ShieldCheck, User as UserIcon, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, GitBranch, Crown, ChevronDown, ChevronUp, CornerDownRight, Share2 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { User } from '../types';
 
@@ -44,6 +44,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Tabs for user list: 'table' (Todos os Usuários) ou 'hierarchy' (Contas Pai e Filhos)
+  const [userListTab, setUserListTab] = useState<'table' | 'hierarchy'>('table');
+  const [hierarchyFilter, setHierarchyFilter] = useState<'all' | 'with_members'>('all');
+  const [collapsedParents, setCollapsedParents] = useState<Record<string, boolean>>({});
 
   // New states for data migration
   const [showMigrateModal, setShowMigrateModal] = useState(false);
@@ -340,6 +345,85 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     );
   };
 
+  // Agrupamento de Contas Pai (Principais) e Filhos (Membros)
+  const familyData = useMemo(() => {
+    // Conta Pai: usuário que não possui parentId
+    const parents = users.filter(u => !u.parentId);
+
+    const groups = parents.map(parent => {
+      const children = users.filter(u => u.parentId === parent.id);
+      return {
+        parent,
+        children
+      };
+    });
+
+    // Membros órfãos (possuem parentId mas a conta pai não está na lista)
+    const orphanChildren = users.filter(u => u.parentId && !users.some(p => p.id === u.parentId));
+
+    return {
+      groups,
+      orphanChildren,
+      totalParents: parents.length,
+      totalChildren: users.filter(u => !!u.parentId).length,
+      parentsWithChildrenCount: groups.filter(g => g.children.length > 0).length
+    };
+  }, [users]);
+
+  // Filtro e Ordenação das Contas Pai e Filhos
+  const filteredFamilyGroups = useMemo(() => {
+    let result = familyData.groups;
+
+    // Filtro por ter membros vinculados
+    if (hierarchyFilter === 'with_members') {
+      result = result.filter(g => g.children.length > 0);
+    }
+
+    // Filtro por termo de busca (busca no pai ou nos filhos)
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase().trim();
+      result = result.filter(g => {
+        const parentMatch = 
+          (g.parent.name && g.parent.name.toLowerCase().includes(query)) ||
+          (g.parent.email && g.parent.email.toLowerCase().includes(query));
+        
+        const childMatch = g.children.some(c => 
+          (c.name && c.name.toLowerCase().includes(query)) ||
+          (c.email && c.email.toLowerCase().includes(query))
+        );
+
+        return parentMatch || childMatch;
+      });
+    }
+
+    // Ordenação: contas com mais membros primeiro, depois ordem alfabética por nome
+    return [...result].sort((a, b) => {
+      if (b.children.length !== a.children.length) {
+        return b.children.length - a.children.length;
+      }
+      return (a.parent.name || '').localeCompare(b.parent.name || '', 'pt-BR');
+    });
+  }, [familyData, hierarchyFilter, searchTerm]);
+
+  const toggleCollapseParent = (parentId: string) => {
+    setCollapsedParents(prev => ({
+      ...prev,
+      [parentId]: !prev[parentId]
+    }));
+  };
+
+  const handleExpandAll = () => {
+    setCollapsedParents({});
+  };
+
+  const handleCollapseAll = () => {
+    const allCollapsed: Record<string, boolean> = {};
+    familyData.groups.forEach(g => {
+      allCollapsed[g.parent.id] = true;
+    });
+    setCollapsedParents(allCollapsed);
+  };
+
   if (currentUser.role !== 'admin') {
     return (
       <div className="p-8 text-center text-gray-500">
@@ -493,195 +577,612 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
 
           {/* Lista de Usuários */}
           {showUserList && (
-              <div className="border border-gray-200 rounded-xl overflow-hidden animate-fade-in shadow-xs">
-                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                          <Users size={18} className="text-purple-600" />
-                          Usuários Cadastrados ({sortedUsers.length}{sortedUsers.length !== users.length ? ` de ${users.length}` : ''})
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Clique nas colunas para ordenar • Ordenado por{' '}
-                          <span className="font-semibold text-purple-700">
-                            {sortField === 'name' ? 'Nome' : sortField === 'email' ? 'Email' : sortField === 'role' ? 'Nível de Acesso' : 'Data do Cadastro'}
-                          </span>{' '}
-                          ({sortDirection === 'asc' ? 'Crescente' : 'Decrescente'})
-                        </p>
+              <div className="border border-gray-200 rounded-xl overflow-hidden animate-fade-in shadow-xs bg-white">
+                  {/* Seletor de Abas de Visualização */}
+                  <div className="bg-gray-100/90 px-6 pt-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setUserListTab('table')}
+                          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                            userListTab === 'table'
+                              ? 'border-purple-600 text-purple-700 bg-white rounded-t-lg shadow-2xs'
+                              : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-t-lg'
+                          }`}
+                        >
+                          <Users size={16} />
+                          <span>Todos os Usuários</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            userListTab === 'table' ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-600'
+                          }`}>
+                            {users.length}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setUserListTab('hierarchy')}
+                          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                            userListTab === 'hierarchy'
+                              ? 'border-purple-600 text-purple-700 bg-white rounded-t-lg shadow-2xs'
+                              : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-t-lg'
+                          }`}
+                        >
+                          <GitBranch size={16} />
+                          <span>Contas Pai e Filhos (Membros)</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            userListTab === 'hierarchy' ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-600'
+                          }`}>
+                            {familyData.totalChildren} {familyData.totalChildren === 1 ? 'filho' : 'filhos'}
+                          </span>
+                        </button>
                       </div>
 
-                      {/* Busca e Filtros */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative">
-                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                          <input
-                            type="text"
-                            placeholder="Buscar por nome ou e-mail..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 w-48 sm:w-56"
-                          />
-                        </div>
-
-                        <select
-                          value={roleFilter}
-                          onChange={(e) => setRoleFilter(e.target.value as any)}
-                          className="px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-medium"
-                        >
-                          <option value="all">Todos os Níveis</option>
-                          <option value="admin">Apenas Administradores</option>
-                          <option value="user">Usuários Padrão</option>
-                          <option value="member">Membros Vinculados</option>
-                        </select>
+                      <div className="text-xs text-gray-500 pb-2 hidden sm:block">
+                        {userListTab === 'table' 
+                          ? 'Visão tabular de todas as contas cadastradas' 
+                          : 'Visão simples de contas principais (pai) e seus membros vinculados (filhos)'}
                       </div>
                   </div>
 
-                  <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                          <thead className="text-xs uppercase bg-gray-50/80 border-b border-gray-200">
-                              <tr>
-                                  <th className="px-6 py-3.5">
-                                    {renderSortHeader('Nome / Usuário', 'name')}
-                                  </th>
-                                  <th className="px-6 py-3.5">
-                                    {renderSortHeader('Email', 'email')}
-                                  </th>
-                                  <th className="px-6 py-3.5">
-                                    {renderSortHeader('Nível de Acesso', 'role')}
-                                  </th>
-                                  <th className="px-6 py-3.5">
-                                    {renderSortHeader('Data do Cadastro', 'createdAt')}
-                                  </th>
-                                  <th className="px-6 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Ações
-                                  </th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                              {sortedUsers.map((u) => {
-                                  const regInfo = formatRegistrationDate(u.createdAt);
-                                  const isAdmin = u.role === 'admin';
-                                  const isMember = !!u.parentId;
-                                  const isCurrentUser = currentUser.id === u.id;
+                  {userListTab === 'table' ? (
+                    <div>
+                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div>
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                              <Users size={18} className="text-purple-600" />
+                              Usuários Cadastrados ({sortedUsers.length}{sortedUsers.length !== users.length ? ` de ${users.length}` : ''})
+                            </h3>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Clique nas colunas para ordenar • Ordenado por{' '}
+                              <span className="font-semibold text-purple-700">
+                                {sortField === 'name' ? 'Nome' : sortField === 'email' ? 'Email' : sortField === 'role' ? 'Nível de Acesso' : 'Data do Cadastro'}
+                              </span>{' '}
+                              ({sortDirection === 'asc' ? 'Crescente' : 'Decrescente'})
+                            </p>
+                          </div>
 
-                                  return (
-                                    <tr key={u.id} className="bg-white hover:bg-gray-50/70 transition-colors">
-                                        {/* Usuário / Nome */}
-                                        <td className="px-6 py-4 font-medium text-gray-900">
-                                          <div className="flex items-center gap-3">
-                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                                              isAdmin 
-                                                ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                                                : isMember 
-                                                ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                                                : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                            }`}>
-                                              {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                          {/* Busca e Filtros */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input
+                                type="text"
+                                placeholder="Buscar por nome ou e-mail..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 w-48 sm:w-56"
+                              />
+                            </div>
+
+                            <select
+                              value={roleFilter}
+                              onChange={(e) => setRoleFilter(e.target.value as any)}
+                              className="px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-medium"
+                            >
+                              <option value="all">Todos os Níveis</option>
+                              <option value="admin">Apenas Administradores</option>
+                              <option value="user">Usuários Padrão</option>
+                              <option value="member">Membros Vinculados</option>
+                            </select>
+                          </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left">
+                              <thead className="text-xs uppercase bg-gray-50/80 border-b border-gray-200">
+                                  <tr>
+                                      <th className="px-6 py-3.5">
+                                        {renderSortHeader('Nome / Usuário', 'name')}
+                                      </th>
+                                      <th className="px-6 py-3.5">
+                                        {renderSortHeader('Email', 'email')}
+                                      </th>
+                                      <th className="px-6 py-3.5">
+                                        {renderSortHeader('Nível de Acesso', 'role')}
+                                      </th>
+                                      <th className="px-6 py-3.5">
+                                        {renderSortHeader('Data do Cadastro', 'createdAt')}
+                                      </th>
+                                      <th className="px-6 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        Ações
+                                      </th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                  {sortedUsers.map((u) => {
+                                      const regInfo = formatRegistrationDate(u.createdAt);
+                                      const isAdmin = u.role === 'admin';
+                                      const isMember = !!u.parentId;
+                                      const isCurrentUser = currentUser.id === u.id;
+
+                                      return (
+                                        <tr key={u.id} className="bg-white hover:bg-gray-50/70 transition-colors">
+                                            {/* Usuário / Nome */}
+                                            <td className="px-6 py-4 font-medium text-gray-900">
+                                              <div className="flex items-center gap-3">
+                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                                  isAdmin 
+                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                                                    : isMember 
+                                                    ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                                                    : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                                }`}>
+                                                  {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                                                </div>
+                                                <div>
+                                                  <div className="flex items-center gap-1.5 font-semibold text-gray-900">
+                                                    <span>{u.name}</span>
+                                                    {isCurrentUser && (
+                                                      <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded font-semibold border border-purple-200">
+                                                        Você
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <span className="text-[11px] text-gray-400 font-mono">ID: {u.id.slice(0, 8)}...</span>
+                                                </div>
+                                              </div>
+                                            </td>
+
+                                            {/* Email */}
+                                            <td className="px-6 py-4 text-gray-600 text-xs font-mono">
+                                              {u.email || <span className="text-gray-400 italic">Sem e-mail informado</span>}
+                                            </td>
+
+                                            {/* Nível de Acesso */}
+                                            <td className="px-6 py-4">
+                                              <div className="flex flex-col items-start gap-1">
+                                                {isAdmin ? (
+                                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs">
+                                                    <Shield size={12} className="text-purple-600" />
+                                                    Administrador
+                                                  </span>
+                                                ) : isMember ? (
+                                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                                    <Users size={12} className="text-blue-500" />
+                                                    Membro Vinculado
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <UserIcon size={12} className="text-emerald-600" />
+                                                    Usuário Padrão
+                                                  </span>
+                                                )}
+
+                                                {/* Badge do Plano */}
+                                                {u.plan === 'premium' ? (
+                                                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1">
+                                                    ⭐ Plano Premium
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                                    Plano Gratuito
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </td>
+
+                                            {/* Data do Cadastro */}
+                                            <td className="px-6 py-4">
+                                              <div className="flex items-start gap-2 text-gray-700">
+                                                <Calendar size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                                                <div>
+                                                  <div className="font-medium text-xs text-gray-800">{regInfo.date}</div>
+                                                  {regInfo.time && (
+                                                    <div className="text-[11px] text-gray-400 font-mono">às {regInfo.time}</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </td>
+
+                                            {/* Ações */}
+                                            <td className="px-6 py-4 text-center">
+                                              <div className="flex items-center justify-center gap-1">
+                                                <button 
+                                                  onClick={() => {
+                                                    setEditingRoleUser(u);
+                                                    setSelectedRole(u.role || 'user');
+                                                    setRoleError(null);
+                                                    setRoleSuccess(false);
+                                                  }}
+                                                  className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
+                                                  title="Alterar Nível de Acesso (Administrador / Usuário)"
+                                                >
+                                                  <ShieldCheck size={18} />
+                                                </button>
+                                                <button 
+                                                  onClick={() => setResettingUser(u)}
+                                                  className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
+                                                  title="Alterar Senha"
+                                                >
+                                                  <Key size={18} />
+                                                </button>
+                                              </div>
+                                            </td>
+                                        </tr>
+                                      );
+                                  })}
+                                  {sortedUsers.length === 0 && (
+                                      <tr>
+                                          <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
+                                              <div className="flex flex-col items-center justify-center gap-2">
+                                                <Users size={32} className="text-gray-300" />
+                                                <span className="font-medium">Nenhum usuário encontrado com os filtros atuais.</span>
+                                              </div>
+                                          </td>
+                                      </tr>
+                                  )}
+                              </tbody>
+                          </table>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Nova Aba: Hierarquia das Contas Pai e Filhos (Membros) */
+                    <div>
+                      {/* Barra Superior com Métricas e Controles */}
+                      <div className="p-5 sm:p-6 bg-gray-50/70 border-b border-gray-200">
+                        {/* Mini Cards de Resumo */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                          <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-2xs flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                              <Crown size={20} />
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium">Contas Pai (Principais)</div>
+                              <div className="text-xl font-bold text-gray-900">{familyData.totalParents}</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-2xs flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                              <Users size={20} />
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium">Filhos (Membros Vinculados)</div>
+                              <div className="text-xl font-bold text-gray-900">{familyData.totalChildren}</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-2xs flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                              <GitBranch size={20} />
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium">Contas com Filhos</div>
+                              <div className="text-xl font-bold text-gray-900">{familyData.parentsWithChildrenCount}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Barra de Busca e Filtros */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input
+                                type="text"
+                                placeholder="Buscar pai ou filho por nome ou email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 w-56 sm:w-72"
+                              />
+                            </div>
+
+                            <select
+                              value={hierarchyFilter}
+                              onChange={(e) => setHierarchyFilter(e.target.value as any)}
+                              className="px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-medium"
+                            >
+                              <option value="all">Todas as Contas Pai ({familyData.totalParents})</option>
+                              <option value="with_members">Apenas com Filhos/Membros ({familyData.parentsWithChildrenCount})</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs">
+                            <button
+                              type="button"
+                              onClick={handleExpandAll}
+                              className="px-3 py-1.5 text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg border border-gray-200 transition-colors font-medium bg-white"
+                            >
+                              Expandir Todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCollapseAll}
+                              className="px-3 py-1.5 text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg border border-gray-200 transition-colors font-medium bg-white"
+                            >
+                              Recolher Todos
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lista de Contas Pai e Filhos */}
+                      <div className="p-5 sm:p-6 space-y-4 bg-gray-50/30">
+                        {filteredFamilyGroups.map((group) => {
+                          const parentReg = formatRegistrationDate(group.parent.createdAt);
+                          const isParentAdmin = group.parent.role === 'admin';
+                          const isParentCurrentUser = currentUser.id === group.parent.id;
+                          const isCollapsed = !!collapsedParents[group.parent.id];
+                          const hasChildren = group.children.length > 0;
+
+                          return (
+                            <div 
+                              key={group.parent.id} 
+                              className={`border rounded-xl transition-all duration-200 overflow-hidden bg-white shadow-xs ${
+                                hasChildren ? 'border-purple-200/90' : 'border-gray-200'
+                              }`}
+                            >
+                              {/* Cabeçalho da Conta Pai */}
+                              <div className={`p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                                hasChildren ? 'bg-gradient-to-r from-purple-50/50 via-white to-white' : 'bg-white'
+                              }`}>
+                                <div className="flex items-start sm:items-center gap-3.5">
+                                  {/* Avatar do Pai */}
+                                  <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs ${
+                                    isParentAdmin 
+                                      ? 'bg-purple-600 text-white shadow-purple-200' 
+                                      : 'bg-emerald-600 text-white shadow-emerald-200'
+                                  }`}>
+                                    {group.parent.name ? group.parent.name.charAt(0).toUpperCase() : '?'}
+                                  </div>
+
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
+                                        <Crown size={11} className="text-purple-600" />
+                                        Conta Pai (Principal)
+                                      </span>
+
+                                      {isParentAdmin ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                          <Shield size={10} />
+                                          Admin
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          <UserIcon size={10} />
+                                          Usuário Padrão
+                                        </span>
+                                      )}
+
+                                      {group.parent.plan === 'premium' ? (
+                                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                          ⭐ Premium
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.2 rounded">
+                                          Gratuito
+                                        </span>
+                                      )}
+
+                                      {isParentCurrentUser && (
+                                        <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded font-semibold border border-purple-200">
+                                          Sua Conta
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="text-base font-bold text-gray-900 flex items-center gap-2">
+                                      <span>{group.parent.name}</span>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mt-0.5">
+                                      <span className="font-mono text-gray-600">{group.parent.email || 'Sem e-mail'}</span>
+                                      <span className="text-gray-300">•</span>
+                                      <span className="flex items-center gap-1 text-gray-500">
+                                        <Calendar size={12} className="text-gray-400" />
+                                        Cadastro: {parentReg.date} {parentReg.time && `(${parentReg.time})`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Lado Direito: Badge de Filhos e Ações */}
+                                <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-gray-100">
+                                  <div>
+                                    {hasChildren ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleCollapseParent(group.parent.id)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100/70 transition-colors cursor-pointer"
+                                      >
+                                        <Users size={14} className="text-blue-600" />
+                                        <span>{group.children.length} {group.children.length === 1 ? 'filho vinculado' : 'filhos vinculados'}</span>
+                                        {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                      </button>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-500">
+                                        Sem membros vinculados
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    <button 
+                                      onClick={() => {
+                                        setEditingRoleUser(group.parent);
+                                        setSelectedRole(group.parent.role || 'user');
+                                        setRoleError(null);
+                                        setRoleSuccess(false);
+                                      }}
+                                      className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
+                                      title="Alterar Nível de Acesso da Conta Pai"
+                                    >
+                                      <ShieldCheck size={18} />
+                                    </button>
+                                    <button 
+                                      onClick={() => setResettingUser(group.parent)}
+                                      className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
+                                      title="Alterar Senha da Conta Pai"
+                                    >
+                                      <Key size={18} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Lista de Filhos (Membros vinculados) */}
+                              {hasChildren && !isCollapsed && (
+                                <div className="px-4 pb-4 pt-1 bg-purple-50/20 border-t border-purple-100">
+                                  <div className="ml-2 sm:ml-5 pl-3 sm:pl-4 border-l-2 border-purple-300 space-y-2.5 pt-3">
+                                    <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                                      <Users size={13} className="text-blue-600" />
+                                      <span>Membros da Família ({group.children.length})</span>
+                                    </div>
+
+                                    {group.children.map((child) => {
+                                      const childReg = formatRegistrationDate(child.createdAt);
+                                      const isChildAdmin = child.role === 'admin';
+                                      const isChildCurrentUser = currentUser.id === child.id;
+                                      const sharesFinance = (child.dataContextId === group.parent.dataContextId) || (child.dataContextId === group.parent.id);
+
+                                      return (
+                                        <div 
+                                          key={child.id}
+                                          className="bg-white rounded-lg p-3 sm:p-3.5 border border-gray-200 shadow-2xs hover:border-blue-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                        >
+                                          <div className="flex items-start sm:items-center gap-3">
+                                            <CornerDownRight size={16} className="text-purple-400 mt-1 sm:mt-0 shrink-0" />
+                                            
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200">
+                                              {child.name ? child.name.charAt(0).toUpperCase() : '?'}
                                             </div>
+
                                             <div>
-                                              <div className="flex items-center gap-1.5 font-semibold text-gray-900">
-                                                <span>{u.name}</span>
-                                                {isCurrentUser && (
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <span className="font-semibold text-gray-900 text-sm">{child.name}</span>
+                                                
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                  Filho (Membro)
+                                                </span>
+
+                                                {isChildAdmin && (
+                                                  <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded border border-purple-200">
+                                                    Admin
+                                                  </span>
+                                                )}
+
+                                                {isChildCurrentUser && (
                                                   <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded font-semibold border border-purple-200">
                                                     Você
                                                   </span>
                                                 )}
                                               </div>
-                                              <span className="text-[11px] text-gray-400 font-mono">ID: {u.id.slice(0, 8)}...</span>
+
+                                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-0.5">
+                                                <span className="font-mono text-gray-600">{child.email || 'Sem e-mail'}</span>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="text-gray-500">Cadastrado em {childReg.date}</span>
+                                                <span className="text-gray-300">•</span>
+                                                {sharesFinance ? (
+                                                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+                                                    <Share2 size={11} className="text-emerald-600" />
+                                                    Compartilha dados com o Pai
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[11px] text-gray-500">
+                                                    Dados próprios
+                                                  </span>
+                                                )}
+                                              </div>
                                             </div>
                                           </div>
-                                        </td>
 
-                                        {/* Email */}
-                                        <td className="px-6 py-4 text-gray-600 text-xs font-mono">
-                                          {u.email || <span className="text-gray-400 italic">Sem e-mail informado</span>}
-                                        </td>
-
-                                        {/* Nível de Acesso */}
-                                        <td className="px-6 py-4">
-                                          <div className="flex flex-col items-start gap-1">
-                                            {isAdmin ? (
-                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs">
-                                                <Shield size={12} className="text-purple-600" />
-                                                Administrador
-                                              </span>
-                                            ) : isMember ? (
-                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                                <Users size={12} className="text-blue-500" />
-                                                Membro Vinculado
-                                              </span>
-                                            ) : (
-                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                <UserIcon size={12} className="text-emerald-600" />
-                                                Usuário Padrão
-                                              </span>
-                                            )}
-
-                                            {/* Badge do Plano */}
-                                            {u.plan === 'premium' ? (
-                                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1">
-                                                ⭐ Plano Premium
-                                              </span>
-                                            ) : (
-                                              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                                Plano Gratuito
-                                              </span>
-                                            )}
-                                          </div>
-                                        </td>
-
-                                        {/* Data do Cadastro */}
-                                        <td className="px-6 py-4">
-                                          <div className="flex items-start gap-2 text-gray-700">
-                                            <Calendar size={14} className="text-gray-400 mt-0.5 shrink-0" />
-                                            <div>
-                                              <div className="font-medium text-xs text-gray-800">{regInfo.date}</div>
-                                              {regInfo.time && (
-                                                <div className="text-[11px] text-gray-400 font-mono">às {regInfo.time}</div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </td>
-
-                                        {/* Ações */}
-                                        <td className="px-6 py-4 text-center">
-                                          <div className="flex items-center justify-center gap-1">
+                                          {/* Ações do Filho */}
+                                          <div className="flex items-center justify-end gap-1 shrink-0 pt-1 sm:pt-0">
                                             <button 
                                               onClick={() => {
-                                                setEditingRoleUser(u);
-                                                setSelectedRole(u.role || 'user');
+                                                setEditingRoleUser(child);
+                                                setSelectedRole(child.role || 'user');
                                                 setRoleError(null);
                                                 setRoleSuccess(false);
                                               }}
                                               className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
-                                              title="Alterar Nível de Acesso (Administrador / Usuário)"
+                                              title="Alterar Nível de Acesso do Membro"
                                             >
-                                              <ShieldCheck size={18} />
+                                              <ShieldCheck size={16} />
                                             </button>
                                             <button 
-                                              onClick={() => setResettingUser(u)}
+                                              onClick={() => setResettingUser(child)}
                                               className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-200"
-                                              title="Alterar Senha"
+                                              title="Alterar Senha do Membro"
                                             >
-                                              <Key size={18} />
+                                              <Key size={16} />
                                             </button>
                                           </div>
-                                        </td>
-                                    </tr>
-                                  );
-                              })}
-                              {sortedUsers.length === 0 && (
-                                  <tr>
-                                      <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
-                                          <div className="flex flex-col items-center justify-center gap-2">
-                                            <Users size={32} className="text-gray-300" />
-                                            <span className="font-medium">Nenhum usuário encontrado com os filtros atuais.</span>
-                                          </div>
-                                      </td>
-                                  </tr>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               )}
-                          </tbody>
-                      </table>
-                  </div>
+
+                              {/* Mensagem se não tiver filhos */}
+                              {!hasChildren && (
+                                <div className="px-5 py-2.5 bg-gray-50/60 border-t border-gray-100 text-xs text-gray-400 flex items-center gap-2 italic">
+                                  <Users size={13} className="text-gray-300" />
+                                  <span>Nenhum membro (filho) vinculado a esta conta principal.</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Seção de Membros Órfãos (caso existam) */}
+                        {familyData.orphanChildren.length > 0 && (
+                          <div className="border border-amber-200 rounded-xl p-5 bg-amber-50/50 shadow-2xs mt-6">
+                            <div className="flex items-center gap-2 text-amber-800 font-bold text-sm mb-1">
+                              <AlertCircle size={16} className="text-amber-600" />
+                              <span>Membros Vinculados com Conta Pai Não Encontrada ({familyData.orphanChildren.length})</span>
+                            </div>
+                            <p className="text-xs text-amber-700 mb-3">
+                              Estes usuários possuem identificador de conta pai que não corresponde a nenhuma conta principal na listagem atual.
+                            </p>
+                            <div className="space-y-2">
+                              {familyData.orphanChildren.map(orphan => (
+                                <div key={orphan.id} className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3 text-xs">
+                                  <div>
+                                    <div className="font-semibold text-gray-800">{orphan.name}</div>
+                                    <div className="text-gray-500 font-mono">{orphan.email}</div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button 
+                                      onClick={() => {
+                                        setEditingRoleUser(orphan);
+                                        setSelectedRole(orphan.role || 'user');
+                                        setRoleError(null);
+                                        setRoleSuccess(false);
+                                      }}
+                                      className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg"
+                                      title="Alterar Nível"
+                                    >
+                                      <ShieldCheck size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => setResettingUser(orphan)}
+                                      className="p-1.5 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg"
+                                      title="Alterar Senha"
+                                    >
+                                      <Key size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {filteredFamilyGroups.length === 0 && (
+                          <div className="py-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200">
+                            <Users size={36} className="mx-auto text-gray-300 mb-2" />
+                            <div className="font-medium text-gray-700">Nenhuma conta encontrada.</div>
+                            <p className="text-xs text-gray-400 mt-1">Tente ajustar o termo de pesquisa ou a opção de filtro.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
               </div>
           )}
 
