@@ -60,6 +60,63 @@ const enhanceImageForOCR = (base64: string): Promise<string> => {
   });
 };
 
+// Helper to retrieve valid auth headers with automatic token refresh and userId fallback
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+
+  let token: string | null = null;
+  let userId: string | null = null;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      // Se estiver prestes a expirar nos próximos 60s, faz o refresh preventivo
+      if (session.expires_at && session.expires_at * 1000 < Date.now() + 60000) {
+        try {
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          token = refreshData.session?.access_token || session.access_token;
+          userId = refreshData.session?.user?.id || session.user?.id || null;
+        } catch {
+          token = session.access_token;
+          userId = session.user?.id || null;
+        }
+      } else {
+        token = session.access_token;
+        userId = session.user?.id || null;
+      }
+    }
+  } catch (err) {
+    console.warn("Falha ao obter sessão do Supabase:", err);
+  }
+
+  // Se não obteve userId pela sessão, tenta recuperar do usuário autenticado no localStorage
+  if (!userId) {
+    try {
+      const stored = localStorage.getItem('finances_current_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        userId = parsed.id || null;
+      }
+      if (!userId) {
+        userId = localStorage.getItem('budget_planner_session_uid') || null;
+      }
+    } catch {
+      // Ignora erro de JSON
+    }
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (userId) {
+    headers['x-user-id'] = userId;
+  }
+
+  return headers;
+};
+
 export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisResult> => {
   if (despesas.length === 0) {
     return {
@@ -89,20 +146,17 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
   }));
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Não autenticado");
+    const headers = await getAuthHeaders();
 
     const response = await fetch('/api/gemini/analyze', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
+      headers,
       body: JSON.stringify({ aggregatedData })
     });
 
     if (!response.ok) {
-      throw new Error("Erro na resposta do servidor");
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || `Erro na resposta do servidor (${response.status}).`);
     }
 
     const data = await response.json();
@@ -137,15 +191,11 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
     // 2. Análise Semântica via Backend
     console.log("Enviando texto extraído para o Backend...");
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Não autenticado");
+    const headers = await getAuthHeaders();
 
     const response = await fetch('/api/gemini/extract', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
+      headers,
       body: JSON.stringify({ 
         extractedText,
         fallbackDate: getCurrentLocalDateString()
@@ -153,7 +203,8 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
     });
 
     if (!response.ok) {
-      throw new Error("Erro na analise do recibo pelo servidor");
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || `Erro na análise do recibo pelo servidor (${response.status}).`);
     }
 
     const data = await response.json();

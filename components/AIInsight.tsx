@@ -17,7 +17,7 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'info' | 'success' | 'warning' } | null>(null);
 
   // Carregar última análise e histórico do banco de dados ao montar
@@ -106,7 +106,7 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
     }
 
     setLoading(true);
-    setError(false);
+    setError(null);
     setMessage(null);
 
     try {
@@ -137,9 +137,9 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
         setMessage({ text: "Nova análise gerada e salva com sucesso!", type: 'success' });
         setTimeout(() => setMessage(null), 3000);
       }
-    } catch (e) {
-      console.error(e);
-      setError(true);
+    } catch (e: any) {
+      console.error("Erro na análise de IA:", e);
+      setError(e?.message || "Erro ao conectar com o serviço de AI. Tente novamente em instantes.");
     } finally {
       setLoading(false);
     }
@@ -245,9 +245,18 @@ export const AIInsight: React.FC<AIInsightProps> = ({ despesas, user, onOpenPayw
       )}
       
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-800 border border-red-200 rounded-lg flex items-center gap-2 text-sm">
-          <AlertTriangle size={16} />
-          Erro ao conectar com o serviço de AI. Tente novamente em instantes.
+        <div className="mb-4 p-3.5 bg-red-50 text-red-800 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm animate-fade-in">
+          <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-900">Não foi possível gerar os insights agora</p>
+            <p className="text-red-700 mt-0.5">{error}</p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-500 hover:text-red-700 text-xs font-semibold px-2 py-1 rounded cursor-pointer"
+          >
+            Fechar
+          </button>
         </div>
       )}
 
