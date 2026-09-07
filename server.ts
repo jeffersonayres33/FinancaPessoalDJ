@@ -33,6 +33,17 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // CORS Middleware for API routes to support all client environments
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-id");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Logging Middleware for debugging
   app.use((req, res, next) => {
     if (req.path.startsWith('/api')) {
@@ -541,7 +552,7 @@ async function startServer() {
   });
 
   // API Route: AI Analyze Finances
-  app.post("/api/gemini/analyze", verifyAuth, async (req, res) => {
+  app.post(["/api/gemini/analyze", "/api/gemini/analyze/"], verifyAuth, async (req, res) => {
     const { aggregatedData } = req.body;
     let apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
     
@@ -572,7 +583,7 @@ async function startServer() {
 
       let responseText = "";
       // Active models in Google GenAI SDK: gemini-3.8-flash is current primary standard
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
       let lastError: any = null;
 
       for (const modelName of modelsToTry) {
@@ -632,7 +643,7 @@ async function startServer() {
   });
 
   // API Route: AI Extract Receipt
-  app.post("/api/gemini/extract", verifyAuth, async (req, res) => {
+  app.post(["/api/gemini/extract", "/api/gemini/extract/"], verifyAuth, async (req, res) => {
     const { extractedText, fallbackDate } = req.body;
     let apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
     
@@ -653,7 +664,7 @@ async function startServer() {
       });
 
       let responseText = "";
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
       let lastError: any = null;
 
       for (const modelName of modelsToTry) {

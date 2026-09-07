@@ -117,6 +117,129 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
   return headers;
 };
 
+// Helper to retrieve client-side Gemini API key (e.g. injected during GitHub Actions build for GitHub Pages)
+const getClientApiKey = (): string => {
+  return (
+    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+    (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
+    ''
+  );
+};
+
+// Fallback direct call to Gemini REST API for static deployments (e.g. GitHub Pages without Node.js server)
+const callDirectGeminiAnalyze = async (aggregatedData: any[], apiKey: string): Promise<AIAnalysisResult> => {
+  const prompt = `
+    Atue como um consultor financeiro pessoal experiente.
+    Analise os seguintes dados financeiros AGREGADOS (JSON) que incluem Receitas, Despesas e Investimentos.
+    Forneça um resumo breve, 3 dicas práticas de economia/investimento e identifique se há algo fora do comum (anomalias).
+    Responda EXCLUSIVAMENTE em formato JSON seguindo este formato exato:
+    {
+      "summary": "Um resumo geral da saúde financeira em português.",
+      "tips": ["Dica 1", "Dica 2", "Dica 3"],
+      "anomalies": ["Alerta 1", "Alerta 2"]
+    }
+    
+    Dados Agregados: ${JSON.stringify(aggregatedData)}
+  `;
+
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Resposta vazia da IA.");
+
+      let clean = text.trim();
+      if (clean.startsWith('```json')) clean = clean.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      else if (clean.startsWith('```')) clean = clean.replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+      return JSON.parse(clean) as AIAnalysisResult;
+    } catch (err: any) {
+      console.warn(`[Direct Gemini Analyze] Model ${model} failed, trying next:`, err?.message || err);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("Falha ao comunicar com os modelos Gemini.");
+};
+
+const callDirectGeminiExtract = async (extractedText: string, fallbackDate: string, apiKey: string): Promise<ReceiptData> => {
+  const prompt = `
+    Analise o seguinte texto extraído de um recibo/nota fiscal via OCR. 
+    Extraia os dados e retorne ESTRITAMENTE um JSON válido com o formato:
+    {
+      "title": "Nome do estabelecimento",
+      "amount": 0.00,
+      "date": "YYYY-MM-DD",
+      "observation": "Resumo dos itens ou observação"
+    }
+
+    Se não encontrar a data, use "${fallbackDate}".
+    O campo "amount" deve ser um número decimal (ex: 45.90).
+    
+    Texto extraído:
+    """
+    ${extractedText}
+    """
+  `;
+
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Resposta vazia da IA.");
+
+      let clean = text.trim();
+      if (clean.startsWith('```json')) clean = clean.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      else if (clean.startsWith('```')) clean = clean.replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+      return JSON.parse(clean) as ReceiptData;
+    } catch (err: any) {
+      console.warn(`[Direct Gemini Extract] Model ${model} failed, trying next:`, err?.message || err);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("Falha ao extrair dados do recibo.");
+};
+
 export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisResult> => {
   if (despesas.length === 0) {
     return {
@@ -147,14 +270,35 @@ export const analyzeFinances = async (despesas: Despesa[]): Promise<AIAnalysisRe
 
   try {
     const headers = await getAuthHeaders();
+    let response: Response | null = null;
+    let isStaticHosting = false;
 
-    const response = await fetch('/api/gemini/analyze', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ aggregatedData })
-    });
+    try {
+      response = await fetch('/api/gemini/analyze', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ aggregatedData })
+      });
+      if (response.status === 404 || response.status === 405) {
+        isStaticHosting = true;
+      }
+    } catch {
+      isStaticHosting = true;
+    }
 
-    if (!response.ok) {
+    if (isStaticHosting || !response || !response.ok) {
+      if (isStaticHosting || response?.status === 404 || response?.status === 405) {
+        const clientApiKey = getClientApiKey();
+        if (clientApiKey) {
+          console.log("[analyzeFinances] Executando fallback de IA para ambiente estático...");
+          return await callDirectGeminiAnalyze(aggregatedData, clientApiKey);
+        }
+        throw new Error(
+          "Ambiente estático (ex: GitHub Pages) detectado sem backend Node.js ativo. " +
+          "Para utilizar a IA fora do ambiente de teste, configure o segredo GEMINI_API_KEY no repositório do GitHub (Settings -> Secrets and variables -> Actions)."
+        );
+      }
+
       const errorData = await response.json().catch(() => null);
       throw new Error(errorData?.error || `Erro na resposta do servidor (${response.status}).`);
     }
@@ -188,21 +332,42 @@ export const extractReceiptData = async (base64Image: string): Promise<ReceiptDa
       throw new Error("Não foi possível ler nenhum texto na imagem.");
     }
 
-    // 2. Análise Semântica via Backend
-    console.log("Enviando texto extraído para o Backend...");
+    // 2. Análise Semântica via Backend ou Fallback
+    console.log("Processando análise do comprovante...");
     
     const headers = await getAuthHeaders();
+    let response: Response | null = null;
+    let isStaticHosting = false;
 
-    const response = await fetch('/api/gemini/extract', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ 
-        extractedText,
-        fallbackDate: getCurrentLocalDateString()
-      })
-    });
+    try {
+      response = await fetch('/api/gemini/extract', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ 
+          extractedText,
+          fallbackDate: getCurrentLocalDateString()
+        })
+      });
+      if (response.status === 404 || response.status === 405) {
+        isStaticHosting = true;
+      }
+    } catch {
+      isStaticHosting = true;
+    }
 
-    if (!response.ok) {
+    if (isStaticHosting || !response || !response.ok) {
+      if (isStaticHosting || response?.status === 404 || response?.status === 405) {
+        const clientApiKey = getClientApiKey();
+        if (clientApiKey) {
+          console.log("[extractReceiptData] Executando fallback de IA para ambiente estático...");
+          return await callDirectGeminiExtract(extractedText, getCurrentLocalDateString(), clientApiKey);
+        }
+        throw new Error(
+          "Ambiente estático (ex: GitHub Pages) detectado sem backend Node.js ativo. " +
+          "Para utilizar a IA fora do ambiente de teste, configure o segredo GEMINI_API_KEY no repositório do GitHub."
+        );
+      }
+
       const errorData = await response.json().catch(() => null);
       throw new Error(errorData?.error || `Erro na análise do recibo pelo servidor (${response.status}).`);
     }
