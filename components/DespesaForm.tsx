@@ -39,6 +39,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
   const [isFixed, setIsFixed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [investmentType, setInvestmentType] = useState<'in' | 'out'>('in');
+  const [keepOpen, setKeepOpen] = useState(false);
+  const [showSuccessNotice, setShowSuccessNotice] = useState(false);
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
@@ -65,6 +67,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
       setInstallments(initialData.installments?.total || 1);
       setObservation(initialData.observation || '');
       setIsFixed(!!initialData.isFixed);
+      setKeepOpen(false);
+      setShowSuccessNotice(false);
     } else {
       setTitle('');
       setAmount('');
@@ -77,10 +81,19 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
       setObservation('');
       setIsFixed(false);
       setInvestmentType('in');
+      setKeepOpen(false);
+      setShowSuccessNotice(false);
     }
     setAnalysisError('');
     setIsSaving(false);
   }, [initialData, isOpen, forceType]);
+
+  useEffect(() => {
+    if (showSuccessNotice) {
+      const timer = setTimeout(() => setShowSuccessNotice(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessNotice]);
 
   const availableCategories = categories.filter(c => 
     (c.type === type || c.type === 'both') && 
@@ -131,11 +144,16 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
           console.log('Enviando updatePayload:', updatePayload);
 
           await onUpdateDespesa(updatePayload);
+          handleClose();
         } else {
           await onAddDespesa(title, finalAmount, type, category, status, date, finalPaymentDate, installments, observation, currentIsFixed);
+          if (keepOpen) {
+            setShowSuccessNotice(true);
+            // Mantém a tela aberta e os dados preenchidos no formulário
+          } else {
+            handleClose();
+          }
         }
-        
-        handleClose();
     } catch (error: any) {
         console.error("Erro ao salvar despesa:", error);
         alert(`Ocorreu um erro ao salvar: ${error.message || 'Erro desconhecido'}`);
@@ -156,6 +174,8 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
     setIsFixed(false);
     setInvestmentType('in');
     setAnalysisError('');
+    setShowSuccessNotice(false);
+    setKeepOpen(false);
     onClose();
   };
 
@@ -601,11 +621,52 @@ export const DespesaForm: React.FC<DespesaFormProps> = ({
               />
             </div>
 
+            {/* Checkbox "Manter a tela aberta e manter os dados" (apenas para novos lançamentos) */}
+            {!initialData && (
+              <div className="pt-1">
+                <label className="flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100/70 border border-purple-200 rounded-xl cursor-pointer transition-colors select-none">
+                  <input
+                    type="checkbox"
+                    checked={keepOpen}
+                    onChange={(e) => setKeepOpen(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-800">
+                      Manter a tela aberta e manter os dados
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Facilita múltiplos lançamentos contínuos sem redigitar do zero
+                    </span>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {showSuccessNotice && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm flex items-center gap-2 animate-fade-in shadow-sm">
+                <CheckCircle size={18} className="text-emerald-600 flex-shrink-0" />
+                <span className="font-medium">Transação adicionada com sucesso! Dados mantidos para o próximo lançamento.</span>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition-colors mt-4 shadow-md"
+              disabled={isSaving}
+              className={`w-full text-white font-bold py-3 rounded transition-colors mt-4 shadow-md flex items-center justify-center gap-2 ${
+                isSaving 
+                  ? 'bg-green-700 opacity-90 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
             >
-              {initialData ? 'Atualizar' : 'Salvar'}
+              {isSaving ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Aguarde...</span>
+                </>
+              ) : (
+                initialData ? 'Atualizar' : 'Salvar'
+              )}
             </button>
           </form>
         </div>

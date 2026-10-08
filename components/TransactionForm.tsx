@@ -32,6 +32,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [paymentDate, setPaymentDate] = useState(getCurrentLocalDateString());
   const [installments, setInstallments] = useState(1);
   const [observation, setObservation] = useState('');
+  const [keepOpen, setKeepOpen] = useState(false);
+  const [showSuccessNotice, setShowSuccessNotice] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Image Capture State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -55,6 +58,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       }
       setInstallments(1);
       setObservation(initialData.observation || '');
+      setKeepOpen(false);
+      setShowSuccessNotice(false);
     } else {
       // Reset defaults for new transaction
       setTitle('');
@@ -66,8 +71,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setPaymentDate(getCurrentLocalDateString());
       setInstallments(1);
       setObservation('');
+      setKeepOpen(false);
+      setShowSuccessNotice(false);
     }
+    setIsSaving(false);
   }, [initialData, isOpen, forceType]);
+
+  useEffect(() => {
+    if (showSuccessNotice) {
+      const timer = setTimeout(() => setShowSuccessNotice(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessNotice]);
 
   // Filter categories based on type
   const availableCategories = categories.filter(c => 
@@ -149,11 +164,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         paymentDate: finalPaymentDate,
         observation
       });
+      handleClose();
     } else {
       onAddTransaction(title, Number(amount), type, category, status, date, finalPaymentDate, installments, observation);
+      if (keepOpen) {
+        setShowSuccessNotice(true);
+      } else {
+        handleClose();
+      }
     }
-    
-    handleClose();
   };
 
   const handleClose = () => {
@@ -166,6 +185,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     setInstallments(1);
     setObservation('');
     setIsAnalyzing(false);
+    setShowSuccessNotice(false);
+    setKeepOpen(false);
     onClose();
   };
 
@@ -410,11 +431,51 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               />
             </div>
 
+            {/* Checkbox "Manter a tela aberta e manter os dados" (apenas para novos lançamentos) */}
+            {!initialData && (
+              <div className="pt-1">
+                <label className="flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100/70 border border-purple-200 rounded-xl cursor-pointer transition-colors select-none">
+                  <input
+                    type="checkbox"
+                    checked={keepOpen}
+                    onChange={(e) => setKeepOpen(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-800">
+                      Manter a tela aberta e manter os dados
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Facilita múltiplos lançamentos contínuos sem redigitar do zero
+                    </span>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {showSuccessNotice && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm flex items-center gap-2 animate-fade-in shadow-sm">
+                <span className="font-medium text-emerald-700">✓ Transação adicionada com sucesso! Dados mantidos para o próximo lançamento.</span>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition-colors mt-4 shadow-md"
+              disabled={isSaving}
+              className={`w-full text-white font-bold py-3 rounded transition-colors mt-4 shadow-md flex items-center justify-center gap-2 ${
+                isSaving 
+                  ? 'bg-green-700 opacity-90 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
             >
-              {initialData ? 'Atualizar' : 'Salvar'}
+              {isSaving ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Aguarde...</span>
+                </>
+              ) : (
+                initialData ? 'Atualizar' : 'Salvar'
+              )}
             </button>
           </form>
         </div>
